@@ -52,13 +52,14 @@ if __name__ == '__main__':
                 veg_indices = set([2,13,14]).intersection(set(dict_c.keys()))
                 for x in veg_indices:
                     veg_count += dict_c[x]
+                zero_count += dict_c[0]
                 # get accuracy metric
                 accuracy = (pred == label).sum() * 100 / 256**2
                 print(': accuracy = {:.5f}%'.format(accuracy))
                 net_accuracy.append(accuracy)
         mean_accuracy = np.asarray(net_accuracy).mean()
         print('total accuracy = {:.5f}%'.format(mean_accuracy))
-        print('percentage vegetation = {:.5f}%'.format(veg_count*100.0/(val_data.shape[0]*val_data.shape[1])))
+        print('percentage vegetation = {:.5f}%'.format(veg_count*100.0/(val_data.shape[0]*val_data.shape[1]-zero_count)))
 
 
 
