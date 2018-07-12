@@ -49,7 +49,7 @@ if __name__ == '__main__':
                 unique, counts = np.unique(pred, return_counts=True)
                 dict_c = dict(zip(unique, counts))
                 # so [2, 13, 14] labels indicate vegetation, find which ones occurred here
-                veg_indices = set([2,3,4]).intersection(set(dict_c.keys()))
+                veg_indices = set([2,13,14]).intersection(set(dict_c.keys()))
                 for x in veg_indices:
                     veg_count += dict_c[x]
                 # get accuracy metric
