@@ -52,7 +52,7 @@ if __name__ == '__main__':
                 veg_indices = set([2,13,14]).intersection(set(dict_c.keys()))
                 for x in veg_indices:
                     veg_count += dict_c[x]
-                zero_count += dict_c[0]
+                zero_count += dict_c[0] if 0 in dict_c.keys() else 0
                 # get accuracy metric
                 accuracy = (pred == label).sum() * 100 / 256**2
                 print(': accuracy = {:.5f}%'.format(accuracy))
