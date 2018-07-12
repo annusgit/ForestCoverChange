@@ -18,8 +18,8 @@ if __name__ == '__main__':
     batch_size, channels, patch = 1, 6, 256
     if True:
         net = UNet(model_dir_path=os.path.join(dir_path, 'Unet_pretrained_model.pkl'), input_channels=channels).cuda()
-        val_data = np.load('rit18_data/val_data.npy', mmap_mode='r')
-        val_label = np.load('rit18_data/val_labels.npy', mmap_mode='r')
+        val_data = np.load(os.path.join(dir_path, 'rit18_data/val_data.npy'), mmap_mode='r')
+        val_label = np.load(os.path.join(dir_path, 'rit18_data/val_labels.npy'), mmap_mode='r')
         val_data = val_data.transpose((1, 2, 0))
         print('val_data shape = {}, val_label shape = {}'.format(val_data.shape, val_label.shape))
         # pad the data to be divisible by patch size
@@ -29,7 +29,7 @@ if __name__ == '__main__':
         val_label = np.pad(val_label, ((0, patch - val_label.shape[0] % patch),
                                        (0, patch - val_label.shape[1] % patch)), 'constant')
         net_accuracy = []
-        mean = np.load('mean.npy')
+        mean = np.load(os.path.join(dir_path, 'mean.npy'))
         zero_count = 0
         veg_count = 0
         print('val_data shape = {}, val_label shape = {}'.format(val_data.shape, val_label.shape))
@@ -45,23 +45,24 @@ if __name__ == '__main__':
                 test_x = torch.FloatTensor(image.transpose(2,1,0)).unsqueeze(0).cuda()
                 out_x, pred = net(test_x)
                 pred = (pred.squeeze(0).cpu().numpy().transpose(1,0)+1) * seg_map
-                accuracy = (pred == label).sum() * 100 /(256**2)
-                print(': accuracy = {:.5f}%'.format(accuracy))
-                net_accuracy.append(accuracy)
                 #get vegetation count
                 unique, counts = np.unique(pred, return_counts=True)
                 dict_c = dict(zip(unique, counts))
-                #print(dict_c)
-                if 0 in dict_c.keys():
-                    zero_count += dict_c[0]
-                if 2 in dict_c.keys():
-                    veg_count += dict_c[2]
-                if 13 in dict_c.keys():
-                    veg_count += dict_c[13]
-                if 14 in dict_c.keys():
-                    veg_count += dict_c[14]
+                # so [2, 13, 14] labels indicate vegetation, find which ones occurred here
+                veg_indices = set([2,3,4]).intersection(set(dict_c.keys()))
+                for x in veg_indices:
+                    veg_count += dict_c[x]
+                # get accuracy metric
+                accuracy = (pred == label).sum() * 100 / 256**2
+                print(': accuracy = {:.5f}%'.format(accuracy))
+                net_accuracy.append(accuracy)
+                print()
 
         mean_accuracy = np.asarray(net_accuracy).mean()
         print('total accuracy = {:.5f}%'.format(mean_accuracy))
-        print('percentage vegetation = {:.5f}%'.format(veg_count*100.0/(val_data.shape[0]*val_data.shape[1]-zero_count)))
+        print('percentage vegetation = {:.5f}%'.format(veg_count*100.0/(val_data.shape[0]*val_data.shape[1])))
+
+
+
+
 
