@@ -1,10 +1,47 @@
 
 
+"""
+    A few helper functions
+"""
+
 from __future__ import print_function
 from __future__ import division
 import os
 import numpy as np
 import PIL.Image as Image
+import scipy.io as sio
+
+
+def load_weights_from_matfiles(dir_path):
+    """
+        Uses scipy.io to read .mat files and loads weights into torch model
+    :param path_to_file: path to mat file to read
+    :return: None, but saves the model dictionary!
+    """
+    import pickle
+    model_file = 'Unet_pretrained_model.pkl'
+    if os.path.exists(os.path.join(dir_path, model_file)):
+        print('loading saved model dictionary...')
+        with open(os.path.join(dir_path, model_file), 'rb') as handle:
+            model_dict = pickle.load(handle)
+        for i, layer in enumerate(model_dict.keys(), 1):
+            print('{}.'.format(i), layer, model_dict[layer].shape)
+    else:
+        model_dict = {}
+        for file in [x for x in os.listdir(dir_path) if x.endswith('.mat')]:
+            layer, _ = os.path.splitext(file)
+            try:
+                read = sio.loadmat(os.path.join(dir_path, file))
+            except:
+                print(layer)
+            print(layer, read[layer].shape)
+            model_dict[layer] = read[layer]
+        pass
+        os.chdir('/home/annus/Desktop/trainedUnet/weightsforpython/')
+        with open(model_file, 'wb') as handle:
+            pickle.dump(model_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        print('Saved model!!!')
+
 
 def show_image():
 
