@@ -20,7 +20,7 @@ if __name__ == '__main__':
     val_data = np.load(os.path.join(dir_path, 'rit18_data/val_data.npy'), mmap_mode='r')
     val_label = np.load(os.path.join(dir_path, 'rit18_data/val_labels.npy'), mmap_mode='r')
     val_data = val_data.transpose((1, 2, 0))
-    print('val_data shape = {}, val_label shape = {}'.format(val_data.shape, val_label.shape))
+    print('before padding: val_data shape = {}, val_label shape = {}'.format(val_data.shape, val_label.shape))
     # pad the data to be divisible by patch size
     val_data = np.pad(val_data, ((0, patch - val_data.shape[0] % patch),
                                  (0, patch - val_data.shape[1] % patch),
@@ -28,14 +28,15 @@ if __name__ == '__main__':
     val_label = np.pad(val_label, ((0, patch - val_label.shape[0] % patch),
                                    (0, patch - val_label.shape[1] % patch)), 'constant')
     # divide it into patches
-    print('val_data shape = {}, val_label shape = {}'.format(val_data.shape, val_label.shape))
-    # val_data = np.reshape(val_data, newshape=(-1, 256, 256, 6))
+    print('after padding: val_data shape = {}, val_label shape = {}'.format(val_data.shape, val_label.shape))
+    val_data = np.reshape(val_data, newshape=(-1, 256, 256, 7))
+    val_label = np.reshape(val_label, newshape=(-1, 256, 256))
+    print('after reshaping: val_data shape = {}, val_label shape = {}'.format(val_data.shape, val_label.shape))
     net_accuracy = []
     mean = np.load(os.path.join(dir_path, 'mean.npy'))
     zero_count = 0
     veg_count = 0
-    print('val_data shape = {}, val_label shape = {}'.format(val_data.shape, val_label.shape))
-    if False:
+    if True:
         for i in range(val_data.shape[0]//patch):
             for j in range(val_data.shape[1]//patch):
                 image = val_data[patch*i:patch*i+patch, j*patch:j*patch+patch, :6]
