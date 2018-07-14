@@ -35,7 +35,7 @@ if __name__ == '__main__':
     zero_count = 0
     veg_count = 0
     print('val_data shape = {}, val_label shape = {}'.format(val_data.shape, val_label.shape))
-    if True:
+    if False:
         for i in range(val_data.shape[0]//patch):
             for j in range(val_data.shape[1]//patch):
                 image = val_data[patch*i:patch*i+patch, j*patch:j*patch+patch, :6]
