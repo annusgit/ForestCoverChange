@@ -28,6 +28,7 @@ if __name__ == '__main__':
     val_label = np.pad(val_label, ((0, patch - val_label.shape[0] % patch),
                                    (0, patch - val_label.shape[1] % patch)), 'constant')
     # divide it into patches
+    print('val_data shape = {}, val_label shape = {}'.format(val_data.shape, val_label.shape))
     # val_data = np.reshape(val_data, newshape=(-1, 256, 256, 6))
     net_accuracy = []
     mean = np.load(os.path.join(dir_path, 'mean.npy'))
