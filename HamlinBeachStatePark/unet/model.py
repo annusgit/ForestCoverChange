@@ -8,11 +8,13 @@ from __future__ import print_function
 from __future__ import division
 import torch
 import torch.nn as nn
-from torch.optim import Adam
+from torch.optim import *
 import os
 import numpy as np
 import pickle as pkl
+from torch.nn.utils import clip_grad_norm_
 from dataset import get_dataloaders
+from tensorboardX import SummaryWriter
 
 
 class UNet_down_block(nn.Module):
@@ -161,13 +163,14 @@ class UNet(nn.Module):
         return x, pred
 
 
-def train_net(model, images, labels, pre_model, save_dir, sum_dir, batch_size, lr, log_after, cuda):
-    print(model)
+def train_net(model, images, labels, pre_model, save_dir, sum_dir,
+              batch_size, lr, log_after, cuda, device):
+    print(model); size = 64
     if cuda:
         print('GPU')
-        model.cuda()
+        model.cuda(device=device)
     # define loss and optimizer
-    optimizer = Adam(model.parameters(), lr=lr)
+    optimizer = RMSprop(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()
     train_loader, val_dataloader, test_loader = get_dataloaders(images_path=images,
                                                                 labels_path=labels,
@@ -176,41 +179,67 @@ def train_net(model, images, labels, pre_model, save_dir, sum_dir, batch_size, l
         os.mkdir(save_dir)
     if not os.path.exists(sum_dir):
         os.mkdir(sum_dir)
-
+    writer = SummaryWriter()
     if True:
         i = 0
+        m_loss, m_accuracy = [], []
+        num_classes = 7
         if pre_model:
             # self.load_state_dict(torch.load(pre_model)['model'])
             model.load_state_dict(torch.load(pre_model))
             print('log: resumed model {} successfully!'.format(pre_model))
+            model_number = int(pre_model.split('/')[1].split('-')[1].split('.')[0])
         else:
             print('log: starting anew...')
         while True:
-            ##########################
-            model.train()
-            ##########################
             i += 1
             net_loss = []
             net_accuracy = []
-            m_loss, m_accuracy = [], []
-            save_path = os.path.join(save_dir, 'model-{}.pt'.format(i))
+            if not pre_model:
+                save_path = os.path.join(save_dir, 'model-{}.pt'.format(i))
+            else:
+                save_path = os.path.join(save_dir, 'model-{}.pt'.format(i+model_number-1))
             if i > 1 and not os.path.exists(save_path):
                 torch.save(model.state_dict(), save_path)
                 print('log: saved {}'.format(save_path))
                 # also save the summary
-                with open(os.path.join(sum_dir, 'summary_{}.pkl'.format(i)), 'wb') as summary:
+                if not pre_model:
+                    sum_file = os.path.join(sum_dir, 'summary_{}.pkl'.format(i))
+                else:
+                    sum_file = os.path.join(sum_dir, 'summary_{}.pkl'.format(i+model_number-1))
+                with open(sum_file, 'wb') as summary:
+                    print('saving {}'.format(sum_file))
                     sum = {'acc': m_accuracy, 'loss': m_loss}
                     pkl.dump(sum, summary, protocol=pkl.HIGHEST_PROTOCOL)
             for idx, data in enumerate(train_loader):
+                ##########################
+                model.train()
+                ##########################
                 test_x, label = data['input'], data['label']
-                test_x = test_x.cuda() if cuda else test_x
+                test_x = test_x.cuda(device=device) if cuda else test_x
                 # forward
                 out_x, pred = model.forward(test_x)
-                # print(out_x.size(), pred.size(), label.size())
-                # print(np.unique(label.cpu().numpy()), print(np.unique(pred.cpu().numpy())))
                 loss = criterion(out_x.cpu(), label)
+                pred = pred.cpu()
                 # get accuracy metric
-                accuracy = (pred.cpu() == label).sum()
+                accuracy = (pred == label).sum()
+                writer.add_scalar(tag='over_all accuracy',
+                                  scalar_value=accuracy*100/(test_x.size(0)*size**2),
+                                  global_step=i)
+                writer.add_scalar(tag='loss', scalar_value=loss.item(), global_step=i)
+
+                # per class accuracies
+                avg = []
+                for j in range(num_classes):
+                    class_pred = (pred == j)
+                    class_label = (label == j)
+                    class_accuracy = (class_pred == class_label).sum()
+                    class_accuracy = class_accuracy * 100 / (test_x.size(0) * size ** 2)
+                    avg.append(class_accuracy)
+                    writer.add_scalar(tag='class_{} accuracy'.format(j), scalar_value=class_accuracy, global_step=i)
+                classes_avg_acc = np.asarray(avg).mean()
+                writer.add_scalar(tag='classes avg. accuracy', scalar_value=classes_avg_acc, global_step=i)
+
                 if idx % log_after == 0 and idx > 0:
                     print('{}. ({}/{}) image size = {}, loss = {}: accuracy = {}/{}'.format(i,
                                                                                             idx,
@@ -218,13 +247,15 @@ def train_net(model, images, labels, pre_model, save_dir, sum_dir, batch_size, l
                                                                                             out_x.size(),
                                                                                             loss.item(),
                                                                                             accuracy,
-                                                                                            batch_size * 64**2))
+                                                                                            test_x.size(0)*size**2))
                 #################################
                 # three steps for backprop
                 model.zero_grad()
                 loss.backward()
+                # perform gradient clipping between loss backward and optimizer step
+                clip_grad_norm_(model.parameters(), 0.05)
                 optimizer.step()
-                accuracy = accuracy * 100 / (batch_size*64**2)
+                accuracy = accuracy * 100 / (test_x.size(0)*size**2)
                 net_accuracy.append(accuracy)
                 net_loss.append(loss.item())
                 #################################
@@ -239,29 +270,176 @@ def train_net(model, images, labels, pre_model, save_dir, sum_dir, batch_size, l
             # validate model
             if i % 10 == 0:
                 eval_net(model=model, criterion=criterion, val_loader=val_dataloader,
-                         denominator=batch_size * 64**2, cuda=cuda)
+                         denominator=batch_size * size**2, cuda=cuda, device=device,
+                         writer=writer, num_classes=num_classes, batch_size=batch_size, step=i)
+    writer.export_scalars_to_json("./all_scalars.json")
+    writer.close()
+
     pass
 
 
-def eval_net(model, criterion, val_loader, denominator, cuda):
+def eval_net(**kwargs):
+    cuda = kwargs['cuda']
+    device = kwargs['device']
+    model = kwargs['model']
+    writer = kwargs['writer']
+    num_classes = kwargs['num_classes']
+    batch_size = kwargs['batch_size']
+    step = kwargs['step']
     model.eval()
-    net_accuracy, net_loss = [], []
-    for idx, data in enumerate(val_loader):
-        test_x, label = data['input'], data['label']
-        if cuda:
-            test_x = test_x.cuda()
-        # forward
-        out_x, pred = model.forward(test_x)
-        loss = criterion(out_x.cpu(), label)
-        # get accuracy metric
-        accuracy = (pred.cpu() == label).sum()
-        accuracy = accuracy * 100 / denominator
-        net_accuracy.append(accuracy)
-        net_loss.append(loss.item())
-        #################################
-    mean_accuracy = np.asarray(net_accuracy).mean()
-    mean_loss = np.asarray(net_loss).mean()
-    print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
-    print('log: validation:: total loss = {:.5f}, total accuracy = {:.5f}%'.format(mean_loss, mean_accuracy))
-    print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+
+    if cuda:
+        model.cuda(device=device)
+    if 'writer' in kwargs.keys():
+        denominator = kwargs['denominator']
+        val_loader = kwargs['val_loader']
+        model = kwargs['model']
+        criterion = kwargs['criterion']
+        net_accuracy, net_loss = [], []
+        for idx, data in enumerate(val_loader):
+            test_x, label = data['input'], data['label']
+            test_x = test_x.cuda() if cuda else test_x
+            # forward
+            out_x, pred = model.forward(test_x)
+            pred = pred.cpu()
+            loss = criterion(out_x.cpu(), label)
+            # get accuracy metric
+            accuracy = (pred == label).sum()
+            accuracy = accuracy * 100 / (test_x.size(0)*64**2)
+            net_accuracy.append(accuracy)
+            net_loss.append(loss.item())
+
+            # per class accuracies
+            # avg = []
+            # for j in range(num_classes):
+            #     class_pred = (pred == j)
+            #     class_label = (label == j)
+            #     class_accuracy = (class_pred == class_label).sum()
+            #     class_accuracy = class_accuracy * 100 / (batch_size * 32 ** 2)
+            #     avg.append(class_accuracy)
+            #     writer.add_scalar(tag='class_{} accuracy'.format(j), scalar_value=class_accuracy, global_step=step)
+            # classes_avg_acc = np.asarray(avg).mean()
+            # writer.add_scalar(tag='classes avg. accuracy', scalar_value=classes_avg_acc, global_step=step)
+
+            #################################
+        mean_accuracy = np.asarray(net_accuracy).mean()
+        mean_loss = np.asarray(net_loss).mean()
+        writer.add_scalar(tag='eval accuracy', scalar_value=mean_accuracy, global_step=step)
+        writer.add_scalar(tag='eval loss', scalar_value=mean_loss, global_step=step)
+        print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+        print('log: validation:: total loss = {:.5f}, total accuracy = {:.5f}%'.format(mean_loss, mean_accuracy))
+        print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+
+    else:
+        # model, images, labels, pre_model, save_dir, sum_dir, batch_size, lr, log_after, cuda
+        pre_model = kwargs['pre_model']
+        images = kwargs['images']
+        labels = kwargs['labels']
+        batch_size = kwargs['batch_size']
+        criterion = nn.CrossEntropyLoss()
+
+        model.load_state_dict(torch.load(pre_model))
+        print('log: resumed model {} successfully!'.format(pre_model))
+        _, _, test_loader = get_dataloaders(images_path=images, labels_path=labels, batch_size=batch_size)
+
+        net_accuracy, net_loss = [], []
+        net_class_accuracy_0, net_class_accuracy_1, net_class_accuracy_2, \
+        net_class_accuracy_3, net_class_accuracy_4, net_class_accuracy_5,\
+        net_class_accuracy_6  = [], [], [], [], [], [], []
+        for idx, data in enumerate(test_loader):
+            test_x, label = data['input'], data['label']
+            # print(test_x.shape)
+            if cuda:
+                test_x = test_x.cuda()
+            # forward
+            out_x, pred = model.forward(test_x)
+            pred = pred.cpu()
+            loss = criterion(out_x.cpu(), label)
+
+            # get accuracy metric
+            accuracy = (pred == label).sum()
+            accuracy = accuracy * 100 / (batch_size*512**2)
+            net_accuracy.append(accuracy)
+            net_loss.append(loss.item())
+            if idx % 10 == 0:
+                print('log: on {}'.format(idx))
+
+            # get per-class metrics
+            class_pred_0 = (pred == 0)
+            class_label_0 = (label == 0)
+            class_accuracy_0 = (class_pred_0 == class_label_0).sum()
+            class_accuracy_0 = class_accuracy_0 * 100 / (batch_size * 512 ** 2)
+            net_class_accuracy_0.append(class_accuracy_0)
+
+            class_pred_1 = (pred == 1)
+            class_label_1 = (label == 1)
+            class_accuracy_1 = (class_pred_1 == class_label_1).sum()
+            class_accuracy_1 = class_accuracy_1 * 100 / (batch_size * 512 ** 2)
+            net_class_accuracy_1.append(class_accuracy_1)
+
+            class_pred_2 = (pred == 2)
+            class_label_2 = (label == 2)
+            class_accuracy_2 = (class_pred_2 == class_label_2).sum()
+            class_accuracy_2 = class_accuracy_2 * 100 / (batch_size * 512 ** 2)
+            net_class_accuracy_2.append(class_accuracy_2)
+
+            class_pred_3 = (pred == 3)
+            class_label_3 = (label == 3)
+            class_accuracy_3 = (class_pred_3 == class_label_3).sum()
+            class_accuracy_3 = class_accuracy_3 * 100 / (batch_size * 512 ** 2)
+            net_class_accuracy_3.append(class_accuracy_3)
+
+            class_pred_4 = (pred == 4)
+            class_label_4 = (label == 4)
+            class_accuracy_4 = (class_pred_4 == class_label_4).sum()
+            class_accuracy_4 = class_accuracy_4 * 100 / (batch_size * 512 ** 2)
+            net_class_accuracy_4.append(class_accuracy_4)
+
+            class_pred_5 = (pred == 5)
+            class_label_5 = (label == 5)
+            class_accuracy_5 = (class_pred_5 == class_label_5).sum()
+            class_accuracy_5 = class_accuracy_5 * 100 / (batch_size * 512 ** 2)
+            net_class_accuracy_5.append(class_accuracy_5)
+
+            class_pred_6 = (pred == 6)
+            class_label_6 = (label == 6)
+            class_accuracy_6 = (class_pred_6 == class_label_6).sum()
+            class_accuracy_6 = class_accuracy_6 * 100 / (batch_size * 612 ** 2)
+            net_class_accuracy_6.append(class_accuracy_6)
+
+            #################################
+        mean_accuracy = np.asarray(net_accuracy).mean()
+        mean_loss = np.asarray(net_loss).mean()
+
+        class_0_mean_accuracy = np.asarray(net_class_accuracy_0).mean()
+        class_1_mean_accuracy = np.asarray(net_class_accuracy_1).mean()
+        class_2_mean_accuracy = np.asarray(net_class_accuracy_2).mean()
+        class_3_mean_accuracy = np.asarray(net_class_accuracy_3).mean()
+        class_4_mean_accuracy = np.asarray(net_class_accuracy_4).mean()
+        class_5_mean_accuracy = np.asarray(net_class_accuracy_5).mean()
+        class_6_mean_accuracy = np.asarray(net_class_accuracy_6).mean()
+
+        print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+        print('log: test:: total loss = {:.5f}, total accuracy = {:.5f}%'.format(mean_loss, mean_accuracy))
+        print('log: class 0:: total accuracy = {:.5f}%'.format(class_0_mean_accuracy))
+        print('log: class 1:: total accuracy = {:.5f}%'.format(class_1_mean_accuracy))
+        print('log: class 2:: total accuracy = {:.5f}%'.format(class_2_mean_accuracy))
+        print('log: class 3:: total accuracy = {:.5f}%'.format(class_3_mean_accuracy))
+        print('log: class 4:: total accuracy = {:.5f}%'.format(class_4_mean_accuracy))
+        print('log: class 5:: total accuracy = {:.5f}%'.format(class_5_mean_accuracy))
+        print('log: class 6:: total accuracy = {:.5f}%'.format(class_6_mean_accuracy))
+        print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+
+        pass
     pass
+
+
+
+
+
+
+
+
+
+
+

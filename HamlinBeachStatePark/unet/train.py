@@ -23,6 +23,7 @@ if __name__ == '__main__':
     parser.add_argument('-l', '--lr', dest='lr', default=1e-3)
     parser.add_argument('-log', '--log_after', dest='log_after', default=10)
     parser.add_argument('-c', '--cuda', dest='cuda', default=0)
+    parser.add_argument('--device', dest='device', default=0)
     args = parser.parse_args()
 
     function = args.function
@@ -36,12 +37,14 @@ if __name__ == '__main__':
     lr = float(args.lr)
     log_after = int(args.log_after)
     cuda = int(args.cuda)
+    device = int(args.device)
 
     function_to_call = eval(function)
     net = UNet(model_dir_path=pickle, input_channels=3)
 
-    function_to_call(model=net, images=images, labels=labels, pre_model=pre_model, save_dir=save_dir,
-                     sum_dir=sum_dir, batch_size=batch_size, lr=lr, log_after=log_after, cuda=cuda)
+    function_to_call(model=net, images=images, labels=labels, pre_model=pre_model,
+                     save_dir=save_dir, sum_dir=sum_dir, batch_size=batch_size,
+                     lr=lr, log_after=log_after, cuda=cuda, device=device)
 
 
 
