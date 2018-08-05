@@ -45,7 +45,7 @@ def crop_and_rotate(**kwargs):
     :return: image and labeled processed and augmented if needed
     """
     # first crop and downsampling here
-    crop_size = 400
+    crop_size = 512
     x = random.randint(0, croped_image.shape[0] - crop_size)
     y = random.randint(0, croped_image.shape[1] - crop_size)
     croped_image = croped_image[x:x + crop_size, y:y + crop_size, :]
@@ -56,9 +56,9 @@ def crop_and_rotate(**kwargs):
     croped_label = np.expand_dims(fix(target_image=croped_label), axis=2)
     #################################################################333333
 
-    for l in range(2):
-        croped_image = block_reduce(image=croped_image, block_size=(2,2,1), func=np.max)
-        croped_label = block_reduce(image=croped_label, block_size=(2,2,1), func=np.max)
+    # for l in range(2):
+    #     croped_image = block_reduce(image=croped_image, block_size=(2,2,1), func=np.max)
+    #     croped_label = block_reduce(image=croped_label, block_size=(2,2,1), func=np.max)
 
     # choice on crop
     choice = random.randint(0, 2)
@@ -114,8 +114,8 @@ def convert_labels(label_im):
     # 29(0): background/clutter, 76(1): buildings, 150(2): trees,
     # 179(3): cars, 226(4): low_vegetation, 255(5): impervious_surfaces
     # conversions = {29:0, 76:1, 150:2, 179:3, 226:4, 255:5}
-    # we are removing the cars class because of excessive downsampling used in the dataset
-    conversions = {29:0, 76:1, 150:2, 179:5, 226:4, 255:5}
+    # we are removing the cars class because of excessive downsampling used in the dataset, but not now...
+    conversions = {29:0, 76:1, 150:2, 179:3, 226:4, 255:5}
     gray = cv2.cvtColor(label_im, cv2.COLOR_RGB2GRAY)
     for k in conversions.keys():
         gray[gray == k] = conversions[k]
@@ -150,9 +150,9 @@ def get_dataloaders(images_path, labels_path, batch_size):
         def __getitem__(self, k):
             example_path, label_path = self.example_dictionary[k]
             example_image = cv2.imread(example_path) # because pl imposed an alpha channel on it...
-            example_image = np.dstack((example_image[:,:,2], example_image[:,:,1], example_image[:,:,0]))
+            # example_image = np.dstack((example_image[:,:,2], example_image[:,:,1], example_image[:,:,0]))
             target_image = cv2.imread(label_path)
-
+            print(target_image.shape)
             # convert and fix labels
             # target_image = convert_labels(label_im=target_image)
             # target_image = np.expand_dims(fix(target_image=target_image), axis=2)
@@ -225,13 +225,13 @@ def main():
     # train_dataloader, val_dataloader, test_dataloader = get_dataloaders(images_path='/home/annus/_/'
     #                                                                                 'ISPRS_BENCHMARK_DATASETS/'
     #                                                                                 'Vaihingen/datainhere/'
-    #                                                                                 'jpg_images/',
+    #                                                                                 'croped_jpg_images/',
     #                                                                     labels_path= '/home/annus/_/'
     #                                                                                 'ISPRS_BENCHMARK_DATASETS/'
     #                                                                                 'Vaihingen/datainhere/'
-    #                                                                                 'jpg_labels/',
+    #                                                                                 'croped_jpg_labels/',
     #                                                                     batch_size=1)
-    #
+    # #
     train_dataloader, val_dataloader, test_dataloader = get_dataloaders(images_path='../../jpg_images/',
                                                                         labels_path='../../jpg_labels/',
                                                                         batch_size=16)
@@ -240,7 +240,7 @@ def main():
     count = 0
     while True:
         count += 1
-        for idx, data in enumerate(val_dataloader):
+        for idx, data in enumerate(train_dataloader):
             examples, labels = data['input'], data['label']
             print('{} -> on batch {}/{}, {}'.format(count, idx+1, len(train_dataloader), examples.size()))
             if True:

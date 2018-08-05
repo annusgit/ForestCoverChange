@@ -9,12 +9,93 @@ from __future__ import division
 import torch
 import torch.nn as nn
 from torch.optim import *
+from torch.nn.utils import clip_grad_norm_
+from dataset import get_dataloaders
 import os
 import numpy as np
 import pickle as pkl
-from torch.nn.utils import clip_grad_norm_
-from dataset import get_dataloaders
+import PIL.Image as Image
 from tensorboardX import SummaryWriter
+import itertools
+import matplotlib as mpl
+# mpl.use('Agg')
+import matplotlib.pyplot as plt
+plt.switch_backend('agg')
+from sklearn.metrics import confusion_matrix
+from torchnet.meter import ConfusionMeter as CM
+import seaborn as sn
+import pandas as pd
+
+
+class_names = ['background/clutter', 'buildings', 'trees', 'cars', 'low_vegetation', 'impervious_surfaces', 'noise']
+# class_names = ['background/clutter', 'buildings', 'trees', 'low_vegetation', 'impervious_surfaces']
+
+# the following methods are used to generate the confusion matrix
+###########################################################################################################33
+def fig2data ( fig ):
+    """
+    @brief Convert a Matplotlib figure to a 4D numpy array with RGBA channels and return it
+    @param fig a matplotlib figure
+    @return a numpy 3D array of RGBA values
+    """
+    # draw the renderer
+    fig.canvas.draw ( )
+
+    # Get the RGBA buffer from the figure
+    w,h = fig.canvas.get_width_height()
+    buf = np.fromstring( fig.canvas.tostring_argb(), dtype=np.uint8 )
+    buf.shape = ( w, h,4 )
+
+    # canvas.tostring_argb give pixmap in ARGB mode. Roll the ALPHA channel to have it in RGBA mode
+    buf = np.roll ( buf, 3, axis = 2 )
+    return buf
+
+def fig2img (fig):
+    """
+    @brief Convert a Matplotlib figure to a PIL Image in RGBA format and return it
+    @param fig a matplotlib figure
+    @return a Python Imaging Library ( PIL ) image
+    """
+    # put the figure pixmap into a numpy array
+    buf = fig2data (fig)
+    w, h, d = buf.shape
+    return Image.frombytes("RGBA", (w ,h), buf.tostring())
+
+
+def plot_confusion_matrix(cm, classes,
+                          normalize=False,
+                          title='Confusion matrix',
+                          cmap=plt.cm.Blues):
+    """
+            This function prints and plots the confusion matrix.
+            Normalization can be applied by setting `normalize=True`.
+    """
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        print("Normalized confusion matrix")
+    else:
+        print('Confusion matrix, without normalization')
+
+    # print(cm)
+
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title(title)
+    plt.colorbar()
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=45)
+    plt.yticks(tick_marks, classes)
+
+    fmt = '.2f' if normalize else 'd'
+    thresh = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        plt.text(j, i, format(cm[i, j], fmt),
+                 horizontalalignment="center",
+                 color="white" if cm[i, j] > thresh else "black")
+
+    plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+###########################################################################################################33
 
 
 class UNet_down_block(nn.Module):
@@ -165,7 +246,7 @@ class UNet(nn.Module):
 
 def train_net(model, images, labels, pre_model, save_dir, sum_dir,
               batch_size, lr, log_after, cuda, device):
-    print(model); size = 64
+    print(model)
     if cuda:
         print('GPU')
         model.cuda(device=device)
@@ -201,32 +282,43 @@ def train_net(model, images, labels, pre_model, save_dir, sum_dir,
                 save_path = os.path.join(save_dir, 'model-{}.pt'.format(i+model_number-1))
             if i > 1 and not os.path.exists(save_path):
                 torch.save(model.state_dict(), save_path)
+                # remember to save only five previous models, so
+                del_this = os.path.join(save_dir, 'model-{}.pt'.format(i+model_number-6))
+                if os.path.exists(del_this):
+                    os.remove(del_this)
+                    print('log: removed {}'.format(del_this))
                 print('log: saved {}'.format(save_path))
-                # also save the summary
-                if not pre_model:
-                    sum_file = os.path.join(sum_dir, 'summary_{}.pkl'.format(i))
-                else:
-                    sum_file = os.path.join(sum_dir, 'summary_{}.pkl'.format(i+model_number-1))
-                with open(sum_file, 'wb') as summary:
-                    print('saving {}'.format(sum_file))
-                    sum = {'acc': m_accuracy, 'loss': m_loss}
-                    pkl.dump(sum, summary, protocol=pkl.HIGHEST_PROTOCOL)
+            list_of_pred = []
+            list_of_labels = []
             for idx, data in enumerate(train_loader):
                 ##########################
                 model.train()
                 ##########################
                 test_x, label = data['input'], data['label']
+                image0 = test_x[0]
                 test_x = test_x.cuda(device=device) if cuda else test_x
+                size = test_x.size(-1)
                 # forward
                 out_x, pred = model.forward(test_x)
-                loss = criterion(out_x.cpu(), label)
-                pred = pred.cpu()
+                pred = pred.cpu(); out_x = out_x.cpu()
+                image1 = pred[0]
+                image2 = label[0]
+                if idx % (len(train_loader)/2) == 0:
+                    writer.add_image('input', image0, i)
+                    writer.add_image('pred', image1, i)
+                    writer.add_image('label', image2, i)
+
+                loss = criterion(out_x, label)
                 # get accuracy metric
                 accuracy = (pred == label).sum()
+                # also convert into np arrays to be used for confusion matrix
+                pred_np = pred.numpy(); list_of_pred.append(pred_np)
+                label_np = label.numpy(); list_of_labels.append(label_np)
+
+                writer.add_scalar(tag='loss', scalar_value=loss.item(), global_step=i)
                 writer.add_scalar(tag='over_all accuracy',
                                   scalar_value=accuracy*100/(test_x.size(0)*size**2),
                                   global_step=i)
-                writer.add_scalar(tag='loss', scalar_value=loss.item(), global_step=i)
 
                 # per class accuracies
                 avg = []
@@ -267,6 +359,24 @@ def train_net(model, images, labels, pre_model, save_dir, sum_dir,
             print('epoch {} -> total loss = {:.5f}, total accuracy = {:.5f}%'.format(i, mean_loss, mean_accuracy))
             print('####################################')
 
+            # # one epoch complete, get new confusion matrix!
+            # cm_preds = np.vstack(list_of_pred)
+            # cm_preds = cm_preds.reshape(-1)
+            # cm_labels = np.vstack(list_of_labels)
+            # cm_labels = cm_labels.reshape(-1)
+            # cnf_matrix = confusion_matrix(cm_labels, cm_preds)
+            # fig1 = plt.figure()
+            # plot_confusion_matrix(cnf_matrix, classes=class_names,
+            #                       title='Confusion matrix, without normalization')
+            # # Plot normalized confusion matrix
+            # fig2 = plt.figure()
+            # plot_confusion_matrix(cnf_matrix, classes=class_names, normalize=True,
+            #                       title='Normalized confusion matrix')
+            # get1 = np.asarray(fig2img(fig1))
+            # get2 = np.asarray(fig2img(fig2))
+            # # print(get1.size)
+
+
             # validate model
             if i % 10 == 0:
                 eval_net(model=model, criterion=criterion, val_loader=val_dataloader,
@@ -282,15 +392,15 @@ def eval_net(**kwargs):
     cuda = kwargs['cuda']
     device = kwargs['device']
     model = kwargs['model']
-    writer = kwargs['writer']
-    num_classes = kwargs['num_classes']
-    batch_size = kwargs['batch_size']
-    step = kwargs['step']
     model.eval()
 
     if cuda:
         model.cuda(device=device)
     if 'writer' in kwargs.keys():
+        num_classes = kwargs['num_classes']
+        batch_size = kwargs['batch_size']
+        writer = kwargs['writer']
+        step = kwargs['step']
         denominator = kwargs['denominator']
         val_loader = kwargs['val_loader']
         model = kwargs['model']
@@ -337,16 +447,19 @@ def eval_net(**kwargs):
         labels = kwargs['labels']
         batch_size = kwargs['batch_size']
         criterion = nn.CrossEntropyLoss()
+        cm = CM(k=7, normalized=True)
+        preds, labs = torch.Tensor().long(), torch.Tensor().long()
 
         model.load_state_dict(torch.load(pre_model))
         print('log: resumed model {} successfully!'.format(pre_model))
         _, _, test_loader = get_dataloaders(images_path=images, labels_path=labels, batch_size=batch_size)
-
         net_accuracy, net_loss = [], []
         net_class_accuracy_0, net_class_accuracy_1, net_class_accuracy_2, \
         net_class_accuracy_3, net_class_accuracy_4, net_class_accuracy_5,\
         net_class_accuracy_6  = [], [], [], [], [], [], []
         for idx, data in enumerate(test_loader):
+            if idx == 400:
+                break
             test_x, label = data['input'], data['label']
             # print(test_x.shape)
             if cuda:
@@ -358,55 +471,58 @@ def eval_net(**kwargs):
 
             # get accuracy metric
             accuracy = (pred == label).sum()
-            accuracy = accuracy * 100 / (batch_size*512**2)
+            accuracy = accuracy * 100 / (pred.view(-1).size(0))
             net_accuracy.append(accuracy)
             net_loss.append(loss.item())
             if idx % 10 == 0:
                 print('log: on {}'.format(idx))
 
+            # print(pred.view(-1).size(0))
             # get per-class metrics
             class_pred_0 = (pred == 0)
             class_label_0 = (label == 0)
             class_accuracy_0 = (class_pred_0 == class_label_0).sum()
-            class_accuracy_0 = class_accuracy_0 * 100 / (batch_size * 512 ** 2)
+            class_accuracy_0 = class_accuracy_0 * 100 / (pred.view(-1).size(0))
             net_class_accuracy_0.append(class_accuracy_0)
 
             class_pred_1 = (pred == 1)
             class_label_1 = (label == 1)
             class_accuracy_1 = (class_pred_1 == class_label_1).sum()
-            class_accuracy_1 = class_accuracy_1 * 100 / (batch_size * 512 ** 2)
+            class_accuracy_1 = class_accuracy_1 * 100 / (pred.view(-1).size(0))
             net_class_accuracy_1.append(class_accuracy_1)
 
             class_pred_2 = (pred == 2)
             class_label_2 = (label == 2)
             class_accuracy_2 = (class_pred_2 == class_label_2).sum()
-            class_accuracy_2 = class_accuracy_2 * 100 / (batch_size * 512 ** 2)
+            class_accuracy_2 = class_accuracy_2 * 100 / (pred.view(-1).size(0))
             net_class_accuracy_2.append(class_accuracy_2)
 
             class_pred_3 = (pred == 3)
             class_label_3 = (label == 3)
             class_accuracy_3 = (class_pred_3 == class_label_3).sum()
-            class_accuracy_3 = class_accuracy_3 * 100 / (batch_size * 512 ** 2)
+            class_accuracy_3 = class_accuracy_3 * 100 / (pred.view(-1).size(0))
             net_class_accuracy_3.append(class_accuracy_3)
 
             class_pred_4 = (pred == 4)
             class_label_4 = (label == 4)
             class_accuracy_4 = (class_pred_4 == class_label_4).sum()
-            class_accuracy_4 = class_accuracy_4 * 100 / (batch_size * 512 ** 2)
+            class_accuracy_4 = class_accuracy_4 * 100 / (pred.view(-1).size(0))
             net_class_accuracy_4.append(class_accuracy_4)
 
             class_pred_5 = (pred == 5)
             class_label_5 = (label == 5)
             class_accuracy_5 = (class_pred_5 == class_label_5).sum()
-            class_accuracy_5 = class_accuracy_5 * 100 / (batch_size * 512 ** 2)
+            class_accuracy_5 = class_accuracy_5 * 100 / (pred.view(-1).size(0))
             net_class_accuracy_5.append(class_accuracy_5)
 
             class_pred_6 = (pred == 6)
             class_label_6 = (label == 6)
             class_accuracy_6 = (class_pred_6 == class_label_6).sum()
-            class_accuracy_6 = class_accuracy_6 * 100 / (batch_size * 612 ** 2)
+            class_accuracy_6 = class_accuracy_6 * 100 / (pred.view(-1).size(0))
             net_class_accuracy_6.append(class_accuracy_6)
 
+            preds = torch.cat((preds, pred.long().view(-1)))
+            labs = torch.cat((labs, label.long().view(-1)))
             #################################
         mean_accuracy = np.asarray(net_accuracy).mean()
         mean_loss = np.asarray(net_loss).mean()
@@ -430,8 +546,31 @@ def eval_net(**kwargs):
         print('log: class 6:: total accuracy = {:.5f}%'.format(class_6_mean_accuracy))
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
 
-        pass
-    pass
+        # class_names = ['background/clutter', 'buildings', 'trees', 'cars',
+        #                'low_vegetation', 'impervious_surfaces', 'noise']
+        # cm_preds = pred.view(-1).cpu().numpy()
+        # cm_labels = label.view(-1).cpu().numpy()
+        # cnf_matrix = confusion_matrix(cm_labels, cm_preds)
+        #
+        # fig1 = plt.figure()
+        # plot_confusion_matrix(cnf_matrix, classes=class_names,
+        #                       title='Confusion matrix, without normalization')
+        # # Plot normalized confusion matrix
+        # fig2 = plt.figure()
+        # plot_confusion_matrix(cnf_matrix, classes=class_names, normalize=True,
+        #                       title='Normalized confusion matrix')
+        # fig2img(fig1).save('unnormalized.png')
+        # fig2img(fig2).save('normalized.png')
+
+        #
+        # cm.add(preds.view(-1), labs.view(-1).type(torch.LongTensor))
+        # this = cm.value()
+        # print(this)
+        # df_cm = pd.DataFrame(this, index=[f for f in class_names],
+        #                      columns=[f for f in class_names])
+        # fig = plt.figure(figsize=(10, 7))
+        # sn.heatmap(df_cm, annot=True)
+        # fig2img(fig).save('sea.png')
 
 
 
