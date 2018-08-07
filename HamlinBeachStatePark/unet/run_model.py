@@ -1,7 +1,7 @@
 
 
 """
-    Model for Unet (pretrained in Matlab)
+    Use Unet model (pretrained in Matlab) and evaluate it
 """
 
 from __future__ import print_function
@@ -98,12 +98,6 @@ if __name__ == '__main__':
     cv2.imwrite('image1.png', full_image)
     cv2.imwrite('label1.png', full_label)
     cv2.imwrite('pred1.png', full_pred)
-
-
-
-
-
-
 
 
 
