@@ -11,6 +11,7 @@ import os
 import numpy as np
 import pickle as pkl
 from model import *
+import torchnet as tnt
 from dataset import get_dataloaders
 from tensorboardX import SummaryWriter
 
@@ -172,102 +173,49 @@ def eval_net(**kwargs):
     else:
         # model, images, labels, pre_model, save_dir, sum_dir, batch_size, lr, log_after, cuda
         pre_model = kwargs['pre_model']
-        images = kwargs['images']
-        labels = kwargs['labels']
+        base_folder = kwargs['base_folder']
         batch_size = kwargs['batch_size']
         criterion = nn.CrossEntropyLoss()
+        un_confusion_meter = tnt.meter.ConfusionMeter(10, normalized=False)
+        confusion_meter = tnt.meter.ConfusionMeter(10, normalized=True)
 
         model.load_state_dict(torch.load(pre_model))
         print('log: resumed model {} successfully!'.format(pre_model))
-        _, _, test_loader = get_dataloaders(images_path=images, labels_path=labels, batch_size=batch_size)
+        _, _, test_loader = get_dataloaders(base_folder=base_folder, batch_size=batch_size)
 
         net_accuracy, net_loss = [], []
-        net_class_accuracy_0, net_class_accuracy_1, net_class_accuracy_2, \
-        net_class_accuracy_3, net_class_accuracy_4, net_class_accuracy_5,\
-        net_class_accuracy_6  = [], [], [], [], [], [], []
         for idx, data in enumerate(test_loader):
             test_x, label = data['input'], data['label']
             # print(test_x.shape)
             if cuda:
-                test_x = test_x.cuda()
+                test_x = test_x.cuda(device=device)
+                label = label.cuda(device=device)
             # forward
             out_x, pred = model.forward(test_x)
-            pred = pred.cpu()
-            loss = criterion(out_x.cpu(), label)
+            loss = criterion(out_x, label)
+            un_confusion_meter.add(predicted=pred, target=label)
+            confusion_meter.add(predicted=pred, target=label)
 
             # get accuracy metric
             accuracy = (pred == label).sum()
-            accuracy = accuracy * 100 / (batch_size)
+            accuracy = accuracy * 100 / label.view(-1).size(0)
             net_accuracy.append(accuracy)
             net_loss.append(loss.item())
             if idx % 10 == 0:
                 print('log: on {}'.format(idx))
 
-            # get per-class metrics
-            class_pred_0 = (pred == 0)
-            class_label_0 = (label == 0)
-            class_accuracy_0 = (class_pred_0 == class_label_0).sum()
-            class_accuracy_0 = class_accuracy_0 * 100 / (batch_size)
-            net_class_accuracy_0.append(class_accuracy_0)
-
-            class_pred_1 = (pred == 1)
-            class_label_1 = (label == 1)
-            class_accuracy_1 = (class_pred_1 == class_label_1).sum()
-            class_accuracy_1 = class_accuracy_1 * 100 / (batch_size)
-            net_class_accuracy_1.append(class_accuracy_1)
-
-            class_pred_2 = (pred == 2)
-            class_label_2 = (label == 2)
-            class_accuracy_2 = (class_pred_2 == class_label_2).sum()
-            class_accuracy_2 = class_accuracy_2 * 100 / (batch_size)
-            net_class_accuracy_2.append(class_accuracy_2)
-
-            class_pred_3 = (pred == 3)
-            class_label_3 = (label == 3)
-            class_accuracy_3 = (class_pred_3 == class_label_3).sum()
-            class_accuracy_3 = class_accuracy_3 * 100 / (batch_size)
-            net_class_accuracy_3.append(class_accuracy_3)
-
-            class_pred_4 = (pred == 4)
-            class_label_4 = (label == 4)
-            class_accuracy_4 = (class_pred_4 == class_label_4).sum()
-            class_accuracy_4 = class_accuracy_4 * 100 / (batch_size)
-            net_class_accuracy_4.append(class_accuracy_4)
-
-            class_pred_5 = (pred == 5)
-            class_label_5 = (label == 5)
-            class_accuracy_5 = (class_pred_5 == class_label_5).sum()
-            class_accuracy_5 = class_accuracy_5 * 100 / (batch_size)
-            net_class_accuracy_5.append(class_accuracy_5)
-
-            class_pred_6 = (pred == 6)
-            class_label_6 = (label == 6)
-            class_accuracy_6 = (class_pred_6 == class_label_6).sum()
-            class_accuracy_6 = class_accuracy_6 * 100 / (batch_size)
-            net_class_accuracy_6.append(class_accuracy_6)
-
             #################################
         mean_accuracy = np.asarray(net_accuracy).mean()
         mean_loss = np.asarray(net_loss).mean()
 
-        class_0_mean_accuracy = np.asarray(net_class_accuracy_0).mean()
-        class_1_mean_accuracy = np.asarray(net_class_accuracy_1).mean()
-        class_2_mean_accuracy = np.asarray(net_class_accuracy_2).mean()
-        class_3_mean_accuracy = np.asarray(net_class_accuracy_3).mean()
-        class_4_mean_accuracy = np.asarray(net_class_accuracy_4).mean()
-        class_5_mean_accuracy = np.asarray(net_class_accuracy_5).mean()
-        class_6_mean_accuracy = np.asarray(net_class_accuracy_6).mean()
-
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
         print('log: test:: total loss = {:.5f}, total accuracy = {:.5f}%'.format(mean_loss, mean_accuracy))
-        print('log: class 0:: total accuracy = {:.5f}%'.format(class_0_mean_accuracy))
-        print('log: class 1:: total accuracy = {:.5f}%'.format(class_1_mean_accuracy))
-        print('log: class 2:: total accuracy = {:.5f}%'.format(class_2_mean_accuracy))
-        print('log: class 3:: total accuracy = {:.5f}%'.format(class_3_mean_accuracy))
-        print('log: class 4:: total accuracy = {:.5f}%'.format(class_4_mean_accuracy))
-        print('log: class 5:: total accuracy = {:.5f}%'.format(class_5_mean_accuracy))
-        print('log: class 6:: total accuracy = {:.5f}%'.format(class_6_mean_accuracy))
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+        with open('normalized.pkl', 'wb') as this:
+            pkl.dump(confusion_meter.value(), this, protocol=pkl.HIGHEST_PROTOCOL)
+
+        with open('un_normalized.pkl', 'wb') as this:
+            pkl.dump(un_confusion_meter.value(), this, protocol=pkl.HIGHEST_PROTOCOL)
 
         pass
     pass
