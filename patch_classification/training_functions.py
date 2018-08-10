@@ -17,7 +17,6 @@ from tensorboardX import SummaryWriter
 
 
 def train_net(model, base_folder, pre_model, save_dir, batch_size, lr, log_after, cuda, device):
-    # print(model)
     writer = SummaryWriter()
     if cuda:
         print('GPU')
@@ -37,6 +36,7 @@ def train_net(model, base_folder, pre_model, save_dir, batch_size, lr, log_after
         if pre_model:
             # self.load_state_dict(torch.load(pre_model)['model'])
             model.load_state_dict(torch.load(pre_model))
+            print(model)
 
             # graph_layers = list(model.feature_extracter)  # only get the feature extractor, we don't need the classifier
             # new_graph = []
@@ -63,7 +63,7 @@ def train_net(model, base_folder, pre_model, save_dir, batch_size, lr, log_after
             # torch.save(model.state_dict(), 'direct_model.pt')
 
             print('log: resumed model {} successfully!'.format(pre_model))
-            model_number = 2090 #int(pre_model.split('/')[1].split('-')[1].split('.')[0])
+            model_number = int(pre_model.split('/')[1].split('-')[1].split('.')[0])
         else:
             print('log: starting anew using ImageNet weights...')
         while True:
@@ -140,9 +140,6 @@ def eval_net(**kwargs):
     model = kwargs['model']
     cuda = kwargs['cuda']
     device = kwargs['device']
-    ###############################################
-    model.eval() # put in eval mode first
-    ###############################################
     if cuda:
         model.cuda(device=device)
     if 'criterion' in kwargs.keys():
@@ -152,6 +149,7 @@ def eval_net(**kwargs):
         criterion = kwargs['criterion']
         global_step = kwargs['global_step']
         net_accuracy, net_loss = [], []
+        model.eval()  # put in eval mode first
         for idx, data in enumerate(val_loader):
             test_x, label = data['input'], data['label']
             if cuda:
@@ -200,6 +198,7 @@ def eval_net(**kwargs):
         pre_model = kwargs['pre_model']
         base_folder = kwargs['base_folder']
         batch_size = kwargs['batch_size']
+        log_after = kwargs['log_after']
         criterion = nn.CrossEntropyLoss()
         un_confusion_meter = tnt.meter.ConfusionMeter(10, normalized=False)
         confusion_meter = tnt.meter.ConfusionMeter(10, normalized=True)
@@ -209,9 +208,15 @@ def eval_net(**kwargs):
         _, _, test_loader = get_dataloaders(base_folder=base_folder, batch_size=batch_size)
 
         net_accuracy, net_loss = [], []
+        correct_count = 0
+        total_count = 0
         for idx, data in enumerate(test_loader):
+            model.eval()  # put in eval mode first
             test_x, label = data['input'], data['label']
+            # print(test_x)
             # print(test_x.shape)
+            # this = test_x.numpy().squeeze(0).transpose(1,2,0)
+            # print(this.shape, np.min(this), np.max(this))
             if cuda:
                 test_x = test_x.cuda(device=device)
                 label = label.cuda(device=device)
@@ -221,18 +226,25 @@ def eval_net(**kwargs):
             un_confusion_meter.add(predicted=pred, target=label)
             confusion_meter.add(predicted=pred, target=label)
 
+            ###############################
+            pred = pred.view(-1)
+            # pred = pred.cpu().numpy()
+            # label = label.cpu().numpy()
+            # print(pred.shape, label.shape)
+
+            ###############################
             # get accuracy metric
-            accuracy = (pred == label).sum()
-            accuracy = accuracy * 100 / label.view(-1).size(0)
-            net_accuracy.append(accuracy)
+            # correct_count += np.sum((pred == label))
+            correct_count += (label.eq(pred.long())).sum()
+
+            total_count += pred.shape[0]
             net_loss.append(loss.item())
-            if idx % 10 == 0:
+            if idx % log_after == 0:
                 print('log: on {}'.format(idx))
 
             #################################
-        mean_accuracy = np.asarray(net_accuracy).mean()
         mean_loss = np.asarray(net_loss).mean()
-
+        mean_accuracy = correct_count * 100 / total_count
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
         print('log: test:: total loss = {:.5f}, total accuracy = {:.5f}%'.format(mean_loss, mean_accuracy))
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')

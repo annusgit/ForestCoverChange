@@ -44,6 +44,14 @@ class VGG(nn.Module):
             nn.Linear(in_features=128, out_features=10),
             nn.LogSoftmax(dim=0)
         )
+        self.feature_extracter[1].momentum = 0.25
+        self.feature_extracter[5].momentum = 0.25
+        self.feature_extracter[10].momentum = 0.25
+        self.feature_extracter[13].momentum = 0.25
+        self.feature_extracter[18].momentum = 0.25
+        self.feature_extracter[21].momentum = 0.25
+        self.feature_extracter[26].momentum = 0.25
+        self.feature_extracter[29].momentum = 0.25
 
     def forward(self, x):
         x = self.feature_extracter(x)

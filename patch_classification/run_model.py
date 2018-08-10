@@ -33,7 +33,7 @@ if __name__ == '__main__':
     # image_read = (image_read.astype(np.float) * 255 / 4095).astype(np.uint8)
     image_read = image_read[:512,:512,:]
     image_pred = np.zeros_like(image_read[:,:,0])
-    # print(image_read)
+    print(image_read)
 
 
     def toTensor(image):
@@ -46,22 +46,23 @@ if __name__ == '__main__':
     # image_read = toTensor(image_read)
     print(image_read.shape)
 
+    if False:
+        net.eval()
+        for i in range(image_read.shape[0]//patch):
+            for j in range(image_read.shape[1]//patch):
+                image = image_read[patch*i:patch*i+patch, j*patch:j*patch+patch, :]
+                # print(np.unique(image))
+                print('log: w = {}-{}, h = {}-{}'.format(patch*i, patch*i+patch, j*patch, j*patch+patch), end=' ')
+                # test_x = torch.from_numpy(image.transpose(2,0,1)).unsqueeze(0).float().cuda()
+                test_x = toTensor(image).cuda(device=0)
+                # print(test_x.shape)
+                out_x, pred = net(test_x)
+                pred = pred.squeeze(0).cpu().numpy()
+                pred_copy = pred.astype(np.uint8)
+                image_pred[patch*i:patch*i+patch, j*patch:j*patch+patch] = pred_copy
+                print(pred)
 
-    for i in range(image_read.shape[0]//patch):
-        for j in range(image_read.shape[1]//patch):
-            image = image_read[patch*i:patch*i+patch, j*patch:j*patch+patch, :]
-            # print(np.unique(image))
-            print('log: w = {}-{}, h = {}-{}'.format(patch*i, patch*i+patch, j*patch, j*patch+patch), end=' ')
-            # test_x = torch.from_numpy(image.transpose(2,0,1)).unsqueeze(0).float().cuda()
-            test_x = toTensor(image).cuda(device=0)
-            # print(test_x.shape)
-            out_x, pred = net(test_x)
-            pred = pred.squeeze(0).cpu().numpy()
-            pred_copy = pred.astype(np.uint8)
-            image_pred[patch*i:patch*i+patch, j*patch:j*patch+patch] = pred_copy
-            print(pred)
-
-    cv2.imwrite('pred_sentinel.png', image_pred)
+        cv2.imwrite('pred_sentinel.png', image_pred)
 
 
 

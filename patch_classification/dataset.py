@@ -87,8 +87,8 @@ def get_dataloaders(base_folder, batch_size):
         def __init__(self, data_dictionary, bands, mode='train'):
             super(dataset, self).__init__()
             self.example_dictionary = data_dictionary
-            with open(mode+'.txt', 'wb') as this:
-                this.write(json.dumps(self.example_dictionary))
+            # with open(mode+'.txt', 'wb') as this:
+            #     this.write(json.dumps(self.example_dictionary))
             self.bands = bands # bands are a list bands to use as data, pass them as a list []
             self.mode = mode
             pass
@@ -105,10 +105,10 @@ def get_dataloaders(base_folder, batch_size):
                                            this_example.GetRasterBand(i).ReadAsArray())).astype(np.int16)
 
             # transforms
-            if self.mode == 'train':
-                example_array = np.squeeze(seq.augment_images(
-                    (np.expand_dims(example_array, axis=0))), axis=0)
-                pass
+            # if self.mode == 'train':
+            #     example_array = np.squeeze(seq.augment_images(
+            #         (np.expand_dims(example_array, axis=0))), axis=0)
+            #     pass
 
             # convert to 8-bit image
             example_array = (example_array.astype(np.float)*1/4096)
