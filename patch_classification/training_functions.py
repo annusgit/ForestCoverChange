@@ -17,7 +17,7 @@ from tensorboardX import SummaryWriter
 
 
 def train_net(model, base_folder, pre_model, save_dir, batch_size, lr, log_after, cuda, device):
-    print(model)
+    # print(model)
     writer = SummaryWriter()
     if cuda:
         print('GPU')
@@ -37,8 +37,33 @@ def train_net(model, base_folder, pre_model, save_dir, batch_size, lr, log_after
         if pre_model:
             # self.load_state_dict(torch.load(pre_model)['model'])
             model.load_state_dict(torch.load(pre_model))
+
+            # graph_layers = list(model.feature_extracter)  # only get the feature extractor, we don't need the classifier
+            # new_graph = []
+            # for layer in graph_layers[1:]:
+            #     new_graph.append(layer)
+            # model_list = nn.ModuleList(new_graph)
+            # feature_extracter = nn.Sequential(*model_list)
+            # model.feature_extracter = feature_extracter
+            # print(model.feature_extracter)
+            # # classifier = nn.Sequential(
+            # #     nn.Linear(in_features=512 * ((64 // 2 ** 5) ** 2), out_features=1024),
+            # #     nn.ReLU(),
+            # #     nn.Linear(in_features=1024, out_features=512),
+            # #     nn.ReLU(),
+            # #     nn.Dropout(p=0.7),
+            # #     nn.Linear(in_features=512, out_features=256),
+            # #     nn.ReLU(),
+            # #     nn.Linear(in_features=256, out_features=128),
+            # #     nn.ReLU(),
+            # #     nn.Dropout(p=0.7),
+            # #     nn.Linear(in_features=128, out_features=10),
+            # #     nn.LogSoftmax(dim=0)
+            # # )
+            # torch.save(model.state_dict(), 'direct_model.pt')
+
             print('log: resumed model {} successfully!'.format(pre_model))
-            model_number = int(pre_model.split('/')[1].split('-')[1].split('.')[0])
+            model_number = 2090 #int(pre_model.split('/')[1].split('-')[1].split('.')[0])
         else:
             print('log: starting anew using ImageNet weights...')
         while True:

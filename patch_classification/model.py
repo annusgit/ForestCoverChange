@@ -25,21 +25,21 @@ class VGG(nn.Module):
         graph_layers.insert(16, nn.Dropout2d(p=0.7))
         graph_layers.insert(24, nn.Dropout2d(p=0.7))
         graph_layers.insert(33, nn.Dropout2d(p=0.7))
-        new_graph = [nn.BatchNorm2d(num_features=in_channels)] # will be applied at input
+        new_graph = [] #[nn.BatchNorm2d(num_features=in_channels)] # will be applied at input
         for layer in graph_layers:
             new_graph.append(layer)
         model_list = nn.ModuleList(new_graph)
         self.feature_extracter = nn.Sequential(*model_list)
         self.classifier = nn.Sequential(
             nn.Linear(in_features=512*((64//2**5)**2), out_features=1024),
-            nn.SELU(),
+            nn.ReLU(),
             nn.Linear(in_features=1024, out_features=512),
-            nn.SELU(),
+            nn.ReLU(),
             nn.Dropout(p=0.7),
             nn.Linear(in_features=512, out_features=256),
-            nn.SELU(),
+            nn.ReLU(),
             nn.Linear(in_features=256, out_features=128),
-            nn.SELU(),
+            nn.ReLU(),
             nn.Dropout(p=0.7),
             nn.Linear(in_features=128, out_features=10),
             nn.LogSoftmax(dim=0)

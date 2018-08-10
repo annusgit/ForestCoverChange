@@ -58,8 +58,8 @@ seq = iaa.Sequential(
         iaa.Fliplr(0.5), # horizontally flip 50% of all images
         iaa.Flipud(0.5), # vertically flip 50% of all images
 
-        # crop some of the images by 0-10% of their height/width
-        sometimes(iaa.Crop(percent=(0, 0.1))),
+        # crop some of the images by 0-20% of their height/width
+        sometimes(iaa.Crop(percent=(0, 0.2))),
 
         # Apply affine transformations to some of the images
         # - scale to 80-120% of image height/width (each axis independently)
@@ -101,7 +101,8 @@ def get_dataloaders(base_folder, batch_size):
             this_label = all_labels[label_name]
             example_array = this_example.GetRasterBand(self.bands[0]).ReadAsArray()
             for i in self.bands[1:]:
-                example_array = np.dstack((example_array, this_example.GetRasterBand(i).ReadAsArray())).astype(np.int16)
+                example_array = np.dstack((example_array,
+                                           this_example.GetRasterBand(i).ReadAsArray())).astype(np.int16)
 
             # transforms
             if self.mode == 'train':
@@ -109,6 +110,8 @@ def get_dataloaders(base_folder, batch_size):
                     (np.expand_dims(example_array, axis=0))), axis=0)
                 pass
 
+            # convert to 8-bit image
+            example_array = (example_array.astype(np.float)*1/4096)
             example_array = toTensor(image=example_array)
             return {'input': example_array, 'label': this_label}
 
@@ -169,6 +172,20 @@ def get_dataloaders(base_folder, batch_size):
     return train_dataloader, val_dataloader, test_dataloader
 
 
+def histogram_equalization(in_image):
+    for i in range(in_image.shape[2]): # each channel
+        image = in_image[:,:,i]
+        prev_shape = image.shape
+        # Flatten the image into 1 dimension: pixels
+        pixels = image.flatten()
+
+        # Generate a cumulative histogram
+        cdf, bins, patches = pl.hist(pixels, bins=256, range=(0,256), normed=True, cumulative=True)
+        new_pixels = np.interp(pixels, bins[:-1], cdf*255)
+        in_image[:,:,i] = new_pixels.reshape(prev_shape)
+    return in_image
+
+
 def main():
     train_dataloader, val_dataloader, test_dataloader = get_dataloaders(base_folder='/home/annus/Desktop/'
                                                                                     'forest_cover_change/'
@@ -185,8 +202,11 @@ def main():
         for idx, data in enumerate(train_dataloader):
             examples, labels = data['input'], data['label']
             print('{} -> on batch {}/{}, {}'.format(count, idx+1, len(train_dataloader), examples.size()))
-            if False:
-                this = (examples[0].numpy()*255/4095).transpose(1,2,0).astype(np.uint8)
+            if True:
+                this = np.max(examples[0].numpy())
+                print(this)
+                this = (examples[0].numpy()*255).transpose(1,2,0).astype(np.uint8)
+                # this = histogram_equalization(this)
                 pl.imshow(this)
                 pl.title('{}'.format(reversed_labels[int(labels.numpy())]))
                 pl.show()
