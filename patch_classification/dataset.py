@@ -105,10 +105,10 @@ def get_dataloaders(base_folder, batch_size):
                                            this_example.GetRasterBand(i).ReadAsArray())).astype(np.int16)
 
             # transforms
-            # if self.mode == 'train':
-            #     example_array = np.squeeze(seq.augment_images(
-            #         (np.expand_dims(example_array, axis=0))), axis=0)
-            #     pass
+            if self.mode == 'train':
+                example_array = np.squeeze(seq.augment_images(
+                    (np.expand_dims(example_array, axis=0))), axis=0)
+                pass
 
             # convert to 8-bit image
             example_array = (example_array.astype(np.float)*1/4096)

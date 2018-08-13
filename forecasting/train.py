@@ -32,10 +32,10 @@ if __name__ == '__main__':
     device = int(args.device)
 
     function_to_call = eval(function)
-    net = ResNet(in_channels=3)
+    net = GRU(input_size=1, hidden_size=4, output_size=1)
 
     function_to_call(model=net,
-                     base_folder=data_path,
+                     file_path=data_path,
                      pre_model=pre_model,
                      save_dir=save_dir,
                      batch_size=batch_size,

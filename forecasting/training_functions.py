@@ -11,13 +11,12 @@ import os
 import re
 import numpy as np
 import pickle as pkl
-from model import *
 import torchnet as tnt
 from dataset import get_dataloaders
 from tensorboardX import SummaryWriter
 
 
-def train_net(model, base_folder, pre_model, save_dir, batch_size, lr, log_after, cuda, device):
+def train_net(model, file_path, pre_model, save_dir, batch_size, lr, log_after, cuda, device):
     if not pre_model:
         print(model)
     writer = SummaryWriter()
@@ -27,8 +26,8 @@ def train_net(model, base_folder, pre_model, save_dir, batch_size, lr, log_after
         print('log: training started on device: {}'.format(device))
     # define loss and optimizer
     optimizer = Adam(model.parameters(), lr=lr)
-    criterion = nn.CrossEntropyLoss()
-    train_loader, val_dataloader, test_loader = get_dataloaders(base_folder=base_folder,
+    criterion = nn.MSELoss()
+    train_loader, val_dataloader, test_loader = get_dataloaders(file_path=file_path,
                                                                 batch_size=batch_size)
     if not os.path.exists(save_dir):
         os.mkdir(save_dir)
@@ -43,7 +42,6 @@ def train_net(model, base_folder, pre_model, save_dir, batch_size, lr, log_after
             print(model)
 
             # starting point
-            # model_number = int(pre_model.split('/')[1].split('-')[1].split('.')[0])
             model_number = int(re.findall('\d+', str(pre_model))[0])
             i = i + model_number - 1
         else:
@@ -64,34 +62,24 @@ def train_net(model, base_folder, pre_model, save_dir, batch_size, lr, log_after
                 torch.save(model.state_dict(), save_path)
                 print('log: saved {}'.format(save_path))
 
-            correct_count, total_count = 0, 0
             for idx, data in enumerate(train_loader):
                 ##########################
                 model.train() # train mode at each epoch, just in case...
                 ##########################
-                test_x, label = data['input'], data['label']
+                test_x, label = data['input'].unsqueeze(2), data['label']
                 if cuda:
                     test_x = test_x.cuda(device=device)
                     label = label.cuda(device=device)
-                # forward
-                out_x, pred = model.forward(test_x)
-                # out_x, pred = out_x.cpu(), pred.cpu()
+                out_x = model.forward(test_x)
                 loss = criterion(out_x, label)
                 net_loss.append(loss.item())
 
-                # get accuracy metric
-                batch_correct = (label.eq(pred.long())).double().sum().item()
-                correct_count += batch_correct
-                # print(batch_correct)
-                total_count += np.float(pred.size(0))
                 if idx % log_after == 0 and idx > 0:
-                    print('{}. ({}/{}) image size = {}, loss = {}: accuracy = {}/{}'.format(i,
-                                                                                            idx,
-                                                                                            len(train_loader),
-                                                                                            out_x.size(),
-                                                                                            loss.item(),
-                                                                                            batch_correct,
-                                                                                            pred.size(0)))
+                    print('{}. ({}/{}) image size = {}, loss = {}'.format(i,
+                                                                          idx,
+                                                                          len(train_loader),
+                                                                          out_x.size(),
+                                                                          loss.item()))
                 #################################
                 # three steps for backprop
                 model.zero_grad()
@@ -100,22 +88,17 @@ def train_net(model, base_folder, pre_model, save_dir, batch_size, lr, log_after
                 clip_grad_norm_(model.parameters(), 0.05)
                 optimizer.step()
                 #################################
-            mean_accuracy = correct_count / total_count * 100
             mean_loss = np.asarray(net_loss).mean()
             m_loss.append((i, mean_loss))
-            m_accuracy.append((i, mean_accuracy))
-
             writer.add_scalar(tag='train loss', scalar_value=mean_loss, global_step=i)
-            writer.add_scalar(tag='train over_all accuracy', scalar_value=mean_accuracy, global_step=i)
-
             print('####################################')
-            print('epoch {} -> total loss = {:.5f}, total accuracy = {:.5f}%'.format(i, mean_loss, mean_accuracy))
+            print('epoch {} -> total loss = {:.5f}'.format(i, mean_loss))
             print('####################################')
 
             # validate model after each epoch
-            eval_net(model=model, writer=writer, criterion=criterion,
-                     val_loader=val_dataloader, denominator=batch_size,
-                     cuda=cuda, device=device, global_step=i)
+            # eval_net(model=model, writer=writer, criterion=criterion,
+            #          val_loader=val_dataloader, denominator=batch_size,
+            #          cuda=cuda, device=device, global_step=i)
     pass
 
 
@@ -130,31 +113,24 @@ def eval_net(**kwargs):
         val_loader = kwargs['val_loader']
         criterion = kwargs['criterion']
         global_step = kwargs['global_step']
-        correct_count, total_count = 0, 0
         net_loss = []
         model.eval()  # put in eval mode first ############################
         for idx, data in enumerate(val_loader):
-            test_x, label = data['input'], data['label']
+            test_x, label = data['input'].unsqueeze(2), data['label']
             if cuda:
                 test_x = test_x.cuda(device=device)
                 label = label.cuda(device=device)
             # forward
-            out_x, pred = model.forward(test_x)
+            out_x = model.forward(test_x)
             loss = criterion(out_x, label)
             net_loss.append(loss.item())
 
-            # get accuracy metric
-            batch_correct = (label.eq(pred.long())).double().sum().item()
-            correct_count += batch_correct
-            total_count += np.float(pred.size(0))
         #################################
-        mean_accuracy = correct_count / total_count * 100
         mean_loss = np.asarray(net_loss).mean()
         # summarize mean accuracy
         writer.add_scalar(tag='val. loss', scalar_value=mean_loss, global_step=global_step)
-        writer.add_scalar(tag='val. over_all accuracy', scalar_value=mean_accuracy, global_step=global_step)
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
-        print('log: validation:: total loss = {:.5f}, total accuracy = {:.5f}%'.format(mean_loss, mean_accuracy))
+        print('log: validation:: total loss = {:.5f}'.format(mean_loss))
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
 
     else:
@@ -173,9 +149,6 @@ def eval_net(**kwargs):
         correct_count = 0
         total_count = 0
         for idx, data in enumerate(test_loader):
-            # if idx == 1:
-            #     break
-            # print(model.training)
             model.eval()  # put in eval mode first
             test_x, label = data['input'], data['label']
             # print(test_x)
