@@ -106,18 +106,23 @@ class GRU(nn.Module):
         self.num_layers = num_layers
         self.gru = nn.GRU(input_size=input_size, hidden_size=hidden_size,
                           num_layers=num_layers, batch_first=batch_first)
+        self.kill = nn.Dropout(p=0.8)
+        self.non_lin = nn.ReLU()
+        self.bn = nn.BatchNorm1d(num_features=hidden_size)
         self.linear1 = nn.Linear(hidden_size*num_layers, hidden_size)
         self.linear2 = nn.Linear(hidden_size, 1)
-        self.relu = nn.ReLU()
 
     def forward(self, x, hidden=None):
         if not isinstance(hidden, torch.Tensor):
-            hidden = self.initHidden(x.shape[0])
+            # set initial hidden state
+            hidden = self.initHiddenZero(x.shape[0])
             # print('assuming None')
         # predicts a single output value using an input sequence 'x'
         out, hn = self.gru(x, hidden)
         out = hn.view(x.shape[0], -1)
-        pred = self.relu(self.linear1(out))
+        # out = self.kill(out) # dpout
+        pred = self.non_lin(self.linear1(out))
+        pred = self.bn(pred)
         pred = self.linear2(pred)
         return pred, hn
 
@@ -132,16 +137,19 @@ class GRU(nn.Module):
         pred, hn = self.forward(x) # pred is the predicted next ndvi value, hn is the last hidden state
         out_seq_gen = torch.cat((out_seq_gen, pred), dim=1)
         for i in range(out_seq_len-1):
-            # print(pred.shape, hn.shape)
-            x = torch.cat((x.squeeze(2)[:, 1:], pred), dim=1).unsqueeze(2)
+            x = pred.unsqueeze(2) #
+            # x = torch.cat((x.squeeze(2)[:, 1:], pred), dim=1).unsqueeze(2)
             out_seq_gen = torch.cat((out_seq_gen, pred), dim=1)
             pred, hn = self.forward(x, hn)
-            pass
         return out_seq_gen, hn
 
-    def initHidden(self, N):
+    def initHiddenNormal(self, N):
         # hidden state size is (num_layers * num_directions, batch, hidden_size):
         return torch.randn(self.num_layers, N, self.hidden_size)
+
+    def initHiddenZero(self, batch_size):
+        # hidden state size is (num_layers * num_directions, batch, hidden_size):
+        return torch.zeros(self.num_layers, batch_size, self.hidden_size)
 
     def count_parameters(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
