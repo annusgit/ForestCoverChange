@@ -97,7 +97,6 @@ class ResNet(nn.Module):
             nn.ReLU(),
             nn.Dropout(p=0.8),
             nn.Linear(in_features=128, out_features=10),
-            nn.LogSoftmax(dim=0)
         )
 
     def forward(self, x):

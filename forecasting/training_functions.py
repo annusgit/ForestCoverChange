@@ -14,9 +14,13 @@ import pickle as pkl
 import torchnet as tnt
 from dataset import get_dataloaders
 from tensorboardX import SummaryWriter
+import matplotlib.pyplot as pl
 
 
 def train_net(model, file_path, pre_model, save_dir, batch_size, lr, log_after, cuda, device):
+    if os.path.exists('runs'):
+        import shutil
+        shutil.rmtree('runs') # just in case...
     if not pre_model:
         print(model)
     writer = SummaryWriter()
@@ -45,7 +49,7 @@ def train_net(model, file_path, pre_model, save_dir, batch_size, lr, log_after, 
             model_number = int(re.findall('\d+', str(pre_model))[0])
             i = i + model_number - 1
         else:
-            print('log: starting anew using ImageNet weights...')
+            print("log: let's start from the beginning...")
 
         while True:
             i += 1
@@ -65,15 +69,14 @@ def train_net(model, file_path, pre_model, save_dir, batch_size, lr, log_after, 
             for idx, data in enumerate(train_loader):
                 ##########################
                 model.train() # train mode at each epoch, just in case...
-                ##########################
-                test_x, label = data['input'].unsqueeze(2), data['label']
+                #################################
+                test_x, label = data['input'].unsqueeze(2), data['label'].squeeze(1)
                 if cuda:
                     test_x = test_x.cuda(device=device)
                     label = label.cuda(device=device)
-                out_x = model.forward(test_x)
+                out_x, h_n = model.forward(test_x, model.initHidden(test_x.shape[0]))
                 loss = criterion(out_x, label)
                 net_loss.append(loss.item())
-
                 if idx % log_after == 0 and idx > 0:
                     print('{}. ({}/{}) image size = {}, loss = {}'.format(i,
                                                                           idx,
@@ -96,18 +99,20 @@ def train_net(model, file_path, pre_model, save_dir, batch_size, lr, log_after, 
             print('####################################')
 
             # validate model after each epoch
-            # eval_net(model=model, writer=writer, criterion=criterion,
-            #          val_loader=val_dataloader, denominator=batch_size,
-            #          cuda=cuda, device=device, global_step=i)
+            eval_net(model=model, writer=writer, criterion=criterion,
+                     val_loader=val_dataloader, denominator=batch_size,
+                     cuda=cuda, device=device, global_step=i)
     pass
 
 
+@torch.no_grad()
 def eval_net(**kwargs):
     model = kwargs['model']
     cuda = kwargs['cuda']
     device = kwargs['device']
     if cuda:
         model.cuda(device=device)
+    series_out = []
     if 'criterion' in kwargs.keys():
         writer = kwargs['writer']
         val_loader = kwargs['val_loader']
@@ -116,15 +121,21 @@ def eval_net(**kwargs):
         net_loss = []
         model.eval()  # put in eval mode first ############################
         for idx, data in enumerate(val_loader):
-            test_x, label = data['input'].unsqueeze(2), data['label']
-            if cuda:
-                test_x = test_x.cuda(device=device)
-                label = label.cuda(device=device)
-            # forward
-            out_x = model.forward(test_x)
-            loss = criterion(out_x, label)
-            net_loss.append(loss.item())
-
+            test_x, series_in = data['input'].unsqueeze(2), data['label']
+        # test_x, label = data['input'].unsqueeze(2), data['label']
+        if cuda:
+            test_x = test_x.cuda(device=device)
+            series_in = series_in.cuda(device=device)
+        # forward
+        out_x, h_n = model.forward(test_x, model.initHidden(test_x.shape[0]))
+        for i in range(series_in.shape[-1]):
+            out_x, h_n = model.forward(out_x.unsqueeze(2), h_n)
+            series_out.append(int(out_x.cpu().numpy()))
+        series_out = torch.Tensor(series_out).view(-1)
+        series_in = series_in.view(-1)
+        # print(series_out.shape, series_in.shape)
+        loss = criterion(series_out, series_in)
+        net_loss.append(loss.item())
         #################################
         mean_loss = np.asarray(net_loss).mean()
         # summarize mean accuracy
@@ -132,7 +143,10 @@ def eval_net(**kwargs):
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
         print('log: validation:: total loss = {:.5f}'.format(mean_loss))
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
-
+        pl.plot(series_in.numpy(), label='series_in')
+        pl.plot(series_out.numpy(), label='series_out')
+        pl.legend(loc='upper right')
+        pl.show()
     else:
         # model, images, labels, pre_model, save_dir, sum_dir, batch_size, lr, log_after, cuda
         pre_model = kwargs['pre_model']

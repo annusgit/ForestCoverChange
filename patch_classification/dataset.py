@@ -4,9 +4,9 @@
 from __future__ import print_function
 from __future__ import division
 import os
-import cv2
+# import cv2
 import gdal
-import json
+# import json
 import torch
 import random
 import numpy as np

@@ -119,6 +119,7 @@ def train_net(model, base_folder, pre_model, save_dir, batch_size, lr, log_after
     pass
 
 
+@torch.no_grad()
 def eval_net(**kwargs):
     model = kwargs['model']
     cuda = kwargs['cuda']
@@ -133,6 +134,7 @@ def eval_net(**kwargs):
         correct_count, total_count = 0, 0
         net_loss = []
         model.eval()  # put in eval mode first ############################
+        print('evaluating with batch size = 1')
         for idx, data in enumerate(val_loader):
             test_x, label = data['input'], data['label']
             if cuda:
@@ -168,15 +170,16 @@ def eval_net(**kwargs):
         confusion_meter = tnt.meter.ConfusionMeter(10, normalized=True)
         model.load_state_dict(torch.load(pre_model))
         print('log: resumed model {} successfully!'.format(pre_model))
-        _, _, test_loader = get_dataloaders(base_folder=base_folder, batch_size=batch_size)
+        _, _, test_loader  = get_dataloaders(base_folder=base_folder, batch_size=batch_size)
         net_accuracy, net_loss = [], []
         correct_count = 0
         total_count = 0
+        print('batch size = 1')
+        model.eval()  # put in eval mode first
         for idx, data in enumerate(test_loader):
             # if idx == 1:
             #     break
             # print(model.training)
-            model.eval()  # put in eval mode first
             test_x, label = data['input'], data['label']
             # print(test_x)
             # print(test_x.shape)
@@ -196,8 +199,8 @@ def eval_net(**kwargs):
             # pred = pred.cpu().numpy()
             # label = label.cpu().numpy()
             # print(pred.shape, label.shape)
-
             ###############################
+
             # get accuracy metric
             # correct_count += np.sum((pred == label))
             # print(pred, label)
@@ -216,12 +219,11 @@ def eval_net(**kwargs):
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
         print('log: test:: total loss = {:.5f}, total accuracy = {:.5f}%'.format(mean_loss, mean_accuracy))
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+
         with open('normalized.pkl', 'wb') as this:
             pkl.dump(confusion_meter.value(), this, protocol=pkl.HIGHEST_PROTOCOL)
-
         with open('un_normalized.pkl', 'wb') as this:
             pkl.dump(un_confusion_meter.value(), this, protocol=pkl.HIGHEST_PROTOCOL)
-
         pass
     pass
 

@@ -7,46 +7,47 @@ import random
 random.seed(74)
 import numpy as np
 import matplotlib.pyplot as pl
-from torch.utils.data import Dataset, DataLoader
 from json_parser import get_values
+from torch.utils.data import Dataset, DataLoader
 
 
-def get_dataloaders(file_path, batch_size):
+def get_dataloaders(file_path, in_seq_len, out_seq_len, batch_size):
     print('inside dataloading code...')
 
     class dataset(Dataset):
-        def __init__(self, data, max_seq_len=20, mode='train'):
+        def __init__(self, data, in_seq_len, out_seq_len, mode='train'):
             super(dataset, self).__init__()
-            self.max_seq_len = max_seq_len
-            self.data = data
-            self.mode = mode
+            self.in_seq_len, self.out_seq_len = in_seq_len, out_seq_len
+            self.data, self.mode = data, mode
             pass
 
         def __getitem__(self, k):
-            if self.mode != 'train':
-                this_example = self.data[:]
-                this_label = self.data[-1]
-                this_example = torch.Tensor(this_example)
-                this_label = torch.Tensor([this_label])
-                return {'input': this_example, 'label': this_label}
-            length = 5 # random.randint(2, self.max_seq_len)
-            this_example = self.data[k:k+length]
-            this_label = self.data[k+length]
+            # if self.mode != 'train':
+            #     this_example = self.data[:self.in_seq_len]
+            #     this_label = self.data[self.out_seq_len:]
+            #     this_example = torch.Tensor(this_example)
+            #     this_label = torch.Tensor([this_label])
+            #     return {'input': this_example, 'label': this_label}
+            start = k + self.in_seq_len
+            end_ = start + self.out_seq_len
+            this_example = self.data[k:start]
+            this_label = self.data[start:end_]
             this_example = torch.Tensor(this_example)
-            this_label = torch.Tensor([this_label])
+            this_label = torch.Tensor(this_label)
             return {'input': this_example, 'label': this_label}
 
         def __len__(self):
-            if self.mode != 'train':
-                return 1
-            return len(self.data)-self.max_seq_len
+            # if self.mode != 'train':
+            #     return 1
+            # print(len(self.data)-self.out_seq_len)
+            return len(self.data)-self.in_seq_len-self.out_seq_len
 
     dataset_list = get_values(this_file=file_path, window_size=8)['value_mean']
     # split them into train and test
     train, val, test = dataset_list[:350], dataset_list[350:400], dataset_list[400:]
-    train_data = dataset(data=train, max_seq_len=20, mode='train')
-    val_data = dataset(data=val, mode='no_train')
-    test_data = dataset(data=test, mode='no_train')
+    train_data = dataset(data=train, in_seq_len=in_seq_len, out_seq_len=out_seq_len, mode='train')
+    val_data = dataset(data=val, in_seq_len=in_seq_len, out_seq_len=out_seq_len, mode='no_train')
+    test_data = dataset(data=test, in_seq_len=in_seq_len, out_seq_len=out_seq_len, mode='no_train')
     print('train examples =', len(train), 'val examples =', len(val), 'test examples =', len(test))
     train_dataloader = DataLoader(dataset=train_data, batch_size=batch_size,
                                   shuffle=True, num_workers=4)
@@ -59,14 +60,15 @@ def get_dataloaders(file_path, batch_size):
 
 def main():
     this_file = '/home/annus/Desktop/statistics_250m_16_days_NDVI.json'
-    train_dataloader, val_dataloader, test_dataloader = get_dataloaders(file_path=this_file, batch_size=1)
+    train_dataloader, val_dataloader, test_dataloader = get_dataloaders(file_path=this_file, in_seq_len=5,
+                                                                        out_seq_len=5, batch_size=4)
     count = 0
     count += 1
-    for idx, data in enumerate(test_dataloader):
+    for idx, data in enumerate(train_dataloader):
         examples, labels = data['input'], data['label']
-        print('{} -> on batch {}/{}, {}'.format(count, idx +1, len(train_dataloader), examples.size()))
+        print('{} -> on batch {}/{}, {}'.format(count, idx+1, len(train_dataloader), examples.size()))
         if True:
-            print(examples, labels)
+            print(examples.shape, labels.shape)
 
 
 if __name__ == '__main__':
