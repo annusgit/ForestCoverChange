@@ -12,6 +12,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--function', dest='function', default='train_net')
     parser.add_argument('--data_path', dest='data_path', default=None)
+    parser.add_argument('--in_len', dest='in_len', default=None)
+    parser.add_argument('--out_len', dest='out_len', default=None)
     parser.add_argument('-p', '--pretrained_model', dest='pre_model', default=None)
     parser.add_argument('-s', '--save_dir', dest='save_dir', default=None)
     parser.add_argument('-b', '--batch_size', dest='batch_size', default=4)
@@ -23,6 +25,8 @@ if __name__ == '__main__':
 
     function = args.function
     data_path = args.data_path
+    in_len = int(args.in_len)
+    out_len = int(args.out_len)
     pre_model = args.pre_model
     save_dir = args.save_dir
     batch_size = int(args.batch_size)
@@ -32,10 +36,12 @@ if __name__ == '__main__':
     device = int(args.device)
 
     function_to_call = eval(function)
-    net = GRU(input_size=1, hidden_size=4, output_size=1)
+    net = GRU(input_size=1, hidden_size=32, num_layers=1, batch_first=True)
 
     function_to_call(model=net,
                      file_path=data_path,
+                     in_seq_len=in_len,
+                     out_seq_len=out_len,
                      pre_model=pre_model,
                      save_dir=save_dir,
                      batch_size=batch_size,

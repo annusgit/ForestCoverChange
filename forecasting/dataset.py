@@ -22,12 +22,12 @@ def get_dataloaders(file_path, in_seq_len, out_seq_len, batch_size):
             pass
 
         def __getitem__(self, k):
-            # if self.mode != 'train':
-            #     this_example = self.data[:self.in_seq_len]
-            #     this_label = self.data[self.out_seq_len:]
-            #     this_example = torch.Tensor(this_example)
-            #     this_label = torch.Tensor([this_label])
-            #     return {'input': this_example, 'label': this_label}
+            if self.mode != 'train':
+                this_example = self.data[:self.in_seq_len]
+                this_label = self.data[self.out_seq_len:]
+                this_example = torch.Tensor(this_example)
+                this_label = torch.Tensor([this_label])
+                return {'input': this_example, 'label': this_label}
             start = k + self.in_seq_len
             end_ = start + self.out_seq_len
             this_example = self.data[k:start]
@@ -39,10 +39,16 @@ def get_dataloaders(file_path, in_seq_len, out_seq_len, batch_size):
         def __len__(self):
             # if self.mode != 'train':
             #     return 1
-            # print(len(self.data)-self.out_seq_len)
+            # print(len(self.data)-self.in_seq_len-self.out_seq_len)
             return len(self.data)-self.in_seq_len-self.out_seq_len
 
-    dataset_list = get_values(this_file=file_path, window_size=8)['value_mean']
+    # Fs = 8000
+    # f = 5
+    # sample = 8000
+    # x = np.arange(sample)
+    # y = np.sin(2 * np.pi * f * x / Fs)
+    # dataset_list = 100*y #np.sin(x=np.arange(0,90,step=0.01)) #get_values(this_file=file_path, window_size=8)['value_mean']
+    dataset_list = 100*get_values(this_file=file_path, window_size=8)['value_mean']
     # split them into train and test
     train, val, test = dataset_list[:350], dataset_list[350:400], dataset_list[400:]
     train_data = dataset(data=train, in_seq_len=in_seq_len, out_seq_len=out_seq_len, mode='train')
@@ -68,7 +74,7 @@ def main():
         examples, labels = data['input'], data['label']
         print('{} -> on batch {}/{}, {}'.format(count, idx+1, len(train_dataloader), examples.size()))
         if True:
-            print(examples.shape, labels.shape)
+            print(examples)
 
 
 if __name__ == '__main__':

@@ -9,42 +9,38 @@ import torch.nn.functional as F
 from torch.nn.utils import clip_grad_norm_
 import os
 import re
+import time
 import numpy as np
 import pickle as pkl
 import torchnet as tnt
 from dataset import get_dataloaders
 from tensorboardX import SummaryWriter
+from torchsummary import summary
 import matplotlib.pyplot as pl
 
 
-def train_net(model, file_path, pre_model, save_dir, batch_size, lr, log_after, cuda, device):
+def train_net(model, file_path, in_seq_len, out_seq_len, pre_model, save_dir, batch_size, lr, log_after, cuda, device):
+    print(model)
     if os.path.exists('runs'):
         import shutil
         shutil.rmtree('runs') # just in case...
-    if not pre_model:
-        print(model)
-    writer = SummaryWriter()
+    if not os.path.exists(save_dir):
+        os.mkdir(save_dir)
     if cuda:
         print('GPU')
         model.cuda(device=device)
         print('log: training started on device: {}'.format(device))
-    # define loss and optimizer
+    writer = SummaryWriter()
     optimizer = Adam(model.parameters(), lr=lr)
     criterion = nn.MSELoss()
-    train_loader, val_dataloader, test_loader = get_dataloaders(file_path=file_path,
-                                                                batch_size=batch_size)
-    if not os.path.exists(save_dir):
-        os.mkdir(save_dir)
-
+    train_dataloader, val_dataloader, test_dataloader = get_dataloaders(file_path=file_path, in_seq_len=in_seq_len,
+                                                                        out_seq_len=out_seq_len, batch_size=batch_size)
     if True:
         i = 1
         m_loss, m_accuracy = [], []
         if pre_model:
-            # self.load_state_dict(torch.load(pre_model)['model'])
             model.load_state_dict(torch.load(pre_model))
             print('log: resumed model {} successfully!'.format(pre_model))
-            print(model)
-
             # starting point
             model_number = int(re.findall('\d+', str(pre_model))[0])
             i = i + model_number - 1
@@ -66,7 +62,7 @@ def train_net(model, file_path, pre_model, save_dir, batch_size, lr, log_after, 
                 torch.save(model.state_dict(), save_path)
                 print('log: saved {}'.format(save_path))
 
-            for idx, data in enumerate(train_loader):
+            for idx, data in enumerate(train_dataloader):
                 ##########################
                 model.train() # train mode at each epoch, just in case...
                 #################################
@@ -74,13 +70,13 @@ def train_net(model, file_path, pre_model, save_dir, batch_size, lr, log_after, 
                 if cuda:
                     test_x = test_x.cuda(device=device)
                     label = label.cuda(device=device)
-                out_x, h_n = model.forward(test_x, model.initHidden(test_x.shape[0]))
-                loss = criterion(out_x, label)
+                out_x, h_n = model.continuous_forward(test_x, out_seq_len=out_seq_len)
+                loss = criterion(out_x.view(-1), label)
                 net_loss.append(loss.item())
                 if idx % log_after == 0 and idx > 0:
                     print('{}. ({}/{}) image size = {}, loss = {}'.format(i,
                                                                           idx,
-                                                                          len(train_loader),
+                                                                          len(train_dataloader),
                                                                           out_x.size(),
                                                                           loss.item()))
                 #################################
@@ -91,10 +87,11 @@ def train_net(model, file_path, pre_model, save_dir, batch_size, lr, log_after, 
                 clip_grad_norm_(model.parameters(), 0.05)
                 optimizer.step()
                 #################################
-            mean_loss = np.asarray(net_loss).mean()
+            mean_loss = np.asarray(net_loss).sum()
             m_loss.append((i, mean_loss))
             writer.add_scalar(tag='train loss', scalar_value=mean_loss, global_step=i)
             print('####################################')
+            print('in_shape = {}, out_shape = {}'.format(test_x.shape, out_x.shape))
             print('epoch {} -> total loss = {:.5f}'.format(i, mean_loss))
             print('####################################')
 
@@ -112,7 +109,6 @@ def eval_net(**kwargs):
     device = kwargs['device']
     if cuda:
         model.cuda(device=device)
-    series_out = []
     if 'criterion' in kwargs.keys():
         writer = kwargs['writer']
         val_loader = kwargs['val_loader']
@@ -121,32 +117,34 @@ def eval_net(**kwargs):
         net_loss = []
         model.eval()  # put in eval mode first ############################
         for idx, data in enumerate(val_loader):
-            test_x, series_in = data['input'].unsqueeze(2), data['label']
+            test_x, label = data['input'].unsqueeze(2), data['label']
         # test_x, label = data['input'].unsqueeze(2), data['label']
         if cuda:
             test_x = test_x.cuda(device=device)
-            series_in = series_in.cuda(device=device)
+            label = label.cuda(device=device)
         # forward
-        out_x, h_n = model.forward(test_x, model.initHidden(test_x.shape[0]))
-        for i in range(series_in.shape[-1]):
-            out_x, h_n = model.forward(out_x.unsqueeze(2), h_n)
-            series_out.append(int(out_x.cpu().numpy()))
-        series_out = torch.Tensor(series_out).view(-1)
-        series_in = series_in.view(-1)
+        out_x, h_n = model.forward(test_x)
         # print(series_out.shape, series_in.shape)
-        loss = criterion(series_out, series_in)
+        loss = criterion(out_x, label)
         net_loss.append(loss.item())
         #################################
-        mean_loss = np.asarray(net_loss).mean()
+        mean_loss = np.asarray(net_loss).sum()
         # summarize mean accuracy
         writer.add_scalar(tag='val. loss', scalar_value=mean_loss, global_step=global_step)
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+        print('in_shape = {}, out_shape = {}'.format(test_x.shape, out_x.shape))
         print('log: validation:: total loss = {:.5f}'.format(mean_loss))
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
-        pl.plot(series_in.numpy(), label='series_in')
-        pl.plot(series_out.numpy(), label='series_out')
-        pl.legend(loc='upper right')
-        pl.show()
+        if mean_loss < 1:
+            ref = test_x[0,:].squeeze(1).numpy()
+            this = label[0,:].numpy()
+            that = out_x[0,:].numpy()
+            this = np.hstack((ref,this)).astype(np.float) #/100.0 # rescale to best fit
+            that = np.hstack((ref,that)).astype(np.float) #/100.0
+            pl.plot(this, label='series_in')
+            pl.plot(that, label='series_out')
+            pl.legend(loc='upper right')
+            pl.show()
     else:
         # model, images, labels, pre_model, save_dir, sum_dir, batch_size, lr, log_after, cuda
         pre_model = kwargs['pre_model']
@@ -197,7 +195,7 @@ def eval_net(**kwargs):
                 print('log: on {}'.format(idx))
 
             #################################
-        mean_loss = np.asarray(net_loss).mean()
+        mean_loss = np.asarray(net_loss).sum()
         mean_accuracy = correct_count * 100 / total_count
         print(correct_count, total_count)
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
