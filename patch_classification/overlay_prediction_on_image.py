@@ -9,7 +9,23 @@ import numpy as np
 import matplotlib as mt
 import PIL.Image as Image
 import matplotlib.pyplot as pl
+import matplotlib.ticker as plticker
 
+
+all_labels = {
+            'Annual\nCrop'           : 0,
+            'Forest'                 : 1,
+            'Herbaceous\nVegetation' : 2,
+            'Highway'                : 3,
+            'Industrial'             : 4,
+            'Pasture'                : 5,
+            'Permanent\nCrop'        : 6,
+            'Residential'            : 7,
+            'River'                  : 8,
+            'SeaLake'                : 9
+            }
+
+all_labels_inverted = {v:k for k,v in all_labels.iteritems()}
 
 def plot_separately():
     input_image = pl.imread(sys.argv[1])
@@ -22,24 +38,13 @@ def plot_separately():
     pass
 
 
-all_labels = {
-            'AnnualCrop'           : 0,
-            'Forest'               : 1,
-            'HerbaceousVegetation' : 2,
-            'Highway'              : 3,
-            'Industrial'           : 4,
-            'Pasture'              : 5,
-            'PermanentCrop'        : 6,
-            'Residential'          : 7,
-            'River'                : 8,
-            'SeaLake'              : 9
-            }
-
 def convert_to_colors(image_arr):
-    color_set = [0, 255, 128]
+    color_set = [0, 255, 70, 128]
     possible_colors = [(x,y,z) for x in color_set for y in color_set for z in color_set]
-    while possible_colors[0] != (0, 0, 0) and possible_colors[1] != (0, 255, 0):
-        random.shuffle(possible_colors)
+    # possible_colors = {x:y for x in range(len(possible_colors)) for y in }
+    random.shuffle(possible_colors)
+    # while possible_colors[0] != (0, 0, 0) and possible_colors[1] != (0, 255, 0):
+    #     random.shuffle(possible_colors)
     # print(possible_colors)
 
     unique = np.unique(image_arr)
@@ -75,8 +80,54 @@ def overlayed_output():
     pass
 
 
-def check_predictions():
+def overlay_with_grid():
 
+    # Open image file
+    start = 5120
+    image = cv2.imread('/home/annus/Desktop/forest_images/pred_sentinel.png')[start:start+64*10,start:start+64*10,0]
+    image = convert_to_colors(image)
+    my_dpi = 300
+
+    # Set up figure
+    fig = pl.figure(figsize=(float(image.shape[0])/my_dpi, float(image.shape[1])/my_dpi), dpi=my_dpi)
+    ax = fig.add_subplot(111)
+
+    # Remove whitespace from around the image
+    fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
+
+    # Set the gridding interval: here we use the major tick interval
+    myInterval = 64.
+    loc = plticker.MultipleLocator(base=myInterval)
+    ax.xaxis.set_major_locator(loc)
+    ax.yaxis.set_major_locator(loc)
+
+    # Add the grid
+    ax.grid(which='major', axis='both', linestyle='-', color='g')
+
+    # Add the image
+    ax.imshow(image)
+
+    # Find number of gridsquares in x and y direction
+    nx = abs(int(float(ax.get_xlim()[1] - ax.get_xlim()[0]) / float(myInterval)))
+    ny = abs(int(float(ax.get_ylim()[1] - ax.get_ylim()[0]) / float(myInterval)))
+
+    # Add some labels to the gridsquares
+    mt.rcParams.update({'font.size': 2})
+    for j in range(ny):
+        y = myInterval / 2 + j * myInterval
+        for i in range(nx):
+            x = myInterval / 2. + float(i) * myInterval
+            # ax.text(x, y, '{:d}'.format(i + j * nx), color='w', ha='center', va='center').set_color('red')
+            ax.text(x, y, '{}'.format(random.choice(all_labels.keys())),
+                    color='w', ha='center', va='center').set_color('yellow')
+
+    # Save the figure
+    # fig.savefig('myImageGrid.tiff', dpi=my_dpi)
+    # pl.axis('off')
+    pl.show()
+
+
+def check_predictions():
     image = cv2.imread('image_test.png')[4000:8000,4000:8000,:]
     label = cv2.imread('pred_sentinel.png')[4000:8000,4000:8000,0]
     label = convert_to_colors(label)
@@ -91,7 +142,7 @@ def check_predictions():
 
 
 if __name__ == '__main__':
-    overlayed_output()
+    overlay_with_grid()
 
 
 

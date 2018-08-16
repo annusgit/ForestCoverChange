@@ -222,19 +222,19 @@ def get_dataloaders(images_path, labels_path, batch_size):
 
 
 def main():
-    # train_dataloader, val_dataloader, test_dataloader = get_dataloaders(images_path='/home/annus/_/'
-    #                                                                                 'ISPRS_BENCHMARK_DATASETS/'
-    #                                                                                 'Vaihingen/datainhere/'
-    #                                                                                 'croped_jpg_images/',
-    #                                                                     labels_path= '/home/annus/_/'
-    #                                                                                 'ISPRS_BENCHMARK_DATASETS/'
-    #                                                                                 'Vaihingen/datainhere/'
-    #                                                                                 'croped_jpg_labels/',
-    #                                                                     batch_size=1)
+    train_dataloader, val_dataloader, test_dataloader = get_dataloaders(images_path='/home/annus/_/'
+                                                                                    'ISPRS_BENCHMARK_DATASETS/'
+                                                                                    'Vaihingen/datainhere/'
+                                                                                    'croped_jpg_images/',
+                                                                        labels_path= '/home/annus/_/'
+                                                                                    'ISPRS_BENCHMARK_DATASETS/'
+                                                                                    'Vaihingen/datainhere/'
+                                                                                    'croped_jpg_labels/',
+                                                                        batch_size=1)
     # #
-    train_dataloader, val_dataloader, test_dataloader = get_dataloaders(images_path='../../jpg_images/',
-                                                                        labels_path='../../jpg_labels/',
-                                                                        batch_size=16)
+    # train_dataloader, val_dataloader, test_dataloader = get_dataloaders(images_path='../../jpg_images/',
+    #                                                                     labels_path='../../jpg_labels/',
+    #                                                                     batch_size=16)
 
     # print(len(train_dataloader), len(val_dataloader), len(test_dataloader))
     count = 0
