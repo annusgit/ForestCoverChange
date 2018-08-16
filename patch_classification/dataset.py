@@ -110,7 +110,7 @@ def get_dataloaders(base_folder, batch_size):
                     (np.expand_dims(example_array, axis=0))), axis=0)
                 pass
 
-            # convert to 8-bit image
+            # range of vals = [0,1]
             example_array = (example_array.astype(np.float)*1/4096)
             example_array = toTensor(image=example_array)
             return {'input': example_array, 'label': this_label}
