@@ -46,7 +46,7 @@ if __name__ == '__main__':
     # image_read = toTensor(image_read)
     print(image_read.shape)
 
-    if False:
+    if True:
         net.eval()
         for i in range(image_read.shape[0]//patch):
             for j in range(image_read.shape[1]//patch):
