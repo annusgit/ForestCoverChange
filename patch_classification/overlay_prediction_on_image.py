@@ -81,7 +81,6 @@ def overlayed_output():
 
 
 def overlay_with_grid():
-
     # Open image file
     start = 5120
     image = cv2.imread('/home/annus/Desktop/forest_images/pred_sentinel.png')[start:start+64*10,start:start+64*10,0]
