@@ -38,9 +38,10 @@ def plot_separately():
     pass
 
 
+color_set = [0, 255, 70, 128]
+possible_colors = [(x, y, z) for x in color_set for y in color_set for z in color_set]
+
 def convert_to_colors(image_arr):
-    color_set = [0, 255, 70, 128]
-    possible_colors = [(x,y,z) for x in color_set for y in color_set for z in color_set]
     # possible_colors = {x:y for x in range(len(possible_colors)) for y in }
     random.shuffle(possible_colors)
     # while possible_colors[0] != (0, 0, 0) and possible_colors[1] != (0, 255, 0):
@@ -82,9 +83,13 @@ def overlayed_output():
 
 def overlay_with_grid():
     # Open image file
-    start = 5120
-    image = cv2.imread('/home/annus/Desktop/forest_images/pred_sentinel.png')[start:start+64*10,start:start+64*10,0]
-    image = convert_to_colors(image)
+    x_start = 64*63
+    y_start = 64*0
+    x_end = x_start+64*10
+    y_end = y_start+64*10
+    image = cv2.imread('/home/annus/Desktop/forest_images/image_test.png')[y_start:y_end,x_start:x_end,:]
+    label = cv2.imread('/home/annus/Desktop/forest_images/pred_sentinel.png')[y_start:y_end,x_start:x_end,0]
+    # colored_label = convert_to_colors(label)
     my_dpi = 300
 
     # Set up figure
@@ -117,7 +122,9 @@ def overlay_with_grid():
         for i in range(nx):
             x = myInterval / 2. + float(i) * myInterval
             # ax.text(x, y, '{:d}'.format(i + j * nx), color='w', ha='center', va='center').set_color('red')
-            ax.text(x, y, '{}'.format(random.choice(all_labels.keys())),
+            # find the label at this point
+            this_label = label[int(y),int(x)]
+            ax.text(x, y, '{}'.format(all_labels_inverted[this_label]),
                     color='w', ha='center', va='center').set_color('yellow')
 
     # Save the figure
@@ -127,14 +134,15 @@ def overlay_with_grid():
 
 
 def check_predictions():
-    image = cv2.imread('image_test.png')[4000:8000,4000:8000,:]
-    label = cv2.imread('pred_sentinel.png')[4000:8000,4000:8000,0]
-    label = convert_to_colors(label)
-    print(np.unique(label), label.shape)
-    pl.subplot(121)
-    pl.imshow(image)
-    pl.subplot(122)
-    print(label.shape)
+    # image = cv2.imread('/home/annus/Desktop/forest_images/image_test.png')[4000:8000,4000:8000,:]
+    label = cv2.imread('/home/annus/Desktop/forest_images/pred_sentinel.png')[:,:,0]
+    label[label != 1] = 0
+    # label = convert_to_colors(label)
+    # print(np.unique(label), label.shape)
+    # pl.subplot(121)
+    # pl.imshow(image)
+    # pl.subplot(122)
+    # print(label.shape)
     pl.imshow(label)
     pl.show()
     pass
