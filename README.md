@@ -14,7 +14,7 @@ You will need the following modules to get the code running
 * [torchsummary](https://github.com/sksq96/pytorch-summary)
 * [torchviz](https://github.com/szagoruyko/pytorchviz)
 * [gdal](https://pypi.org/project/GDAL/)
-* [imgaug](https://github.com/imgaug/)
+* [imgaug](https://github.com/aleju/imgaug)
 
 
 ## Running the tests
