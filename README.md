@@ -1,36 +1,21 @@
 # Forest Cover Change Detection and Prediction over Pakistani Areas
 
-The aim of this project is to use Sentinel and Landsat imagery in order to perform forest cover change detection in Pakistan. The first step is to segment an image from our AOI and then do the same for a whole temporal series of images and then finally compare them to see what changes occured in forest areas. We also intend to predict forestation change trend in Pakistan.                                                                                      
+The aim of this project is to use Sentinel and Landsat imagery in order to perform forest cover change detection in Pakistan. The first step is to segment an image from our AOI and then do the same for a whole temporal series of images and finally compare them to see what changes occured in forest areas. We also intend to predict forestation change trend in Pakistan.                                                                                      
 
 ## Getting Started
 
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. See deployment for notes on how to deploy the project on a live system.
+All of the models in this repo are written with [pytorch](https://github.com/pytorch/pytorch).
 
-### Prerequisites
+### Dependencies
 
-What things you need to install the software and how to install them
+You will need the following modules to get the code running
 
-```
-Give examples
-```
+* [pytorch](https://github.com/pytorch/pytorch)
+* [torchsummary](https://github.com/sksq96/pytorch-summary)
+* [torchviz](https://github.com/szagoruyko/pytorchviz)
+* [gdal](https://pypi.org/project/GDAL/)
+* [imgaug](https://github.com/imgaug/)
 
-### Installing
-
-A step by step series of examples that tell you how to get a development env running
-
-Say what the step will be
-
-```
-Give the example
-```
-
-And repeat
-
-```
-until finished
-```
-
-End with an example of getting some data out of the system or using it for a little demo
 
 ## Running the tests
 
