@@ -51,6 +51,7 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE) f
 
 * [Sentinel](https://scihub.copernicus.eu/) program for providing complete coverage of Earth for free
 * [Eurosat](https://arxiv.org/pdf/1709.00029.pdf) for providing a labeled dataset
+* [Pytorch Forum](http://discuss.pytorch.org/) for providing valuable help when needed
 
 
 
