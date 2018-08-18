@@ -29,9 +29,11 @@ Explain what these tests test and why
 Give an example
 ```
 
-### And coding style tests
+### Results
 
-Explain what these tests test and why
+Some results on different data sets used are as following.
+* Vaihingen Dataset Segmentation after downsampling
+![alt text](https://github.com/annusgit/ForestCoverChange/results/vaihingen.png)
 
 ```
 Give an example
