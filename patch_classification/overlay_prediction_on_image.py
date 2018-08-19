@@ -83,12 +83,13 @@ def overlayed_output():
 
 def overlay_with_grid():
     # Open image file
-    x_start = 64*63
-    y_start = 64*0
+    x_start = 64*40
+    y_start = 64*40
     x_end = x_start+64*10
     y_end = y_start+64*10
-    image = cv2.imread('/home/annus/Desktop/forest_images/image_test.png')[y_start:y_end,x_start:x_end,:]
-    label = cv2.imread('/home/annus/Desktop/forest_images/pred_sentinel.png')[y_start:y_end,x_start:x_end,0]
+    image = cv2.imread('image_test_german.png')[y_start:y_end,x_start:x_end,:]
+    cv2.imwrite('small_image_test_german.png', image)
+    label = cv2.imread('pred_sentinel_german.png')[y_start:y_end,x_start:x_end,0]
     # colored_label = convert_to_colors(label)
     my_dpi = 300
 
@@ -135,8 +136,8 @@ def overlay_with_grid():
 
 def check_predictions():
     # image = cv2.imread('/home/annus/Desktop/forest_images/image_test.png')[4000:8000,4000:8000,:]
-    label = cv2.imread('/home/annus/Desktop/forest_images/pred_sentinel.png')[:,:,0]
-    label[label != 1] = 0
+    label = cv2.imread('pred_sentinel_german.png')[:,:,0]
+    # label[label != 1] = 0
     # label = convert_to_colors(label)
     # print(np.unique(label), label.shape)
     # pl.subplot(121)

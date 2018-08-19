@@ -79,10 +79,9 @@ seq = iaa.Sequential(
 )
 ######################################################################################################
 
-
 def get_dataloaders(base_folder, batch_size):
     print('inside dataloading code...')
-    
+
     class dataset(Dataset):
         def __init__(self, data_dictionary, bands, mode='train'):
             super(dataset, self).__init__()
@@ -91,6 +90,7 @@ def get_dataloaders(base_folder, batch_size):
             #     this.write(json.dumps(self.example_dictionary))
             self.bands = bands # bands are a list bands to use as data, pass them as a list []
             self.mode = mode
+            self.max = 0
             pass
 
         def __getitem__(self, k):
@@ -111,7 +111,14 @@ def get_dataloaders(base_folder, batch_size):
                 pass
 
             # range of vals = [0,1]
-            example_array = (example_array.astype(np.float)*1/4096)
+            example_array = (example_array.astype(np.float)/4096)
+
+            # max value in test set is 28000
+            # this_max = example_array.max()
+            # if this_max > self.max:
+            #     self.max = this_max
+            # print(example_array.max(), example_array.min(), example_array.mean())
+
             example_array = toTensor(image=example_array)
             return {'input': example_array, 'label': this_label}
 

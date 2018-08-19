@@ -174,7 +174,7 @@ def eval_net(**kwargs):
         net_accuracy, net_loss = [], []
         correct_count = 0
         total_count = 0
-        print('batch size = 1')
+        print('batch size = {}'.format(batch_size))
         model.eval()  # put in eval mode first
         for idx, data in enumerate(test_loader):
             # if idx == 1:
@@ -204,7 +204,7 @@ def eval_net(**kwargs):
             # get accuracy metric
             # correct_count += np.sum((pred == label))
             # print(pred, label)
-            batch_correct = (label.eq(pred.long())).double().sum().item()
+            batch_correct = (label.eq(pred.long())).sum().item()
             correct_count += batch_correct
             # print(batch_correct)
             total_count += np.float(batch_size)

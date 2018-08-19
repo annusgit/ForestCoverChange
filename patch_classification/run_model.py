@@ -9,11 +9,13 @@ from __future__ import division
 import torch
 import sys
 import cv2
-import gdal
+# import gdal
+import imageio
 import numpy as np
 from model import *
 from scipy import misc
 import matplotlib.pyplot as pl
+from osgeo import gdal
 
 
 @torch.no_grad()
@@ -36,10 +38,24 @@ def test_model_on_real_sentinel_image():
 
     patch = 64 # model input is of fixed size, 64, so...
     test_size = 512
-    image_read = pl.imread(image_path)
-    image_read = image_read.astype(np.float)/255
-    image_read = image_read[:,:,:3]
-    # print(image_read.max(), image_read.min(), image_read)
+    # ds_r = gdal.Open(red_path)
+    # ds_g = gdal.Open(green_path)
+    # ds_b = gdal.Open(blue_path)
+    # r = np.array(ds_r.GetRasterBand(1).ReadAsArray())
+    # g = np.array(ds_g.GetRasterBand(1).ReadAsArray())
+    # b = np.array(ds_b.GetRasterBand(1).ReadAsArray())
+    image_read = cv2.imread(image_path, -1)[:,:,:3].astype(np.float32)/4096.0
+    image_read = np.dstack((image_read[:,:,2], image_read[:,:,1], image_read[:,:,0]))
+    print(image_read.shape, image_read.max(), image_read.min())
+    # pl.imshow((255*image_read).astype(np.uint8))
+    # pl.show()
+    # image_read = np.asarray(image_read.astype(np.uint16))
+    # print(image_read.dtype, np.max(image_read), image_read.min())
+    # image_read = image_read.astype(np.float) #/255 no need since matplot already does that...
+    # image_read = image_read[:,:,:3]
+    # print(image_read.max())
+    # pl.imshow(image_read)
+    # pl.show()
     image_pred = np.zeros_like(image_read[:,:,0])
 
     def toTensor(image):
@@ -49,8 +65,6 @@ def test_model_on_real_sentinel_image():
         # torch image: C X H X W
         image = image.transpose((2, 0, 1))
         return torch.from_numpy(image).float().unsqueeze(0)
-    # image_read = toTensor(image_read)
-    print(image_read.shape)
 
     for i in range(image_read.shape[0]//patch):
         for j in range(image_read.shape[1]//patch):
@@ -65,8 +79,8 @@ def test_model_on_real_sentinel_image():
             image_pred[patch*i:patch*i+patch, j*patch:j*patch+patch] = pred
             print(pred)
 
-    cv2.imwrite('pred_sentinel.png', image_pred)
-    cv2.imwrite('image_test.png', (255*image_read).astype(np.uint8))
+    cv2.imwrite('pred_sentinel_german.png', image_pred)
+    cv2.imwrite('image_test_german.png', (255*image_read).astype(np.uint8))
 
 
 if __name__ == '__main__':
