@@ -15,7 +15,7 @@ import numpy as np
 from model import *
 from scipy import misc
 import matplotlib.pyplot as pl
-from osgeo import gdal
+from dataset import get_inference_loader
 
 
 @torch.no_grad()
@@ -66,6 +66,7 @@ def test_model_on_real_sentinel_image():
         image = image.transpose((2, 0, 1))
         return torch.from_numpy(image).float().unsqueeze(0)
 
+    # this is a very bad approach...
     for i in range(image_read.shape[0]//patch):
         for j in range(image_read.shape[1]//patch):
             image = image_read[patch*i:patch*i+patch, j*patch:j*patch+patch, :]
@@ -79,12 +80,50 @@ def test_model_on_real_sentinel_image():
             image_pred[patch*i:patch*i+patch, j*patch:j*patch+patch] = pred
             print(pred)
 
-    cv2.imwrite('pred_sentinel_german.png', image_pred)
-    cv2.imwrite('image_test_german.png', (255*image_read).astype(np.uint8))
+    cv2.imwrite('pred_sentinel_muzaffarabad.png', image_pred)
+    cv2.imwrite('image_test_muzaffarabad.png', (255*image_read).astype(np.uint8))
+
+
+def batch_wise_inference():
+    test_model = sys.argv[1]  # '/home/annus/Desktop/test.tif'
+    image_path = sys.argv[2]  # image_pred = np.zeros_like(image_read[:,:,0])
+    device = sys.argv[3]
+    inference_loader, (H,W,C) = get_inference_loader(image_path=image_path, batch_size=150)
+    net = ResNet(in_channels=3)
+    net.load_state_dict(torch.load(test_model))
+    net.to(device=device)
+    net.eval()
+    # test_image = np.zeros(shape=(H,W,C)) # for saving the image
+    # image_pred = np.zeros(shape=(H,W))
+    # np.save('test_image.npy', test_image)
+    # np.save('image_pred.npy', image_pred)
+    # del test_image, image_pred
+    test_image = np.memmap('test_image.npy', dtype=np.uint16, mode='w+', shape=(H,W,C))
+    image_pred = np.memmap('image_pred.npy', dtype=np.uint8, mode='w+', shape=(H, W))
+
+    # this is a much better approach...
+    for idx, data in enumerate(inference_loader, 1):
+        print('on batch ({}/{})'.format(idx, len(inference_loader)))
+        test_x, indices = data['input'], data['indices']
+        indices = indices.numpy() # bring the indices to the cpu
+        test_x.to(device=device)
+        out_x, pred = net(test_x)
+        pred = pred.numpy().astype(np.uint8)
+        test_x = (test_x.numpy().transpose(0, 2, 3, 1)*255).astype(np.uint8)
+        x1, x2, y1, y2 = indices[:,0], indices[:,1], indices[:,2], indices[:,3]
+        for k in range(len(x1)):
+            test_image[x1[k]:x2[k],y1[k]:y2[k],:] = test_x[k,:,:,:]
+            # print(test_image[x1[k]:x2[k],y1[k]:y2[k],:])
+            image_pred[x1[k]:x2[k],y1[k]:y2[k]] = pred[k]
+            # print(pred[k])
+
+    # cv2.imwrite('pred_sentinel_muzaffarabad.png', image_pred)
+    # cv2.imwrite('image_test_muzaffarabad.png', (255 * image_read).astype(np.uint8))
+    pass
 
 
 if __name__ == '__main__':
-    test_model_on_real_sentinel_image()
+    batch_wise_inference()
 
 
 

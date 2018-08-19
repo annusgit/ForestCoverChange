@@ -179,6 +179,52 @@ def get_dataloaders(base_folder, batch_size):
     return train_dataloader, val_dataloader, test_dataloader
 
 
+# We shall use this at inference time on our custom downloaded images...
+def get_inference_loader(image_path, batch_size):
+    print('inside dataloading code...')
+
+    class dataset(Dataset):
+        def __init__(self, image_arr, index_dictionary):
+            super(dataset, self).__init__()
+            self.image_arr = image_arr
+            self.index_dictionary = index_dictionary
+            pass
+
+        def __getitem__(self, k):
+            x, x_, y, y_ = self.index_dictionary[k]
+            example_array = self.image_arr[x:x_, y:y_, :]
+            # this division is non-sense, but let's do it anyway...
+            example_array = (example_array.astype(np.float)/4096)
+            example_array = np.dstack((example_array[:,:,2],example_array[:,:,1],example_array[:,:,0]))
+            example_array = toTensor(image=example_array)
+            return {'input': example_array, 'indices': torch.Tensor([x, x_, y, y_]).long()}
+
+        def __len__(self):
+            return len(self.index_dictionary)
+
+    # create training set examples dictionary
+    patch = 64 # this is fixed and default
+    image_file = np.load(image_path, mmap_mode='r') # we don't want to load it into memory because it's huge
+    image_read = image_file['pixels']
+    print(image_read.max())
+    H, W = image_read.shape[0], image_read.shape[1]
+    x_num = W // patch
+    y_num = H //patch
+    # get a dictionary of all possible indices to crop out of the actual tile image
+    index_dict = {}
+    for i in range(x_num):
+        for j in range(y_num):
+            index_dict[len(index_dict)] = (patch*i, patch*i+patch, j*patch, j*patch+patch)
+
+    data = dataset(image_arr=image_read, index_dictionary=index_dict)
+    print('number of test examples =', len(index_dict))
+
+    train_dataloader = DataLoader(dataset=data, batch_size=batch_size,
+                                  shuffle=False, num_workers=4)
+
+    return train_dataloader, image_read.shape
+
+
 def histogram_equalization(in_image):
     for i in range(in_image.shape[2]): # each channel
         image = in_image[:,:,i]
@@ -219,8 +265,29 @@ def main():
                 pl.show()
 
 
+
+def check_inference_loader():
+    this_path = '/home/annus/Desktop/forest_images/test_images/muzaffarabad_pickle.pkl'
+    inference_loader, _ = get_inference_loader(image_path=this_path, batch_size=4)
+    count = 0
+    while True:
+        count += 1
+        for idx, data in enumerate(inference_loader):
+            examples, indices = data['input'], data['indices']
+            print('{} -> on batch {}/{}, {}'.format(count, idx + 1, len(inference_loader), examples.size()))
+            if True:
+                this = np.max(examples[0].numpy())
+                indices = indices.numpy()
+                print(indices[:,0], indices[:,1], indices[:,2], indices[:,3])
+                this = (examples[0].numpy() * 255).transpose(1, 2, 0).astype(np.uint8)
+                # this = histogram_equalization(this)
+                pl.imshow(this)
+                pl.show()
+    pass
+
+
 if __name__ == '__main__':
-    main()
+    check_inference_loader()
 
 
 

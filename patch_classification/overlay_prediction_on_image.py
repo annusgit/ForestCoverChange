@@ -83,13 +83,22 @@ def overlayed_output():
 
 def overlay_with_grid():
     # Open image file
-    x_start = 64*40
+    x_start = 64*60
     y_start = 64*40
     x_end = x_start+64*10
     y_end = y_start+64*10
-    image = cv2.imread('image_test_german.png')[y_start:y_end,x_start:x_end,:]
-    cv2.imwrite('small_image_test_german.png', image)
-    label = cv2.imread('pred_sentinel_german.png')[y_start:y_end,x_start:x_end,0]
+    image_path = '/home/annus/Desktop/forest_images/results/german_image.npy'
+    pred_path = '/home/annus/Desktop/forest_images/results/german_pred.npy'
+    # pred_path = '/home/annus/Desktop/forest_images/results/pred_sentinel_pakistan.png'
+    # image = cv2.imread(image_path)[y_start:y_end,x_start:x_end,:]
+    # # cv2.imwrite('small_image_test_pakistan.png', image)
+    # label = cv2.imread(pred_path)[y_start:y_end,x_start:x_end,0]
+    image = np.memmap(image_path, dtype=np.uint16, mode='r', shape=(10980, 10980, 3))
+    label = np.memmap(pred_path, dtype=np.uint8, mode='r', shape=(10980, 10980))
+    # print(image)
+    image = image[y_start:y_end,x_start:x_end,:]
+    label = label[y_start:y_end,x_start:x_end]
+
     # colored_label = convert_to_colors(label)
     my_dpi = 300
 
