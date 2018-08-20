@@ -28,11 +28,14 @@ We used the [Eurosat](https://arxiv.org/pdf/1709.00029.pdf) data set and a [Resn
 Here is our Confusion Matrix on the test set
 ![alt text](results/resnet_cm.png)
 
-The following images show our results one different landscapes. It should be noted that these images were not a part of the training or test set. They were downloaded separately from [scihub](https://scihub.copernicus.eu) and [earthexplorer](http://earthexplorer.usgs.gov) for inference. The first two are from Germany, the next two from Peshawar (Pakistan) and the last two from Muzaffarabad (Pakistan)
+The following images show our results one different landscapes. It should be noted that these images were not a part of the training or test set. They were downloaded separately from [scihub](https://scihub.copernicus.eu) and [earthexplorer](http://earthexplorer.usgs.gov) for inference.  
+* **Germany**
 ![alt text](results/german_patchwise_1.png?style=centerme)
 ![alt text](results/german_patchwise_2.png?style=centerme)
+* **Pakistan (Peshawar Region)**
 ![alt text](results/peshawar_patchwise_1.png?style=centerme)
 ![alt text](results/peshawar_patchwise_2.png?style=centerme)
+* **Pakistan (Muzaffarabad Region)**
 ![alt text](results/muzaffarabad_patchwise_1.png?style=centerme)
 ![alt text](results/muzaffarabad_patchwise_2.png?style=centerme)
 
