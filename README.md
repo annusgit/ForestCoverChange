@@ -33,7 +33,7 @@ Give an example
 
 Some results on different data sets used are as following.
 * Vaihingen Dataset Segmentation after downsampling
-![alt text](https://github.com/annusgit/ForestCoverChange/results/vaihingen.png)
+![alt text](results/downsampled_seg_result.png)
 
 ```
 Give an example
