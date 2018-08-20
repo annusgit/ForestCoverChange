@@ -19,11 +19,11 @@ You will need the following modules to get the code running
 
 ## Results
 
-* ###Image Segmentation on ISPRS data set using UNet architecture.
+### Image Segmentation on ISPRS data set using UNet architecture.
 Vaihingen Dataset Segmentation after downsampling
 ![alt text](results/downsampled_seg_result.png)
 
-* ###Patch-wise classification of Sentinel-2 Satellite Images.
+### Patch-wise classification of Sentinel-2 Satellite Images.
 We used the [Eurosat](https://arxiv.org/pdf/1709.00029.pdf) data set and a [Resnet-50](https://pytorch.org/docs/stable/torchvision/models.html#torchvision.models.resnet50) model for classifying 64*64 patches of image
 The following images show our results one different landscapes
 * Germany
@@ -35,11 +35,6 @@ The following images show our results one different landscapes
 * Pakistan (Muzaffarabad Region)
 ![alt text](results/muzaffarabad_patchwise_1.png)
 ![alt text](results/muzaffarabad_patchwise_2.png)
-
-* ###Image Segmentation on ISPRS data set.
-Vaihingen Dataset Segmentation after downsampling
-![alt text](results/downsampled_seg_result.png)
-
 
 ## Authors
 
