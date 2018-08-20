@@ -29,15 +29,15 @@ Here is our Confusion Matrix on the test set
 ![alt text](results/resnet_cm.png)
 
 The following images show our results one different landscapes. It should be noted that these images were not a part of the training or test set. They were downloaded separately from [scihub](https://scihub.copernicus.eu) for inference. 
-* Germany
-![alt text](results/german_patchwise_1.png)
-![alt text](results/german_patchwise_2.png)
-* Pakistan (Peshawar Region)
-![alt text](results/peshawar_patchwise_1.png)
-![alt text](results/peshawar_patchwise_2.png)
-* Pakistan (Muzaffarabad Region)
-![alt text](results/muzaffarabad_patchwise_1.png)
-![alt text](results/muzaffarabad_patchwise_2.png)
+* **Germany**
+![alt text](results/german_patchwise_1.png?style=centerme)
+![alt text](results/german_patchwise_2.png?style=centerme)
+* **Pakistan (Peshawar Region)**
+![alt text](results/peshawar_patchwise_1.png?style=centerme)
+![alt text](results/peshawar_patchwise_2.png?style=centerme)
+* **Pakistan (Muzaffarabad Region)**
+![alt text](results/muzaffarabad_patchwise_1.png?style=centerme)
+![alt text](results/muzaffarabad_patchwise_2.png?style=centerme)
 
 ## Authors
 
