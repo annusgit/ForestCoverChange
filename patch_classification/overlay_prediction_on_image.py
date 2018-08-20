@@ -83,12 +83,12 @@ def overlayed_output():
 
 def overlay_with_grid():
     # Open image file
-    x_start = 64*20
-    y_start = 64*20
+    x_start = 64*140
+    y_start = 64*10
     x_end = x_start+64*10
     y_end = y_start+64*10
-    image_path = '/home/annus/Desktop/forest_images/results/muzaffarabad_image.npy'
-    pred_path = '/home/annus/Desktop/forest_images/results/muzaffarabad_pred.npy'
+    image_path = '/home/annus/Desktop/forest_images/results/peshawar_image.npy'
+    pred_path = '/home/annus/Desktop/forest_images/results/peshawar_pred.npy'
     # pred_path = '/home/annus/Desktop/forest_images/results/pred_sentinel_pakistan.png'
     # image = cv2.imread(image_path)[y_start:y_end,x_start:x_end,:]
     # # cv2.imwrite('small_image_test_pakistan.png', image)
