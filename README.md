@@ -25,13 +25,17 @@ Vaihingen Dataset Segmentation after downsampling
 
 ### Patch-wise classification of Sentinel-2 Satellite Images.
 We used the [Eurosat](https://arxiv.org/pdf/1709.00029.pdf) data set and a [Resnet-50](https://pytorch.org/docs/stable/torchvision/models.html#torchvision.models.resnet50) model for classifying 64*64 patches of image
-The following images show our results one different landscapes. It should be noted that these images were not a part of the training or test set. They were downloaded separately from [scihub](https://scihub.copernicus.eu) for inference. Here is Germany
+Here is our Confusion Matrix on the test set
+![alt text](results/resnet_cm.png)
+
+The following images show our results one different landscapes. It should be noted that these images were not a part of the training or test set. They were downloaded separately from [scihub](https://scihub.copernicus.eu) for inference. 
+* Germany
 ![alt text](results/german_patchwise_1.png)
 ![alt text](results/german_patchwise_2.png)
-and now Peshawar region in Pakistan
+* Pakistan (Peshawar Region)
 ![alt text](results/peshawar_patchwise_1.png)
 ![alt text](results/peshawar_patchwise_2.png)
-and Muzaffarabad, again in Pakistan
+* Pakistan (Muzaffarabad Region)
 ![alt text](results/muzaffarabad_patchwise_1.png)
 ![alt text](results/muzaffarabad_patchwise_2.png)
 
