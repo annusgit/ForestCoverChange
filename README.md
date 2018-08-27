@@ -31,20 +31,20 @@ Here is our Confusion Matrix on the test set
 The following images show our results one different landscapes. It should be noted that these images were not a part of the training or test set. They were downloaded separately from [scihub](https://scihub.copernicus.eu) and [earthexplorer](http://earthexplorer.usgs.gov) for inference.  
 - **Germany**
 <p align="center"> 
-    <img src"results/german_patchwise_1.png">
-    <img src"results/german_patchwise_2.png">
+    <img src="results/german_patchwise_1.png">
+    <img src="results/german_patchwise_2.png">
 </p>
 
 - **Pakistan (Peshawar Region)**
 <p align="center"> 
-    <img src"results/peshawar_patchwise_1.png">
-    <img src"results/peshawar_patchwise_2.png">
+    <img src="results/peshawar_patchwise_1.png">
+    <img src="results/peshawar_patchwise_2.png">
 </p>
 
 - **Pakistan (Muzaffarabad Region)**
 <p align="center"> 
-    <img src"results/muzaffarabad_patchwise_1.png">
-    <img src"results/muzaffarabad_patchwise_2.png">
+    <img src="results/muzaffarabad_patchwise_1.png">
+    <img src="results/muzaffarabad_patchwise_2.png">
 </p>
 
 ## Authors
