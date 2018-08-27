@@ -20,12 +20,12 @@ You will need the following modules to get the code running
 ## Results
 
 ### Image Segmentation on ISPRS data set using UNet architecture.
-`Unet Architecture` 
+**Unet Architecture** 
 <p align='center'> 
     <img src="results/unet-architecture.png">
 </p>
 
-`[Vaihingen Dataset](http://www2.isprs.org/commissions/comm3/wg4/semantic-labeling.html) Segmentation after downsampling`
+**[Vaihingen Dataset](http://www2.isprs.org/commissions/comm3/wg4/semantic-labeling.html) Segmentation after downsampling**
 <p align='center'> 
     <img src="results/downsampled_seg_result.png">
 </p>
