@@ -23,12 +23,12 @@ You will need the following modules to get the code running
 [Vaihingen Dataset](http://www2.isprs.org/commissions/comm3/wg4/semantic-labeling.html) Segmentation after downsampling
 Unet Architecture 
 <p align='center'> 
-    <img src="results/unet-architecture.png'>
+    <img src="results/unet-architecture.png">
 </p>
 
 Segmentation result
 <p align='center'> 
-    <img src="results/downsampled_seg_result.png.png'>
+    <img src="results/downsampled_seg_result.png">
 </p>
 
 ### Patch-wise classification of Sentinel-2 Satellite Images.
