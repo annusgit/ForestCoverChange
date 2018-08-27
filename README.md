@@ -21,8 +21,11 @@ You will need the following modules to get the code running
 
 ### Image Segmentation on ISPRS data set using UNet architecture.
 [Vaihingen Dataset](http://www2.isprs.org/commissions/comm3/wg4/semantic-labeling.html) Segmentation after downsampling
-![alt text](results/downsampled_seg_result.png)
-
+<p align='center'> Unet Architecture <p align="center">
+    <img src="results/unet-architecture.png'>
+<p align='center'> Segmentation result <p align="center">
+    <img src="results/downsampled_seg_result.png.png'>
+</p>
 ### Patch-wise classification of Sentinel-2 Satellite Images.
 We used the [Eurosat](https://arxiv.org/pdf/1709.00029.pdf) data set and a [Resnet-50](https://pytorch.org/docs/stable/torchvision/models.html#torchvision.models.resnet50) model for classifying 64*64 patches of image
 Here is our Confusion Matrix on the test set
