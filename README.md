@@ -35,8 +35,8 @@ You will need the following modules to get the code running
 
 **`Change Detection on a series of Images from German Landscapes (2016-2018)`**
 <p align='center'> 
-    <img src="results/10_10.gif">
-    <img src="results/20_20.gif">
+    <img src="results/10_10.gif" width="400" height="400"/>
+    <img src="results/20_20.gif" width="400" height="400"/>
 </p>
 
 ### Patch-wise classification of Sentinel-2 Satellite Images.
