@@ -35,32 +35,34 @@ You will need the following modules to get the code running
 
 **`Change Detection on a series of Images from German Landscapes (2016-2018)`**
 <p align='center'> 
-    <img src="results/10_10.gif" width="400" height="400"/>
-    <img src="results/20_20.gif" width="400" height="400"/>
+    <img src="results/10_10.gif"/>
+    <img src="results/20_20.gif"/>
 </p>
 
 ### Patch-wise classification of Sentinel-2 Satellite Images.
 We used the [Eurosat](https://arxiv.org/pdf/1709.00029.pdf) data set and a [Resnet-50](https://pytorch.org/docs/stable/torchvision/models.html#torchvision.models.resnet50) model for classifying 64*64 patches of image
 Here is our Confusion Matrix on the test set
-![alt text](results/resnet_cm.png)
+<p align="center"> 
+    <img src="results/resnet_cm.png" width="400" height="400"/>
+</p>
 
 * The following images show our results one different landscapes. It should be noted that these images were not a part of the training or test set. They were downloaded separately from [scihub](https://scihub.copernicus.eu) and [earthexplorer](http://earthexplorer.usgs.gov) for inference.  
 - **Germany**
 <p align="center"> 
-    <img src="results/german_patchwise_1.png">
-    <img src="results/german_patchwise_2.png">
+    <img src="results/german_patchwise_1.png"/>
+    <img src="results/german_patchwise_2.png"/>
 </p>
 
 - **Pakistan (Peshawar Region)**
 <p align="center"> 
-    <img src="results/peshawar_patchwise_1.png">
-    <img src="results/peshawar_patchwise_2.png">
+    <img src="results/peshawar_patchwise_1.png"/>
+    <img src="results/peshawar_patchwise_2.png"/>
 </p>
 
 - **Pakistan (Muzaffarabad Region)**
 <p align="center"> 
-    <img src="results/muzaffarabad_patchwise_1.png">
-    <img src="results/muzaffarabad_patchwise_2.png">
+    <img src="results/muzaffarabad_patchwise_1.png"/>
+    <img src="results/muzaffarabad_patchwise_2.png"/>
 </p>
 
 ## Authors
