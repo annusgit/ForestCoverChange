@@ -33,7 +33,7 @@ You will need the following modules to get the code running
     <img src="results/downsampled_seg_result.png">
 </p>
 
-**Change Detection on a series of Images from German Landscapes**
+**`Change Detection on a series of Images from German Landscapes (2016-2018)`**
 <p align='center'> 
     <img src="results/10_10.gif">
     <img src="results/20_20.gif">
