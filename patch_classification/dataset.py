@@ -41,6 +41,7 @@ def toTensor(image):
     # numpy image: H x W x C
     # torch image: C X H X W
     image = image.transpose((2, 0, 1))
+    # print(image.shape)
     return torch.from_numpy(image).float()
 
 ######################################################################################################
@@ -195,7 +196,7 @@ def get_inference_loader(image_path, batch_size):
             example_array = self.image_arr[x:x_, y:y_, :]
             # this division is non-sense, but let's do it anyway...
             example_array = (example_array.astype(np.float)/4096)
-            example_array = np.dstack((example_array[:,:,2],example_array[:,:,1],example_array[:,:,0]))
+            # example_array = np.dstack((example_array[:,:,2],example_array[:,:,1],example_array[:,:,0]))
             example_array = toTensor(image=example_array)
             return {'input': example_array, 'indices': torch.Tensor([x, x_, y, y_]).long()}
 
@@ -206,14 +207,15 @@ def get_inference_loader(image_path, batch_size):
     patch = 64 # this is fixed and default
     image_file = np.load(image_path, mmap_mode='r') # we don't want to load it into memory because it's huge
     image_read = image_file['pixels']
-    print(image_read.max())
     H, W = image_read.shape[0], image_read.shape[1]
     x_num = W // patch
     y_num = H //patch
+    image_read = image_read[:y_num*patch, :x_num*patch, :]
+
     # get a dictionary of all possible indices to crop out of the actual tile image
     index_dict = {}
-    for i in range(x_num):
-        for j in range(y_num):
+    for i in range(y_num):
+        for j in range(x_num):
             index_dict[len(index_dict)] = (patch*i, patch*i+patch, j*patch, j*patch+patch)
 
     data = dataset(image_arr=image_read, index_dictionary=index_dict)
@@ -221,7 +223,7 @@ def get_inference_loader(image_path, batch_size):
 
     train_dataloader = DataLoader(dataset=data, batch_size=batch_size,
                                   shuffle=False, num_workers=4)
-
+    print(image_read.shape)
     return train_dataloader, image_read.shape
 
 

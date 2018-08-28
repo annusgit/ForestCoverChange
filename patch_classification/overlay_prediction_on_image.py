@@ -83,22 +83,29 @@ def overlayed_output():
 
 def overlay_with_grid():
     # Open image file
-    x_start = 64*140
-    y_start = 64*10
-    x_end = x_start+64*10
-    y_end = y_start+64*10
-    image_path = '/home/annus/Desktop/forest_images/results/peshawar_image.npy'
-    pred_path = '/home/annus/Desktop/forest_images/results/peshawar_pred.npy'
-    # pred_path = '/home/annus/Desktop/forest_images/results/pred_sentinel_pakistan.png'
-    # image = cv2.imread(image_path)[y_start:y_end,x_start:x_end,:]
-    # # cv2.imwrite('small_image_test_pakistan.png', image)
-    # label = cv2.imread(pred_path)[y_start:y_end,x_start:x_end,0]
-    image = np.memmap(image_path, dtype=np.uint16, mode='r', shape=(10980, 10980, 3))
-    label = np.memmap(pred_path, dtype=np.uint8, mode='r', shape=(10980, 10980))
-    # print(image)
+    image_path = 'test_image_5.npy'
+    pred_path = 'image_pred_5.npy'
+    # use one of the following based on the size of the image; if image is huge, go with the first one!
+    ##########################################################################
+    image = np.memmap(image_path, dtype=np.uint16, mode='r', shape=(2368, 4288, 3))#.transpose(1,0,2)
+    label = np.memmap(pred_path, dtype=np.uint8, mode='r', shape=(2368, 4288))#.transpose(1,0)
+    x_start = 64 * 20
+    y_start = 64 * 20
+    x_end = x_start + 64 * 10
+    y_end = y_start + 64 * 10
     image = image[y_start:y_end,x_start:x_end,:]
     label = label[y_start:y_end,x_start:x_end]
-
+    # image = np.load(image_path, mmap_mode='r')
+    # label = np.load(pred_path, mmap_mode='r')
+    # print(image)
+    ###########################################################################
+    # x_start = 64 * 140
+    # y_start = 64 * 10
+    # x_end = x_start + 64 * 10
+    # y_end = y_start + 64 * 10
+    # image = image[y_start:y_end,x_start:x_end,:]
+    # label = label[y_start:y_end,x_start:x_end]
+    ###########################################################################
     # colored_label = convert_to_colors(label)
     my_dpi = 300
 

@@ -88,7 +88,7 @@ def batch_wise_inference():
     test_model = sys.argv[1]  # '/home/annus/Desktop/test.tif'
     image_path = sys.argv[2]  # image_pred = np.zeros_like(image_read[:,:,0])
     device = sys.argv[3]
-    inference_loader, (H,W,C) = get_inference_loader(image_path=image_path, batch_size=150)
+    inference_loader, (H,W,C) = get_inference_loader(image_path=image_path, batch_size=70)
     net = ResNet(in_channels=3)
     net.load_state_dict(torch.load(test_model))
     net.to(device=device)
@@ -98,8 +98,8 @@ def batch_wise_inference():
     # np.save('test_image.npy', test_image)
     # np.save('image_pred.npy', image_pred)
     # del test_image, image_pred
-    test_image = np.memmap('test_image.npy', dtype=np.uint16, mode='w+', shape=(H,W,C))
-    image_pred = np.memmap('image_pred.npy', dtype=np.uint8, mode='w+', shape=(H, W))
+    test_image = np.memmap('test_image_6.npy', dtype=np.uint16, mode='w+', shape=(H,W,C))
+    image_pred = np.memmap('image_pred_6.npy', dtype=np.uint8, mode='w+', shape=(H, W))
 
     # this is a much better approach...
     for idx, data in enumerate(inference_loader, 1):
