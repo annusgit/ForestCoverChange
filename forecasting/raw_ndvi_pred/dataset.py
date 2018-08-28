@@ -7,7 +7,7 @@ import random
 random.seed(74)
 import numpy as np
 import matplotlib.pyplot as pl
-from json_parser import get_values
+from json_parser import get_values, interpolate_and_scale, smooth
 from torch.utils.data import Dataset, DataLoader
 
 
@@ -42,11 +42,16 @@ def get_dataloaders(file_path, in_seq_len, out_seq_len, batch_size, data_type='f
             # print(len(self.data)-self.in_seq_len-self.out_seq_len)
             return len(self.data)-self.in_seq_len-self.out_seq_len
 
-    sample, Fs, f = 80000, 500, 5
-    dataset_list = 100*np.sin(2 * np.pi * f * np.arange(sample) / Fs)
-    # dataset_list = 100*get_values(this_file=file_path, window_size=8)['value_mean']
+    # sample, Fs, f = 80000, 500, 5
+    # dataset_list = 100*np.sin(2 * np.pi * f * np.arange(sample) / Fs)
+    dataset_list = get_values(this_file=file_path, all_values=['value_mean'])['value_mean']
+    dataset_list = interpolate_and_scale(smooth(np.asarray(dataset_list), window_len=8),
+                                                new_length=5e6, order=3, scale=100)
     # split them into train and test
-    train, val, test = dataset_list[:75000], dataset_list[75000:76000], dataset_list[76000:]
+    split_ratio = 0.8
+    num_train = int(split_ratio*len(dataset_list))
+    num_val = num_train+(len(dataset_list)-num_train)//2
+    train, val, test = dataset_list[:num_train], dataset_list[num_train:num_val], dataset_list[num_val:]
     train_data = dataset(data=train, in_seq_len=in_seq_len, out_seq_len=out_seq_len, mode='train')
     val_data = dataset(data=val, in_seq_len=in_seq_len, out_seq_len=out_seq_len, mode='no_train')
     test_data = dataset(data=test, in_seq_len=in_seq_len, out_seq_len=out_seq_len, mode='no_train')
@@ -61,8 +66,8 @@ def get_dataloaders(file_path, in_seq_len, out_seq_len, batch_size, data_type='f
 
 
 def main():
-    this_file = '/home/annus/Desktop/statistics_250m_16_days_NDVI.json'
-    train_dataloader, val_dataloader, test_dataloader = get_dataloaders(file_path=this_file, in_seq_len=5,
+    this_file = 'statistics_250m_16_days_NDVI.json'
+    train_dataloader, val_dataloader, test_dataloader = get_dataloaders(file_path=this_file, in_seq_len=1,
                                                                         out_seq_len=5, batch_size=4)
     count = 0
     count += 1

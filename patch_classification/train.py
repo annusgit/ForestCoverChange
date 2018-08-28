@@ -32,7 +32,7 @@ if __name__ == '__main__':
     device = int(args.device)
 
     function_to_call = eval(function)
-    net = ResNet(in_channels=3)
+    net = HyperSpectral_Resnet(in_channels=5)
 
     function_to_call(model=net,
                      base_folder=data_path,

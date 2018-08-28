@@ -3,6 +3,7 @@ from __future__ import print_function
 from __future__ import division
 import torch
 import numpy as np
+import matplotlib.pyplot as pl
 import torch.nn as nn
 from torchvision import models
 import torch.nn.functional as F
@@ -86,7 +87,7 @@ class ResNet(nn.Module):
         self.feature_extracter = torch.nn.Sequential(*with_dropout)
         self.kill = nn.Dropout(p=0.8)
         self.classifier = nn.Sequential(
-            nn.Linear(in_features=2048*4, out_features=1024),
+            nn.Linear(in_features=32768, out_features=1024),
             nn.ReLU(),
             nn.Linear(in_features=1024, out_features=512),
             nn.ReLU(),
@@ -109,6 +110,7 @@ class ResNet(nn.Module):
     def count_parameters(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
+
 def see_children_recursively(graph):
     further = False
     children = list(graph.children())
@@ -118,27 +120,59 @@ def see_children_recursively(graph):
     if not further and isinstance(graph, nn.BatchNorm2d):
         print(graph)
 
+
+class HyperSpectral_Resnet(nn.Module):
+
+    def __init__(self, in_channels):
+        super(HyperSpectral_Resnet, self).__init__()
+        self.Resnet = ResNet(in_channels=-1)
+        children = list(self.Resnet.feature_extracter.children())[1:]
+        children.insert(0, nn.Conv2d(in_channels=in_channels, out_channels=64, kernel_size=3, padding=1))
+        self.Resnet.feature_extracter = nn.Sequential(*children)
+        pass
+
+    def forward(self, x):
+        return self.Resnet(x)
+
+
 def network():
-    in_channels = 3
+    in_channels = 10
     patch_size = 64
-    net = ResNet(in_channels=in_channels)
-    x = torch.Tensor(2, in_channels, patch_size, patch_size)
+    net = HyperSpectral_Resnet(in_channels=in_channels)
+    x = torch.Tensor(1, in_channels, patch_size, patch_size)
     # see_children_recursively(net)
-    # print(net)
-    summary(model=net, input_size=(3,64,64))
-    # print(list(nn.BatchNorm2d(num_features=3).children()))
+    print(net)
+    # summary(model=net, input_size=(in_channels, patch_size, patch_size))
     # print('We need to find {} numbers!'.format(net.count_parameters()))
-    # out, pred = net(x)
-    # this = make_dot(pred, params=dict(net.named_parameters()))
-    # print(type(this))
-    # this.view()
-    # while True:
-    #     pass
-    # print(out.shape, pred.shape)
+    out, pred = net(x)
+    print(out.shape, pred.shape)
+
+
+@torch.no_grad()
+def check_model_on_dataloader():
+    from dataset import get_dataloaders
+    model = HyperSpectral_Resnet(in_channels=5)
+    model.eval()
+    # train_dataloader, val_dataloader, test_dataloader = get_dataloaders(base_folder='/home/annus/Desktop/'
+    #                                                                                 'projects/forest_cover_change/'
+    #                                                                                 'eurosat/images/tif/',
+    #                                                                     batch_size=1)
+    train_dataloader, val_dataloader, test_dataloader = get_dataloaders(base_folder='tif/',
+                                                                        batch_size=64)
+    count = 0
+    while True:
+        count += 1
+        for idx, data in enumerate(train_dataloader):
+            examples, labels = data['input'], data['label']
+            print('{} -> on batch {}/{}, {}'.format(count, idx + 1, len(train_dataloader), examples.size()))
+            if True:
+                out_x, pred = model(examples)
+                print(out_x.shape, pred.shape)
+    pass
 
 
 if __name__ == '__main__':
-    network()
+    check_model_on_dataloader()
 
 
 

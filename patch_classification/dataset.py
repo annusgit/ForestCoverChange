@@ -112,7 +112,7 @@ def get_dataloaders(base_folder, batch_size):
                 pass
 
             # range of vals = [0,1]
-            example_array = (example_array.astype(np.float)/4096)
+            example_array = (example_array.astype(np.float)/10000) # just to bring those values down
 
             # max value in test set is 28000
             # this_max = example_array.max()
@@ -163,7 +163,7 @@ def get_dataloaders(base_folder, batch_size):
 
 
     # create dataset class instances
-    bands = [4, 3, 2]
+    bands = [8, 5, 4, 3, 2] # these are [NIR, Vegetation Red Edge, Red, Green, Blue] bands
     train_data = dataset(data_dictionary=train_dictionary, bands=bands, mode='train')
     val_data = dataset(data_dictionary=val_dictionary, bands=bands, mode='eval')
     test_data = dataset(data_dictionary=test_dictionary, bands=bands, mode='test')
@@ -195,7 +195,7 @@ def get_inference_loader(image_path, batch_size):
             x, x_, y, y_ = self.index_dictionary[k]
             example_array = self.image_arr[x:x_, y:y_, :]
             # this division is non-sense, but let's do it anyway...
-            example_array = (example_array.astype(np.float)/4096)
+            example_array = (example_array.astype(np.float)/10000)
             # example_array = np.dstack((example_array[:,:,2],example_array[:,:,1],example_array[:,:,0]))
             example_array = toTensor(image=example_array)
             return {'input': example_array, 'indices': torch.Tensor([x, x_, y, y_]).long()}
@@ -241,10 +241,10 @@ def histogram_equalization(in_image):
     return in_image
 
 
-def main():
+def check_dataloaders():
     train_dataloader, val_dataloader, test_dataloader = get_dataloaders(base_folder='/home/annus/Desktop/'
-                                                                                    'forest_cover_change/'
-                                                                                    'eurosat/images/tif',
+                                                                                    'projects/forest_cover_change/'
+                                                                                    'eurosat/images/tif/',
                                                                         batch_size=1)
     # #
     # train_dataloader, val_dataloader, test_dataloader = get_dataloaders(base_folder='Eurosat/tif/',
@@ -258,9 +258,10 @@ def main():
             examples, labels = data['input'], data['label']
             print('{} -> on batch {}/{}, {}'.format(count, idx+1, len(train_dataloader), examples.size()))
             if True:
-                this = np.max(examples[0].numpy())
-                print(this)
-                this = (examples[0].numpy()*255).transpose(1,2,0).astype(np.uint8)
+                # this = np.max(examples[0].numpy())
+                # print(this)
+                this = (examples[0].numpy()*400).transpose(1,2,0)[:,:,:3].astype(np.uint8)
+                print(this.shape)
                 # this = histogram_equalization(this)
                 pl.imshow(this)
                 pl.title('{}'.format(reversed_labels[int(labels.numpy())]))
@@ -289,7 +290,7 @@ def check_inference_loader():
 
 
 if __name__ == '__main__':
-    check_inference_loader()
+    check_dataloaders()
 
 
 
