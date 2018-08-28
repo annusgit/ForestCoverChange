@@ -34,8 +34,8 @@ def convert_frames_to_video(pathIn, pathOut, fps):
 
 
 def main():
-    pathIn = '/home/annus/Desktop/google_ee/20_20/'
-    pathOut = '20_20.avi'
+    pathIn = '/home/annus/PycharmProjects/ForestCoverChange/results/color_coded_segmentation/'
+    pathOut = 'color_coded_seg.avi'
     fps = 3.0
     convert_frames_to_video(pathIn, pathOut, fps)
 

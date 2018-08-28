@@ -33,12 +33,6 @@ You will need the following modules to get the code running
     <img src="results/downsampled_seg_result.png">
 </p>
 
-**`Change Detection on a series of Images from German Landscapes (2016-2018)`**
-<p align='center'> 
-    <img src="results/10_10.gif"/>
-    <img src="results/20_20.gif"/>
-</p>
-
 ### Patch-wise classification of Sentinel-2 Satellite Images.
 We used the [Eurosat](https://arxiv.org/pdf/1709.00029.pdf) data set and a [Resnet-50](https://pytorch.org/docs/stable/torchvision/models.html#torchvision.models.resnet50) model for classifying 64*64 patches of image
 Here is our Confusion Matrix on the test set
@@ -47,6 +41,20 @@ Here is our Confusion Matrix on the test set
 </p>
 
 * The following images show our results one different landscapes. It should be noted that these images were not a part of the training or test set. They were downloaded separately from [scihub](https://scihub.copernicus.eu) and [earthexplorer](http://earthexplorer.usgs.gov) for inference.  
+
+**`Change Detection on a series of Sentinel Images from German Landscapes (2016-2018)`**
+<p align='center'> 
+    <img src="results/10_10.gif"/>
+    <img src="results/20_20.gif"/>
+</p>
+
+**`The same result but color coded and full resolution`**
+<p align='center'> 
+    <img src="results/color_coded_segmentation/color_coded_seg.gif"/>
+</p>
+
+
+
 - **Germany**
 <p align="center"> 
     <img src="results/german_patchwise_1.png"/>

@@ -39,15 +39,24 @@ def plot_separately():
 
 
 color_set = [0, 255, 70, 128]
-possible_colors = [(x, y, z) for x in color_set for y in color_set for z in color_set]
+# possible_colors = [(x, y, z) for x in color_set for y in color_set for z in color_set]
+possible_colors = [(127,255,212),
+                   (0,100,0),
+                   (240,230,140),
+                   (211,211,211),
+                   (139,136,120),
+                   (0,0,128),
+                   (127,255,0),
+                   (0,0,0),
+                   (0,191,255),
+                   (135,206,250)]
 
 def convert_to_colors(image_arr):
     # possible_colors = {x:y for x in range(len(possible_colors)) for y in }
-    random.shuffle(possible_colors)
+    # random.shuffle(possible_colors)
     # while possible_colors[0] != (0, 0, 0) and possible_colors[1] != (0, 255, 0):
     #     random.shuffle(possible_colors)
     # print(possible_colors)
-
     unique = np.unique(image_arr)
     new_image = np.zeros(shape=(image_arr.shape[0], image_arr.shape[1], 3))
     for idx, pix in enumerate(unique):
@@ -152,21 +161,23 @@ def overlay_with_grid():
 
 def check_predictions():
     # image = cv2.imread('/home/annus/Desktop/forest_images/image_test.png')[4000:8000,4000:8000,:]
-    label = cv2.imread('pred_sentinel_german.png')[:,:,0]
+    pred_path = '../numerical_results/german_sentinel_ee/test_images_and_predictions/image_pred_6.npy'
+    label = np.memmap(pred_path, dtype=np.uint8, mode='r', shape=(2368, 4288))#.transpose(1,0)
+    label = convert_to_colors(label)
     # label[label != 1] = 0
-    # label = convert_to_colors(label)
     # print(np.unique(label), label.shape)
     # pl.subplot(121)
     # pl.imshow(image)
     # pl.subplot(122)
     # print(label.shape)
     pl.imshow(label)
+    pl.axis('off')
     pl.show()
     pass
 
 
 if __name__ == '__main__':
-    overlay_with_grid()
+    check_predictions()
 
 
 
