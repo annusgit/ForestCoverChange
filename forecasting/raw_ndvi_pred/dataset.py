@@ -67,15 +67,17 @@ def get_dataloaders(file_path, in_seq_len, out_seq_len, batch_size, data_type='f
 
 def main():
     this_file = 'statistics_250m_16_days_NDVI.json'
-    train_dataloader, val_dataloader, test_dataloader = get_dataloaders(file_path=this_file, in_seq_len=1,
-                                                                        out_seq_len=5, batch_size=4)
+    train_dataloader, val_dataloader, test_dataloader = get_dataloaders(file_path=this_file, in_seq_len=10,
+                                                                        out_seq_len=10, batch_size=32)
     count = 0
     count += 1
     for idx, data in enumerate(train_dataloader):
         examples, labels = data['input'], data['label']
-        print('{} -> on batch {}/{}, {}'.format(count, idx+1, len(train_dataloader), examples.size()))
-        if True:
-            print(examples)
+        print('{}. ({}/{}) -> example size = {}, labels size = {}'.format(count,
+                                                                          idx+1,
+                                                                          len(train_dataloader),
+                                                                          examples.size(),
+                                                                          labels.size()))
 
 
 if __name__ == '__main__':

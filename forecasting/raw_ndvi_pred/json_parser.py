@@ -117,7 +117,8 @@ def main():
                   ]
     all_vals = get_values(this_file=this_file, all_values=all_values)
     for v in all_vals.keys():
-        this = smooth(np.asarray(all_vals[v]), window_len=8)
+        this = np.asarray(all_vals[v])
+        this = smooth(this, window_len=8)
         this = interpolate_and_scale(this, new_length=5e6, order=3, scale=100)
         logging.info('length of {} = {}'.format(v, len(this)))
         pl.plot(this, label=v)

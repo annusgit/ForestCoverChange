@@ -110,13 +110,12 @@ class GRU(nn.Module):
         self.non_lin = nn.ReLU()
         self.bn = nn.BatchNorm1d(num_features=hidden_size)
         self.linear1 = nn.Linear(hidden_size*num_layers, hidden_size)
-        self.linear2 = nn.Linear(hidden_size, 1)
+        self.linear2 = nn.Linear(hidden_size, 1) # outputs one real number as output
 
     def forward(self, x, hidden=None):
         if not isinstance(hidden, torch.Tensor):
-            # set initial hidden state
+            # set initial hidden state if it's None, else it must be coming from the previous time stamp!
             hidden = self.initHiddenZero(x.shape[0])
-            # print('assuming None')
         # predicts a single output value using an input sequence 'x'
         out, hn = self.gru(x, hidden)
         out = hn.view(x.shape[0], -1)
