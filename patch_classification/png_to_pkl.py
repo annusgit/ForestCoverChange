@@ -12,21 +12,21 @@ import cv2
 
 def tif_to_png(image_path):
     image = gdal.Open(image_path)
-    print(image.RasterCount)
-    r = image.GetRasterBand(3).ReadAsArray()
-    g = image.GetRasterBand(2).ReadAsArray()
-    b = image.GetRasterBand(1).ReadAsArray()
-    rgb = np.dstack((r,g,b))
-    pl.imshow((rgb*255/4096).astype(np.uint8))
+    all_bands = [] #
+    for i in range(1, 1+image.RasterCount):
+        all_bands.append(image.GetRasterBand(i).ReadAsArray())
+    image = np.dstack(all_bands)
+    show_image = (image[:,:,:3].astype(np.float32)*255/4096).astype(np.uint8)
+    show_image = np.dstack((show_image[:,:,2], show_image[:,:,1], show_image[:,:,0]))
+    # print(show_image.shape, np.unique(show_image))
+    pl.imshow(show_image)
     pl.show()
-    return rgb
+    return image
 
 
 def png_to_pickle(image_file, pkl_file):
     image = tif_to_png(image_path=image_file)
-    # image = cv2.imread(image_file, -1)[:,:,:3]
     save_name = pkl_file
-    print(image.max())
     save_image = {
         'pixels': image,
         'size': image.size,
@@ -39,3 +39,5 @@ def png_to_pickle(image_file, pkl_file):
 
 if __name__ == '__main__':
     png_to_pickle(image_file=sys.argv[1], pkl_file=sys.argv[2])
+
+

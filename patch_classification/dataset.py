@@ -196,7 +196,12 @@ def get_inference_loader(image_path, batch_size):
             example_array = self.image_arr[x:x_, y:y_, :]
             # this division is non-sense, but let's do it anyway...
             example_array = (example_array.astype(np.float)/10000)
-            # example_array = np.dstack((example_array[:,:,2],example_array[:,:,1],example_array[:,:,0]))
+            ex_array = []
+            for t in range(4, -1, -1):
+                temp = np.expand_dims(example_array[:,:,t], 2)
+                ex_array.append(temp)
+            example_array = np.dstack(ex_array)
+            # print(example_array.shape)
             example_array = toTensor(image=example_array)
             return {'input': example_array, 'indices': torch.Tensor([x, x_, y, y_]).long()}
 

@@ -1,3 +1,4 @@
+
 # -*- coding: utf-8 -*-
 """
 Translation with a Sequence to Sequence Network and Attention
@@ -149,7 +150,7 @@ SOS_token = 0
 EOS_token = 1
 
 
-class Lang:
+class Lang(object):
     def __init__(self, name):
         self.name = name
         self.word2index = {}
@@ -381,7 +382,6 @@ class DecoderRNN(nn.Module):
     def __init__(self, hidden_size, output_size):
         super(DecoderRNN, self).__init__()
         self.hidden_size = hidden_size
-
         self.embedding = nn.Embedding(output_size, hidden_size)
         self.gru = nn.GRU(hidden_size, hidden_size)
         self.out = nn.Linear(hidden_size, output_size)

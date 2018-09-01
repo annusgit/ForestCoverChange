@@ -36,7 +36,7 @@ if __name__ == '__main__':
     device = int(args.device)
 
     function_to_call = eval(function)
-    net = GRU(input_size=1, hidden_size=32, num_layers=1, batch_first=True)
+    net = EDGRU(input_size=1, hidden_size=128, num_layers=2, batch_first=True)
 
     function_to_call(model=net,
                      file_path=data_path,

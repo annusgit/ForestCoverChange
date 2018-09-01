@@ -11,20 +11,22 @@ from json_parser import get_values, interpolate_and_scale, smooth
 from torch.utils.data import Dataset, DataLoader
 
 
-def get_dataloaders(file_path, in_seq_len, out_seq_len, batch_size, data_type='func_to_func'):
+def get_dataloaders(file_path, in_seq_len, out_seq_len, batch_size):
     print('inside dataloading code...')
 
     class dataset(Dataset):
-        def __init__(self, data, in_seq_len, out_seq_len, mode='train'):
+        def __init__(self, data, in_seq_len, out_seq_len, mode='train', eval_count=0):
             super(dataset, self).__init__()
             self.in_seq_len, self.out_seq_len = in_seq_len, out_seq_len
             self.data, self.mode = data, mode
+            self.eval_count = eval_count
             pass
 
         def __getitem__(self, k):
             if self.mode != 'train':
-                this_example = self.data[:500]
-                this_label = self.data[500:]
+                # basically use half data to give input and the other half should be predicted
+                this_example = self.data[:self.eval_count]
+                this_label = self.data[self.eval_count:]
                 this_example = torch.Tensor(this_example)
                 this_label = torch.Tensor(this_label)
                 return {'input': this_example, 'label': this_label}
@@ -53,15 +55,15 @@ def get_dataloaders(file_path, in_seq_len, out_seq_len, batch_size, data_type='f
     num_val = num_train+(len(dataset_list)-num_train)//2
     train, val, test = dataset_list[:num_train], dataset_list[num_train:num_val], dataset_list[num_val:]
     train_data = dataset(data=train, in_seq_len=in_seq_len, out_seq_len=out_seq_len, mode='train')
-    val_data = dataset(data=val, in_seq_len=in_seq_len, out_seq_len=out_seq_len, mode='no_train')
-    test_data = dataset(data=test, in_seq_len=in_seq_len, out_seq_len=out_seq_len, mode='no_train')
+    val_data = dataset(data=val, in_seq_len=in_seq_len, out_seq_len=out_seq_len, mode='no_train', eval_count=250000)
+    test_data = dataset(data=test, in_seq_len=in_seq_len, out_seq_len=out_seq_len, mode='no_train', eval_count=250000)
     print('train examples =', len(train), 'val examples =', len(val), 'test examples =', len(test))
     train_dataloader = DataLoader(dataset=train_data, batch_size=batch_size,
-                                  shuffle=True, num_workers=4)
+                                  shuffle=True, num_workers=2)
     val_dataloader = DataLoader(dataset=val_data, batch_size=batch_size,
-                                shuffle=False, num_workers=4)
+                                shuffle=False, num_workers=2)
     test_dataloader = DataLoader(dataset=test_data, batch_size=batch_size,
-                                 shuffle=False, num_workers=4)
+                                 shuffle=False, num_workers=2)
     return train_dataloader, val_dataloader, test_dataloader
 
 

@@ -34,9 +34,10 @@ def convert_frames_to_video(pathIn, pathOut, fps):
 
 
 def main():
-    pathIn = '/home/annus/PycharmProjects/ForestCoverChange/results/color_coded_segmentation/'
-    pathOut = 'color_coded_seg.avi'
-    fps = 3.0
+    import sys
+    pathIn = sys.argv[1]
+    pathOut = sys.argv[2]
+    fps = int(sys.argv[3])
     convert_frames_to_video(pathIn, pathOut, fps)
 
 

@@ -92,17 +92,29 @@ def overlayed_output():
 
 def overlay_with_grid():
     # Open image file
-    image_path = 'test_image_5.npy'
-    pred_path = 'image_pred_5.npy'
+    import os
+    path = sys.argv[1]
+    number = sys.argv[2]
+    image_path = os.path.join(path, 'test_image_{}.npy'.format(number))
+    pred_path = os.path.join(path, 'image_pred_{}.npy'.format(number))
     # use one of the following based on the size of the image; if image is huge, go with the first one!
     ##########################################################################
-    image = np.memmap(image_path, dtype=np.uint16, mode='r', shape=(2368, 4288, 3))#.transpose(1,0,2)
-    label = np.memmap(pred_path, dtype=np.uint8, mode='r', shape=(2368, 4288))#.transpose(1,0)
-    x_start = 64 * 20
-    y_start = 64 * 20
+    image = np.memmap(image_path, dtype=np.uint16, mode='r', shape=(2048, 3840, 5))#.transpose(1,0,2)
+    label = np.memmap(pred_path, dtype=np.uint8, mode='r', shape=(2048, 3840))#.transpose(1,0)
+    x_start = 64 * 12
+    y_start = 64 * 12
     x_end = x_start + 64 * 10
     y_end = y_start + 64 * 10
     image = image[y_start:y_end,x_start:x_end,:]
+    ex_array = []
+    for t in range(4, -1, -1):
+        temp = np.expand_dims(image[:, :, t], 2)
+        ex_array.append(temp)
+    image = np.dstack(ex_array)
+    # do this for more than 3 channels
+    show_image = image[:, :, :3]
+    image = np.dstack((show_image[:, :, 2], show_image[:, :, 1], show_image[:, :, 0]))
+    #################################
     label = label[y_start:y_end,x_start:x_end]
     # image = np.load(image_path, mmap_mode='r')
     # label = np.load(pred_path, mmap_mode='r')
@@ -161,8 +173,8 @@ def overlay_with_grid():
 
 def check_predictions():
     # image = cv2.imread('/home/annus/Desktop/forest_images/image_test.png')[4000:8000,4000:8000,:]
-    pred_path = '../numerical_results/german_sentinel_ee/test_images_and_predictions/image_pred_6.npy'
-    label = np.memmap(pred_path, dtype=np.uint8, mode='r', shape=(2368, 4288))#.transpose(1,0)
+    pred_path = sys.argv[1] #'../numerical_results/german_sentinel_ee/test_images_and_predictions/image_pred_6.npy'
+    label = np.memmap(pred_path, dtype=np.uint8, mode='r', shape=(2048, 3840))#.transpose(1,0)
     label = convert_to_colors(label)
     # label[label != 1] = 0
     # print(np.unique(label), label.shape)

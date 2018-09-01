@@ -9,21 +9,43 @@ import torch.nn.functional as F
 from torch.nn.utils import clip_grad_norm_
 import os
 import re
+import io
+import cv2
 import time
 import numpy as np
 import pickle as pkl
 import torchnet as tnt
+import PIL.Image as Image
 from dataset import get_dataloaders
 from tensorboardX import SummaryWriter
 from torchsummary import summary
 import matplotlib.pyplot as pl
 
 
+def fig2data(fig):
+    """
+    @brief Convert a Matplotlib figure to a 4D numpy array with RGBA channels and return it
+    @param fig a matplotlib figure
+    @return a numpy 3D array of RGBA values
+    """
+    # draw the renderer
+    fig.canvas.draw()
+
+    # Get the RGBA buffer from the figure
+    w, h = fig.canvas.get_width_height()
+    buf = np.fromstring(fig.canvas.tostring_argb(), dtype=np.uint8)
+    buf.shape = (w, h, 4)
+
+    # canvas.tostring_argb give pixmap in ARGB mode. Roll the ALPHA channel to have it in RGBA mode
+    buf = np.roll(buf, 3, axis=2)
+    return buf
+
+
 def train_net(model, file_path, in_seq_len, out_seq_len, pre_model, save_dir, batch_size, lr, log_after, cuda, device):
     print(model)
-    if os.path.exists('runs'):
-        import shutil
-        shutil.rmtree('runs') # just in case...
+    # if os.path.exists('runs'):
+    #     import shutil
+    #     shutil.rmtree('runs') # just in case...
     if not os.path.exists(save_dir):
         os.mkdir(save_dir)
     if cuda:
@@ -89,7 +111,7 @@ def train_net(model, file_path, in_seq_len, out_seq_len, pre_model, save_dir, ba
                 #################################
             mean_loss = np.asarray(net_loss).sum()/idx
             m_loss.append((i, mean_loss))
-            writer.add_scalar(tag='train loss', scalar_value=mean_loss, global_step=i)
+            writer.add_scalar(tag='train_loss', scalar_value=mean_loss, global_step=i)
             print('####################################')
             print('in_shape = {}, out_shape = {}'.format(test_x.shape, out_x.shape))
             print('epoch {} -> total loss = {:.5f}'.format(i, mean_loss))
@@ -124,28 +146,35 @@ def eval_net(**kwargs):
             test_x = test_x.cuda(device=device)
             label = label.cuda(device=device)
         # forward
-        out_x, h_n = model.continuous_forward(test_x, out_seq_len=500)
+        out_x, h_n = model.continuous_forward(test_x, out_seq_len=250000)
         # print(series_out.shape, series_in.shape)
         loss = criterion(out_x, label)
         net_loss.append(loss.item())
         #################################
         mean_loss = np.asarray(net_loss).sum()/idx
         # summarize mean accuracy
-        writer.add_scalar(tag='val. loss', scalar_value=mean_loss, global_step=global_step)
-        print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+        writer.add_scalar(tag='val_loss', scalar_value=mean_loss, global_step=global_step)
+        print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$`$$$$$$$$$$$')
         print('in_shape = {}, out_shape = {}'.format(test_x.shape, out_x.shape))
         print('log: validation:: total loss = {:.5f}'.format(mean_loss))
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
         if mean_loss:
-            ref = test_x[0,:].squeeze(1).numpy()
-            this = label[0,:].numpy()
-            that = out_x[0,:].numpy()
+            ref = test_x[0,:].squeeze(1) #.numpy()
+            this = label[0,:] #.numpy()
+            that = out_x[0,:] #.numpy()
             this = np.hstack((ref,this)).astype(np.float) #/100.0 # rescale to best fit
             that = np.hstack((ref,that)).astype(np.float) #/100.0
+            fig = pl.figure()
             pl.plot(this, label='series_in')
             pl.plot(that, label='series_out')
-            pl.legend(loc='upper right')
-            pl.show()
+            out = pl.legend(loc='lower right')
+            pl.savefig('temp.png')
+            evaluated_image = cv2.imread('temp.png')
+            # os.remove('eval.png')
+            # put it into the summary writer
+            evaluated_image = torch.Tensor(evaluated_image.transpose(2,0,1))
+            writer.add_image('evaluation', evaluated_image, global_step)
+            # pl.show()
     else:
         # model, images, labels, pre_model, save_dir, sum_dir, batch_size, lr, log_after, cuda
         pre_model = kwargs['pre_model']

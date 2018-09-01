@@ -88,9 +88,10 @@ def batch_wise_inference():
     test_model = sys.argv[1]  # '/home/annus/Desktop/test.tif'
     image_path = sys.argv[2]  # image_pred = np.zeros_like(image_read[:,:,0])
     device = sys.argv[3]
-    inference_loader, (H,W,C) = get_inference_loader(image_path=image_path, batch_size=70)
-    net = ResNet(in_channels=3)
-    net.load_state_dict(torch.load(test_model))
+    number = int(sys.argv[4])
+    inference_loader, (H,W,C) = get_inference_loader(image_path=image_path, batch_size=20)
+    net = HyperSpectral_Resnet(in_channels=5)
+    net.load_state_dict(torch.load(test_model, map_location='cpu'))
     net.to(device=device)
     net.eval()
     # test_image = np.zeros(shape=(H,W,C)) # for saving the image
@@ -98,8 +99,8 @@ def batch_wise_inference():
     # np.save('test_image.npy', test_image)
     # np.save('image_pred.npy', image_pred)
     # del test_image, image_pred
-    test_image = np.memmap('test_image_6.npy', dtype=np.uint16, mode='w+', shape=(H,W,C))
-    image_pred = np.memmap('image_pred_6.npy', dtype=np.uint8, mode='w+', shape=(H, W))
+    test_image = np.memmap('test_image_{}.npy'.format(number), dtype=np.uint16, mode='w+', shape=(H,W,C))
+    image_pred = np.memmap('image_pred_{}.npy'.format(number), dtype=np.uint8, mode='w+', shape=(H, W))
 
     # this is a much better approach...
     for idx, data in enumerate(inference_loader, 1):
@@ -109,7 +110,7 @@ def batch_wise_inference():
         test_x.to(device=device)
         out_x, pred = net(test_x)
         pred = pred.numpy().astype(np.uint8)
-        test_x = (test_x.numpy().transpose(0, 2, 3, 1)*255).astype(np.uint8)
+        test_x = (test_x.numpy().transpose(0, 2, 3, 1)*10000/4096*255).astype(np.uint8)
         x1, x2, y1, y2 = indices[:,0], indices[:,1], indices[:,2], indices[:,3]
         for k in range(len(x1)):
             test_image[x1[k]:x2[k],y1[k]:y2[k],:] = test_x[k,:,:,:]
