@@ -1,3 +1,3 @@
 
 
-from gan import *
+from gan_parts import *
