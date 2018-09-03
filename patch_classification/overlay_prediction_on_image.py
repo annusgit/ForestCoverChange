@@ -11,6 +11,8 @@ import matplotlib as mt
 import PIL.Image as Image
 import matplotlib.pyplot as pl
 import matplotlib.ticker as plticker
+from skimage.measure import block_reduce
+import scipy.ndimage as nd
 
 
 all_labels = {
@@ -39,10 +41,10 @@ def plot_separately():
     pass
 
 
-color_set = [0, 255, 70, 128]
+# color_set = [0, 255, 70, 128]
 # possible_colors = [(x, y, z) for x in color_set for y in color_set for z in color_set]
 possible_colors = [(127,255,212),
-                   (0,100,0),
+                   (0,255,0),
                    (240,230,140),
                    (211,211,211),
                    (139,136,120),
@@ -51,17 +53,18 @@ possible_colors = [(127,255,212),
                    (0,0,0),
                    (0,191,255),
                    (135,206,250)]
+color_bank = {l:c for l,c in zip(range(10), possible_colors)}
 
-def convert_to_colors(image_arr):
-    # possible_colors = {x:y for x in range(len(possible_colors)) for y in }
-    # random.shuffle(possible_colors)
-    # while possible_colors[0] != (0, 0, 0) and possible_colors[1] != (0, 255, 0):
-    #     random.shuffle(possible_colors)
-    # print(possible_colors)
-    unique = np.unique(image_arr)
+def convert_to_colors(image_arr, flag=None):
+    # just forests?
     new_image = np.zeros(shape=(image_arr.shape[0], image_arr.shape[1], 3))
+    if flag == 'forest':
+        new_image[image_arr == 1] = color_bank[1]
+        return new_image.astype(np.uint8)
+    # or all of the labels?
+    unique = np.unique(image_arr)
     for idx, pix in enumerate(unique):
-        new_image[image_arr == pix] = possible_colors[idx]
+        new_image[image_arr == pix] = color_bank[idx]
     return new_image.astype(np.uint8)
 
 
@@ -97,8 +100,8 @@ def overlay_with_grid(image_path, pred_path, image_save_path, label_save_path, s
     (H, W, C) = shape
     full_image = np.memmap(image_path, dtype=np.uint16, mode='r', shape=(H, W, C))#.transpose(1,0,2)
     full_label = np.memmap(pred_path, dtype=np.uint8, mode='r', shape=(H, W))#.transpose(1,0)
-    x_start = 64 * 7
-    y_start = 64 * 7
+    x_start = 64 * 3
+    y_start = 64 * 3
     x_end = x_start + 64 * 10
     y_end = y_start + 64 * 10
     image = full_image.copy()[y_start:y_end,x_start:x_end,:]
@@ -164,13 +167,23 @@ def overlay_with_grid(image_path, pred_path, image_save_path, label_save_path, s
     # Save the figure
     fig.savefig(image_save_path, dpi=my_dpi)
     # save colored label as well
-    colored_labels = convert_to_colors(full_label)
-    fig = pl.figure()
-    pl.imshow(colored_labels)
-    pl.savefig(label_save_path, dpi=my_dpi)
+    # 1. reduce 64*64 blocks, 2. apply filter to remove segmentation noise, 3. convert labels to colors
+    colored_labels = block_reduce(full_label, block_size=(64,64), func=np.max)
+    colored_labels = cv2.medianBlur(colored_labels, ksize=3)
+    filtered_forest = colored_labels[colored_labels == 1].sum()/colored_labels.reshape(-1).shape[0]*100
+    colored_labels = convert_to_colors(colored_labels, flag='forest')
+    # print(set( tuple(v) for m2d in colored_labels for v in m2d )) # if you want to check unique colors
+    pl.imsave(label_save_path, colored_labels)
+    # fig = pl.figure()
+    # colored_labels = Image.fromarray(colored_labels)
+    # pl.axis('off')
+    # pl.axis('on')
+    # pl.imshow(colored_labels)
+    # pl.savefig(label_save_path, dpi=my_dpi)
     # pl.axis('off')
     if show:
         pl.show()
+    return filtered_forest
 
 
 def check_predictions():
@@ -180,6 +193,7 @@ def check_predictions():
     # pl.imshow(label)
     # pl.show()
     label = convert_to_colors(label)
+    from skimage.measure import block_reduce
     # label[label != 1] = 0
     # print(np.unique(label), label.shape)
     # pl.subplot(121)
@@ -187,6 +201,9 @@ def check_predictions():
     # pl.subplot(122)
     # print(label.shape)
     # label = label[:2048,:2048,:]
+    print(label.shape)
+    label = block_reduce(label, block_size=(64,64,1), func=np.max)
+    print(label.shape)
     pl.imshow(label)
     pl.axis('off')
     pl.show()
@@ -194,8 +211,12 @@ def check_predictions():
 
 
 if __name__ == '__main__':
-    check_predictions()
-
+    overlay_with_grid(image_path='test_image_tmp.npy',
+                      pred_path='image_pred_tmp.npy',
+                      image_save_path='testing',
+                      label_save_path='testing2',
+                      shape=(2048, 3840, 3))
+    # check_predictions()
 
 
 

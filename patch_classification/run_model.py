@@ -102,11 +102,11 @@ def batch_wise_inference(model, image_path, batch_size, device, number, count, t
     test_image = np.memmap('test_image_{}.npy'.format(number), dtype=np.uint16, mode='w+', shape=(H,W,C))
     image_pred = np.memmap('image_pred_{}.npy'.format(number), dtype=np.uint8, mode='w+', shape=(H, W))
 
-    # this is a much better approach...
+    # this is a much better approach, batch wise inference...
     # also calculate the forest % in each image
     forest_count = 0
     for idx, data in enumerate(inference_loader, 1):
-        log_str = 'log: image ({})/({})'.format(count, total)+'-'*int(idx/len(inference_loader)*50)+\
+        log_str = 'log: image ({}/{})'.format(count, total)+'-'*int(idx/len(inference_loader)*50)+\
                   '> batch ({}/{})'.format(idx, len(inference_loader))
         sys.stdout.write('\r'+log_str)
         sys.stdout.flush()
@@ -127,17 +127,18 @@ def batch_wise_inference(model, image_path, batch_size, device, number, count, t
             # print(test_image[x1[k]:x2[k],y1[k]:y2[k],:])
             image_pred[x1[k]:x2[k],y1[k]:y2[k]] = pred[k]
             # print(pred[k])
-    print()
+    forest_percent = 100*forest_count/(len(inference_loader)*batch_size)
     # we will need the shape later on as well as the forest percentage
-    return (H, W, C), (100*forest_count/(len(inference_loader)*batch_size))
+    return (H, W, C), forest_percent
 
 
 if __name__ == '__main__':
-    batch_wise_inference(model=restore_model(model_path='/home/annus/PycharmProjects/'
-                                                        'ForestCoverChange_inputs_and_numerical_results/'
-                                                        'patch_wise/trained_resnet_cpu.pth', device='cpu'),
-                         image_path='/home/annus/PycharmProjects/ForestCoverChange/descartes/test.png',
-                         device='cpu', number='tmp')
+    print(batch_wise_inference(model=restore_model(model_path='/home/annus/PycharmProjects/'
+                                                              'ForestCoverChange_inputs_and_numerical_results/'
+                                                              'patch_wise/trained_resnet_cpu.pth', device='cpu'),
+                               image_path='test.pkl', batch_size=20,
+                               device='cpu', number='tmp',
+                               count=1, total=1))
 
 
 
