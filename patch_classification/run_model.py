@@ -110,17 +110,18 @@ def batch_wise_inference(model, image_path, device, number):
         test_x.to(device=device)
         out_x, pred = model(test_x)
         pred = pred.numpy().astype(np.uint8)
-        test_x = (test_x.numpy()*4096).transpose(0, 2, 3, 1)
+        test_x = (test_x.numpy()).transpose(0, 2, 3, 1)
         # print(test_x.max())
-        test_x = (test_x/4096*255).astype(np.uint8)
+        test_x = (test_x*255).astype(np.uint8)
         x1, x2, y1, y2 = indices[:,0], indices[:,1], indices[:,2], indices[:,3]
         for k in range(len(x1)):
-            test_image[x1[k]:x2[k],y1[k]:y2[k],:] = test_x[k,:,:,:]
+            rgb = test_x[k,:,:,:]
+            rgb = rgb[:,:,[2,1,0]]
+            test_image[x1[k]:x2[k],y1[k]:y2[k],:] = rgb
             # print(test_image[x1[k]:x2[k],y1[k]:y2[k],:])
             image_pred[x1[k]:x2[k],y1[k]:y2[k]] = pred[k]
             # print(pred[k])
-
-    pass
+    return (H, W, C) # we will need the shape later on
 
 
 if __name__ == '__main__':

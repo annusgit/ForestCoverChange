@@ -90,13 +90,14 @@ def overlayed_output():
     pass
 
 
-def overlay_with_grid(image_path, pred_path, save_path):
+def overlay_with_grid(image_path, pred_path, save_path, shape):
     # use one of the following based on the size of the image; if image is huge, go with the first one!
     ##########################################################################
-    image = np.memmap(image_path, dtype=np.uint16, mode='r', shape=(1472, 1472, 3))#.transpose(1,0,2)
-    label = np.memmap(pred_path, dtype=np.uint8, mode='r', shape=(1472, 1472))#.transpose(1,0)
-    x_start = 64 * 12
-    y_start = 64 * 0
+    (H, W, C) = shape
+    image = np.memmap(image_path, dtype=np.uint16, mode='r', shape=(H, W, C))#.transpose(1,0,2)
+    label = np.memmap(pred_path, dtype=np.uint8, mode='r', shape=(H, W))#.transpose(1,0)
+    x_start = 64 * 7
+    y_start = 64 * 7
     x_end = x_start + 64 * 10
     y_end = y_start + 64 * 10
     image = image[y_start:y_end,x_start:x_end,:]

@@ -206,7 +206,7 @@ def get_inference_loader(image_path, batch_size):
             # example_array = np.dstack(ex_array)
             # print(example_array.shape)
             # print(example_array.shape)
-            example_array = np.dstack((example_array[:,:,2],example_array[:,:,1],example_array[:,:,0]))
+            # example_array = np.dstack((example_array[:,:,2],example_array[:,:,1],example_array[:,:,0]))
             example_array = toTensor(image=example_array)
             return {'input': example_array, 'indices': torch.Tensor([x, x_, y, y_]).long()}
 

@@ -9,16 +9,19 @@ import os
 
 def convert_frames_to_video(pathIn, pathOut, fps):
     frame_array = []
-    files = [f for f in os.listdir(pathIn) if isfile(join(pathIn, f))]
+    files = [f for f in os.listdir(pathIn) if isfile(join(pathIn, f)) and f.endswith('.png')]
 
     # for sorting the file names properly
     # files.sort(key=lambda x: int(x[5:-4]))
-    sorted(files)
+    # files.sort(key=lambda f: int(filter(str.isdigit, f)))
+    # sorted(files)
 
     for i in range(len(files)):
-        filename = pathIn + files[i]
+        filename = pathIn + '{}.png'.format(i+1)
         # reading each files
         img = cv2.imread(filename)
+        if img is None:
+            continue
         height, width, layers = img.shape
         size = (width, height)
         print(filename)
