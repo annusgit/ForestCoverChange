@@ -87,7 +87,7 @@ class ResNet(nn.Module):
         self.feature_extracter = torch.nn.Sequential(*with_dropout)
         self.kill = nn.Dropout(p=0.8)
         self.classifier = nn.Sequential(
-            nn.Linear(in_features=32768, out_features=1024),
+            nn.Linear(in_features=8192, out_features=1024), # 32768 for hyper resnet
             nn.ReLU(),
             nn.Linear(in_features=1024, out_features=512),
             nn.ReLU(),

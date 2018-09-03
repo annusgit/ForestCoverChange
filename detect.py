@@ -3,7 +3,7 @@
 # uses the full pipeline functions from patch_classification
 # and does end-to-end detection using just the images
 
-# it needs the path to the input tif images as input and outputs the segmented grids
+# it needs the path to the input tif/png images as input and outputs the segmented grids
 
 from __future__ import print_function
 from __future__ import division
@@ -20,13 +20,14 @@ def do(**kwargs):
     model = kwargs['model']
     device = kwargs['device']
     save = kwargs['save']
-
-    images_list = [x for x in os.listdir(images_path) if x.endswith('.tif')]
+    model = restore_model(model_path=model, device=device)
+    images_list = [x for x in os.listdir(images_path) if x.endswith('.png') or x.endswith('.tif')]
     for count, this_image in enumerate(images_list, 1):
         full_path = os.path.join(images_path, this_image)
+        # print(full_path)
         # saves the image as pkl temporarily
         png_to_pickle(image_file=full_path, pkl_file='tmp.pkl')
-        batch_wise_inference(test_model=model, image_path='tmp.pkl', device=device, number='tmp')
+        batch_wise_inference(model=model, image_path='tmp.pkl', device=device, number='tmp')
         overlay_with_grid(image_path='test_image_tmp.npy',
                           pred_path='image_pred_tmp.npy',
                           save_path=os.path.join(save, '{}.png'.format(count)))

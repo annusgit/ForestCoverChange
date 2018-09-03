@@ -6,7 +6,7 @@ import matplotlib.pyplot as pl
 import descarteslabs as dl
 import numpy as np
 import cv2
-
+from libtiff import TIFF
 
 # Define a bounding box around Taos in a GeoJSON
 
@@ -24,10 +24,10 @@ taos = {
 
 # Create a SceneCollection
 scenes, ctx = dl.scenes.search(taos,
-                               products=["landsat:LE07:01:RT:TOAR"],
-                               start_datetime="2010-01-01",
-                               end_datetime="2010-12-01",
-                               cloud_fraction=0.5,
+                               products=["landsat:LC08:01:RT:TOAR", "sentinel-2:L1C"],
+                               start_datetime="2018-01-01",
+                               end_datetime="2018-12-01",
+                               cloud_fraction=0.1,
                                limit=15)
 print(scenes)
 print(scenes.each.properties.id)
@@ -41,15 +41,37 @@ arr_stack = scenes.stack("red green blue", ctx_lowres)
 composite = np.ma.median(arr_stack, axis=0)
 print(type(composite), composite.shape)
 # dl.scenes.display(composite, title="Taos Composite")
-image = composite.data.transpose(1,2,0)
-print(image.max())
-new = (image.astype(np.float)*255/4096).astype(np.uint8)
-new = new[:,:,[2,1,0]]
-pl.imshow(new)
-pl.show()
-cv2.imwrite('test.png', new)
+image = composite.data.transpose(1,2,0).astype(np.int16)
+# print(image.max())
+# new = (image.astype(np.float)*255/4096).astype(np.uint8)
+# pl.imshow(new)
+# pl.show()
+# print(new.shape)
+# new = new[:,:,:]
+# cv2.imwrite('test.tif', image)
+# tiff = TIFF.open('test.tiff', mode='w')
+# tiff.write_image(new)
+# tiff.close()
 
+save_image = {
+        'pixels': image,
+        'size': image.size,
+        'mode': None,
+    }
 
+import png
+# from scipy.misc import imsave
+# imsave('test.png', image)
+with open('test.png', 'wb') as f:
+    writer = png.Writer(width=image.shape[1], height=image.shape[0], bitdepth=16)
+    # Convert z to the Python list of lists expected by
+    # the png writer.
+    z2list = image.reshape(-1, image.shape[1]*image.shape[2]).tolist()
+    writer.write(f, z2list)
+
+# import pickle as p
+# with open('test.pkl', 'wb') as this_file:
+#     p.dump(save_image, this_file, protocol=p.HIGHEST_PROTOCOL)
 
 
 

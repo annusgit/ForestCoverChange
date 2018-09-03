@@ -90,27 +90,21 @@ def overlayed_output():
     pass
 
 
-def overlay_with_grid():
-    # Open image file
-    import os
-    path = sys.argv[1]
-    number = sys.argv[2]
-    image_path = os.path.join(path, 'test_image_{}.npy'.format(number))
-    pred_path = os.path.join(path, 'image_pred_{}.npy'.format(number))
+def overlay_with_grid(image_path, pred_path, save_path):
     # use one of the following based on the size of the image; if image is huge, go with the first one!
     ##########################################################################
-    image = np.memmap(image_path, dtype=np.uint16, mode='r', shape=(2048, 3840, 5))#.transpose(1,0,2)
-    label = np.memmap(pred_path, dtype=np.uint8, mode='r', shape=(2048, 3840))#.transpose(1,0)
+    image = np.memmap(image_path, dtype=np.uint16, mode='r', shape=(1472, 1472, 3))#.transpose(1,0,2)
+    label = np.memmap(pred_path, dtype=np.uint8, mode='r', shape=(1472, 1472))#.transpose(1,0)
     x_start = 64 * 12
-    y_start = 64 * 12
+    y_start = 64 * 0
     x_end = x_start + 64 * 10
     y_end = y_start + 64 * 10
     image = image[y_start:y_end,x_start:x_end,:]
-    ex_array = []
-    for t in range(4, -1, -1):
-        temp = np.expand_dims(image[:, :, t], 2)
-        ex_array.append(temp)
-    image = np.dstack(ex_array)
+    # ex_array = []
+    # for t in range(4, -1, -1):
+    #     temp = np.expand_dims(image[:, :, t], 2)
+    #     ex_array.append(temp)
+    # image = np.dstack(ex_array)
     # do this for more than 3 channels
     show_image = image[:, :, :3]
     image = np.dstack((show_image[:, :, 2], show_image[:, :, 1], show_image[:, :, 0]))
@@ -166,7 +160,7 @@ def overlay_with_grid():
                     color='w', ha='center', va='center').set_color('yellow')
 
     # Save the figure
-    # fig.savefig('myImageGrid.tiff', dpi=my_dpi)
+    fig.savefig(save_path, dpi=my_dpi)
     # pl.axis('off')
     pl.show()
 

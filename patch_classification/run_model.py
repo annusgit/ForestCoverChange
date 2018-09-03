@@ -84,16 +84,16 @@ def test_model_on_real_sentinel_image():
     cv2.imwrite('image_test_muzaffarabad.png', (255*image_read).astype(np.uint8))
 
 
-def batch_wise_inference():
-    test_model = sys.argv[1]  # '/home/annus/Desktop/test.tif'
-    image_path = sys.argv[2]  # image_pred = np.zeros_like(image_read[:,:,0])
-    device = sys.argv[3]
-    number = int(sys.argv[4])
-    inference_loader, (H,W,C) = get_inference_loader(image_path=image_path, batch_size=20)
-    net = HyperSpectral_Resnet(in_channels=5)
-    net.load_state_dict(torch.load(test_model, map_location='cpu'))
+def restore_model(model_path, device):
+    net = ResNet(in_channels=3)
+    net.load_state_dict(torch.load(model_path, map_location=device))
     net.to(device=device)
     net.eval()
+    return net
+
+
+def batch_wise_inference(model, image_path, device, number):
+    inference_loader, (H,W,C) = get_inference_loader(image_path=image_path, batch_size=20)
     # test_image = np.zeros(shape=(H,W,C)) # for saving the image
     # image_pred = np.zeros(shape=(H,W))
     # np.save('test_image.npy', test_image)
@@ -108,9 +108,11 @@ def batch_wise_inference():
         test_x, indices = data['input'], data['indices']
         indices = indices.numpy() # bring the indices to the cpu
         test_x.to(device=device)
-        out_x, pred = net(test_x)
+        out_x, pred = model(test_x)
         pred = pred.numpy().astype(np.uint8)
-        test_x = (test_x.numpy().transpose(0, 2, 3, 1)*10000/4096*255).astype(np.uint8)
+        test_x = (test_x.numpy()*4096).transpose(0, 2, 3, 1)
+        # print(test_x.max())
+        test_x = (test_x/4096*255).astype(np.uint8)
         x1, x2, y1, y2 = indices[:,0], indices[:,1], indices[:,2], indices[:,3]
         for k in range(len(x1)):
             test_image[x1[k]:x2[k],y1[k]:y2[k],:] = test_x[k,:,:,:]
@@ -118,13 +120,15 @@ def batch_wise_inference():
             image_pred[x1[k]:x2[k],y1[k]:y2[k]] = pred[k]
             # print(pred[k])
 
-    # cv2.imwrite('pred_sentinel_muzaffarabad.png', image_pred)
-    # cv2.imwrite('image_test_muzaffarabad.png', (255 * image_read).astype(np.uint8))
     pass
 
 
 if __name__ == '__main__':
-    batch_wise_inference()
+    batch_wise_inference(model=restore_model(model_path='/home/annus/PycharmProjects/'
+                                                        'ForestCoverChange_inputs_and_numerical_results/'
+                                                        'patch_wise/trained_resnet_cpu.pth', device='cpu'),
+                         image_path='/home/annus/PycharmProjects/ForestCoverChange/descartes/test.png',
+                         device='cpu', number='tmp')
 
 
 
