@@ -92,8 +92,8 @@ def restore_model(model_path, device):
     return net
 
 
-def batch_wise_inference(model, image_path, device, number, count, total):
-    inference_loader, (H,W,C) = get_inference_loader(image_path=image_path, batch_size=20)
+def batch_wise_inference(model, image_path, batch_size, device, number, count, total):
+    inference_loader, (H,W,C) = get_inference_loader(image_path=image_path, batch_size=batch_size)
     # test_image = np.zeros(shape=(H,W,C)) # for saving the image
     # image_pred = np.zeros(shape=(H,W))
     # np.save('test_image.npy', test_image)
@@ -103,6 +103,8 @@ def batch_wise_inference(model, image_path, device, number, count, total):
     image_pred = np.memmap('image_pred_{}.npy'.format(number), dtype=np.uint8, mode='w+', shape=(H, W))
 
     # this is a much better approach...
+    # also calculate the forest % in each image
+    forest_count = 0
     for idx, data in enumerate(inference_loader, 1):
         log_str = 'log: image ({})/({})'.format(count, total)+'-'*int(idx/len(inference_loader)*50)+\
                   '> batch ({}/{})'.format(idx, len(inference_loader))
@@ -112,7 +114,8 @@ def batch_wise_inference(model, image_path, device, number, count, total):
         indices = indices.numpy() # bring the indices to the cpu
         test_x.to(device=device)
         out_x, pred = model(test_x)
-        pred = pred.numpy().astype(np.uint8)
+        pred = pred.numpy().astype(np.int)
+        forest_count += (pred == 1).sum().item()   # manually insert the label of forests
         test_x = (test_x.numpy()).transpose(0, 2, 3, 1)
         # print(test_x.max())
         test_x = (test_x*255).astype(np.uint8)
@@ -125,7 +128,8 @@ def batch_wise_inference(model, image_path, device, number, count, total):
             image_pred[x1[k]:x2[k],y1[k]:y2[k]] = pred[k]
             # print(pred[k])
     print()
-    return (H, W, C) # we will need the shape later on
+    # we will need the shape later on as well as the forest percentage
+    return (H, W, C), (100*forest_count/(len(inference_loader)*batch_size))
 
 
 if __name__ == '__main__':

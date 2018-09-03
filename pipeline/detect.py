@@ -9,6 +9,8 @@ from __future__ import print_function
 from __future__ import division
 import os
 import argparse as ap
+import matplotlib as mpl
+import matplotlib.pyplot as pl
 from patch_classification import png_to_pickle as png_to_pickle
 from patch_classification.run_model import restore_model, batch_wise_inference
 from patch_classification.overlay_prediction_on_image import overlay_with_grid
@@ -18,6 +20,7 @@ from patch_classification.change_images_to_video import convert_frames_to_video
 def do(**kwargs):
     images_path = kwargs['images_path']
     model = kwargs['model']
+    batch_size = kwargs['batch_size']
     device = kwargs['device']
     save_dir = kwargs['save']
     image_save = os.path.join(save_dir, 'images')
@@ -28,14 +31,17 @@ def do(**kwargs):
         os.mkdir(label_save)
     model = restore_model(model_path=model, device=device)
     images_list = [x for x in os.listdir(images_path) if x.endswith('.png') or x.endswith('.tif')]
+    forestation = []
     for count, this_image in enumerate(images_list, 1):
         full_path = os.path.join(images_path, this_image)
         # print(full_path)
         # saves the image as pkl temporarily
         png_to_pickle(image_file=full_path, pkl_file='tmp.pkl')
-        (H, W, C) = batch_wise_inference(model=model, image_path='tmp.pkl',
-                                         device=device, number='tmp',
-                                         count=count, total=len(images_list))
+        (H, W, C), forest_percentage = batch_wise_inference(model=model, image_path='tmp.pkl',
+                                                            batch_size=batch_size, device=device,
+                                                            number='tmp', count=count,
+                                                            total=len(images_list))
+        forestation.append(forest_percentage)
         overlay_with_grid(image_path='test_image_tmp.npy',
                           pred_path='image_pred_tmp.npy',
                           image_save_path=os.path.join(image_save, '{}.png'.format(count)),
@@ -44,6 +50,16 @@ def do(**kwargs):
     print(image_save, os.path.join(image_save, 'out.avi'))
     convert_frames_to_video(pathIn=image_save, pathOut=os.path.join(image_save, 'out.avi'), fps=2)
     convert_frames_to_video(pathIn=label_save, pathOut=os.path.join(label_save, 'out.avi'), fps=2)
+    # make a graph of the forestation change
+    figure = pl.figure()
+    mpl.rcParams.update(mpl.rcParamsDefault)
+    pl.plot(([2015,2016,2017,2018], forestation), 'go-', label='forest_percentage')
+    pl.title('forestation trend (2015-2018)')
+    pl.xlabel('years')
+    pl.ylabel('forest percentage (%)')
+    pl.legend(loc='upper right')
+    pl.savefig(os.path.join(save_dir, 'forestation_plot.png'))
+    # pl.show()
     # cleanup
     os.remove('test_image_tmp.npy')
     os.remove('image_pred_tmp.npy')
@@ -64,7 +80,7 @@ def main():
     save = arguments.save_dir
     if not os.path.exists(save):
         os.mkdir(save)
-    do(images_path=images_path, model=model, device=device, save=save)
+    do(images_path=images_path, model=model, batch_size=20, device=device, save=save)
 
 
 if __name__ == '__main__':
