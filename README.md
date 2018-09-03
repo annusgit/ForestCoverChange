@@ -50,7 +50,7 @@ Here is our Confusion Matrix on the test set
 
 **`Same result but color coded in full resolution`**
 <p align='center'> 
-    <img src="results/color_coded_segmentation/color_coded_seg.gif"/>
+    <img src="results/rgb_color_coded_segmentation/seg.gif"/>
 </p>
 
 
