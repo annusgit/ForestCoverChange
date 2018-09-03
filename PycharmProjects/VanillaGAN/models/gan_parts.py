@@ -38,7 +38,7 @@ class judge(nn.Module):
         d = self.kill(self.max(d))
         d = d.view(-1, 6272)
         d = self.fc(d)
-        return F.softmax(d, dim=1)
+        return torch.sigmoid(d)
 
 
 class intelligence(nn.Module):

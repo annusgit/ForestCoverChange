@@ -16,7 +16,7 @@ import matplotlib.pyplot as pl
 
 def get_dataloaders(batch_size):
     train_loader = torch.utils.data.DataLoader(
-        datasets.MNIST('/home/annus/PycharmProjects/VanillaGAN/data/raw_data',
+        datasets.MNIST('~/PycharmProjects/VanillaGAN/data/raw_data',
                        train=True, download=True,
                        transform=transforms.Compose([
                            transforms.ToTensor(),
@@ -24,7 +24,7 @@ def get_dataloaders(batch_size):
                        ])),
         batch_size=batch_size, shuffle=True, num_workers=4)
     test_loader = torch.utils.data.DataLoader(
-        datasets.MNIST('/home/annus/PycharmProjects/VanillaGAN/data/raw_data',
+        datasets.MNIST('~/PycharmProjects/VanillaGAN/data/raw_data',
                        train=False, transform=transforms.Compose([
                 transforms.ToTensor(),
                 transforms.Normalize((0.1307,), (0.3081,))
