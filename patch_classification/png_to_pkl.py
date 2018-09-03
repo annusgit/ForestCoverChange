@@ -16,7 +16,7 @@ def tif_to_png(image_path):
     for i in range(1, 1+image.RasterCount):
         all_bands.append(image.GetRasterBand(i).ReadAsArray())
     image = np.dstack(all_bands)
-    print(image.max())
+    # print(image.max())
     # show_image = (image[:,:,:3].astype(np.float32)*255/4096).astype(np.uint8)
     # show_image = np.dstack((show_image[:,:,2], show_image[:,:,1], show_image[:,:,0]))
     # print(show_image.shape, np.unique(show_image))

@@ -19,7 +19,13 @@ def do(**kwargs):
     images_path = kwargs['images_path']
     model = kwargs['model']
     device = kwargs['device']
-    save = kwargs['save']
+    save_dir = kwargs['save']
+    image_save = os.path.join(save_dir, 'images')
+    label_save = os.path.join(save_dir, 'labels')
+    if not os.path.exists(image_save):
+        os.mkdir(image_save)
+    if not os.path.exists(label_save):
+        os.mkdir(label_save)
     model = restore_model(model_path=model, device=device)
     images_list = [x for x in os.listdir(images_path) if x.endswith('.png') or x.endswith('.tif')]
     for count, this_image in enumerate(images_list, 1):
@@ -27,12 +33,18 @@ def do(**kwargs):
         # print(full_path)
         # saves the image as pkl temporarily
         png_to_pickle(image_file=full_path, pkl_file='tmp.pkl')
-        (H, W, C) = batch_wise_inference(model=model, image_path='tmp.pkl', device=device, number='tmp')
+        (H, W, C) = batch_wise_inference(model=model, image_path='tmp.pkl',
+                                         device=device, number='tmp',
+                                         count=count, total=len(images_list))
         overlay_with_grid(image_path='test_image_tmp.npy',
                           pred_path='image_pred_tmp.npy',
-                          save_path=os.path.join(save, '{}.png'.format(count)),
+                          image_save_path=os.path.join(image_save, '{}.png'.format(count)),
+                          label_save_path=os.path.join(label_save, '{}.png'.format(count)),
                           shape=(H,W,C))
-    convert_frames_to_video(pathIn=save, pathOut=os.path.join(save, 'out.avi'), fps=2)
+    print(image_save, os.path.join(image_save, 'out.avi'))
+    convert_frames_to_video(pathIn=image_save, pathOut=os.path.join(image_save, 'out.avi'), fps=2)
+    convert_frames_to_video(pathIn=label_save, pathOut=os.path.join(label_save, 'out.avi'), fps=2)
+    # cleanup
     os.remove('test_image_tmp.npy')
     os.remove('image_pred_tmp.npy')
     os.remove('tmp.pkl')

@@ -16,8 +16,9 @@ def convert_frames_to_video(pathIn, pathOut, fps):
     # files.sort(key=lambda f: int(filter(str.isdigit, f)))
     # sorted(files)
 
+    print('converting now...')
     for i in range(len(files)):
-        filename = pathIn + '{}.png'.format(i+1)
+        filename = os.path.join(pathIn, '{}.png'.format(i+1))
         # reading each files
         img = cv2.imread(filename)
         if img is None:
@@ -29,7 +30,6 @@ def convert_frames_to_video(pathIn, pathOut, fps):
         frame_array.append(img)
 
     out = cv2.VideoWriter(pathOut, cv2.VideoWriter_fourcc(*'DIVX'), fps, size)
-
     for i in range(len(frame_array)):
         # writing to a image array
         out.write(frame_array[i])

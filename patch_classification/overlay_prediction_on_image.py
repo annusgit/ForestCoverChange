@@ -2,6 +2,7 @@
 
 from __future__ import print_function
 from __future__ import division
+import os
 import cv2
 import sys
 import random
@@ -90,17 +91,17 @@ def overlayed_output():
     pass
 
 
-def overlay_with_grid(image_path, pred_path, save_path, shape):
+def overlay_with_grid(image_path, pred_path, image_save_path, label_save_path, shape, show=False):
     # use one of the following based on the size of the image; if image is huge, go with the first one!
     ##########################################################################
     (H, W, C) = shape
-    image = np.memmap(image_path, dtype=np.uint16, mode='r', shape=(H, W, C))#.transpose(1,0,2)
-    label = np.memmap(pred_path, dtype=np.uint8, mode='r', shape=(H, W))#.transpose(1,0)
+    full_image = np.memmap(image_path, dtype=np.uint16, mode='r', shape=(H, W, C))#.transpose(1,0,2)
+    full_label = np.memmap(pred_path, dtype=np.uint8, mode='r', shape=(H, W))#.transpose(1,0)
     x_start = 64 * 7
     y_start = 64 * 7
     x_end = x_start + 64 * 10
     y_end = y_start + 64 * 10
-    image = image[y_start:y_end,x_start:x_end,:]
+    image = full_image.copy()[y_start:y_end,x_start:x_end,:]
     # ex_array = []
     # for t in range(4, -1, -1):
     #     temp = np.expand_dims(image[:, :, t], 2)
@@ -110,7 +111,7 @@ def overlay_with_grid(image_path, pred_path, save_path, shape):
     show_image = image[:, :, :3]
     image = np.dstack((show_image[:, :, 2], show_image[:, :, 1], show_image[:, :, 0]))
     #################################
-    label = label[y_start:y_end,x_start:x_end]
+    label = full_label.copy()[y_start:y_end,x_start:x_end]
     # image = np.load(image_path, mmap_mode='r')
     # label = np.load(pred_path, mmap_mode='r')
     # print(image)
@@ -161,15 +162,23 @@ def overlay_with_grid(image_path, pred_path, save_path, shape):
                     color='w', ha='center', va='center').set_color('yellow')
 
     # Save the figure
-    fig.savefig(save_path, dpi=my_dpi)
+    fig.savefig(image_save_path, dpi=my_dpi)
+    # save colored label as well
+    colored_labels = convert_to_colors(full_label)
+    fig = pl.figure()
+    pl.imshow(colored_labels)
+    pl.savefig(label_save_path, dpi=my_dpi)
     # pl.axis('off')
-    pl.show()
+    if show:
+        pl.show()
 
 
 def check_predictions():
     # image = cv2.imread('/home/annus/Desktop/forest_images/image_test.png')[4000:8000,4000:8000,:]
     pred_path = sys.argv[1] #'../numerical_results/german_sentinel_ee/test_images_and_predictions/image_pred_6.npy'
     label = np.memmap(pred_path, dtype=np.uint8, mode='r', shape=(2048, 3840))#.transpose(1,0)
+    # pl.imshow(label)
+    # pl.show()
     label = convert_to_colors(label)
     # label[label != 1] = 0
     # print(np.unique(label), label.shape)
@@ -177,6 +186,7 @@ def check_predictions():
     # pl.imshow(image)
     # pl.subplot(122)
     # print(label.shape)
+    # label = label[:2048,:2048,:]
     pl.imshow(label)
     pl.axis('off')
     pl.show()

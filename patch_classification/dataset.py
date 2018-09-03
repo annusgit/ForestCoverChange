@@ -182,7 +182,7 @@ def get_dataloaders(base_folder, batch_size):
 
 # We shall use this at inference time on our custom downloaded images...
 def get_inference_loader(image_path, batch_size):
-    print('inside dataloading code...')
+    # print('inside dataloading code...')
 
     class dataset(Dataset):
         def __init__(self, image_arr, index_dictionary):

@@ -92,7 +92,7 @@ def restore_model(model_path, device):
     return net
 
 
-def batch_wise_inference(model, image_path, device, number):
+def batch_wise_inference(model, image_path, device, number, count, total):
     inference_loader, (H,W,C) = get_inference_loader(image_path=image_path, batch_size=20)
     # test_image = np.zeros(shape=(H,W,C)) # for saving the image
     # image_pred = np.zeros(shape=(H,W))
@@ -104,7 +104,10 @@ def batch_wise_inference(model, image_path, device, number):
 
     # this is a much better approach...
     for idx, data in enumerate(inference_loader, 1):
-        print('on batch ({}/{})'.format(idx, len(inference_loader)))
+        log_str = 'log: image ({})/({})'.format(count, total)+'-'*int(idx/len(inference_loader)*50)+\
+                  '> batch ({}/{})'.format(idx, len(inference_loader))
+        sys.stdout.write('\r'+log_str)
+        sys.stdout.flush()
         test_x, indices = data['input'], data['indices']
         indices = indices.numpy() # bring the indices to the cpu
         test_x.to(device=device)
@@ -121,6 +124,7 @@ def batch_wise_inference(model, image_path, device, number):
             # print(test_image[x1[k]:x2[k],y1[k]:y2[k],:])
             image_pred[x1[k]:x2[k],y1[k]:y2[k]] = pred[k]
             # print(pred[k])
+    print()
     return (H, W, C) # we will need the shape later on
 
 
