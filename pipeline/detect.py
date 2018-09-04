@@ -1,7 +1,7 @@
 
 
 # uses the full pipeline functions from patch_classification
-# and does end-to-end detection using just the images
+# and does end-to-end detection using just the images as the input
 
 # it needs the path to the input tif/png images as input and outputs the segmented grids
 
