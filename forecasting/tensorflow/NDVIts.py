@@ -24,8 +24,8 @@ np.random.seed(seed=2018)
 # parameters
 batch_size = 32
 seq_len = 140  # sequence length, is the input length to be fed into the model
-n_hidd_layers = 3  # number of hidden layers # (can be 3)
-n_neurons = 10
+n_hidd_layers = 1  # number of hidden layers # (can be 3)
+n_neurons = 4
 lr = 0.01  # learning rate
 n_iters = 1200  # number of iterations
 lambda_l2_reg = 0.001  # L2 regularization of weights
