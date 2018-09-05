@@ -71,45 +71,75 @@ class VGG_5(nn.Module):
     """
     def __init__(self):
         super(VGG_5, self).__init__()
-        self.cnv1 = nn.Conv2d(in_channels=5, out_channels=64, kernel_size=3, padding=1)
-        self.cnv2 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, padding=1)
-        self.cnv3 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=1)
-        self.cnv4 = nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, padding=1)
-        self.cnv5 = nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, padding=1)
-        self.cnv6 = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm2d(num_features=64)
-        self.bn2 = nn.BatchNorm2d(num_features=64)
-        self.bn3 = nn.BatchNorm2d(num_features=128)
-        self.bn4 = nn.BatchNorm2d(num_features=128)
-        self.bn5 = nn.BatchNorm2d(num_features=256)
-        self.bn6 = nn.BatchNorm2d(num_features=256)
-        self.maxpool = nn.MaxPool2d(kernel_size=2)
-        self.act = nn.ReLU()
-        self.dense1 = nn.Linear(in_features=256*2*2, out_features=512)
-        self.dense2 = nn.Linear(in_features=512, out_features=512)
-        self.dense3 = nn.Linear(in_features=512, out_features=10)
-        # feature-wise batchnorm only works with batch_size > 1
-        self.bnd1 = nn.BatchNorm1d(num_features=512)
-        self.bnd2 = nn.BatchNorm1d(num_features=512)
-        self.bnd3 = nn.BatchNorm1d(num_features=10)
+        # need some pretrained help!
+        graph = models.vgg11(pretrained=True)
+        graph_layers = list(graph.features)
+        for i, layer in enumerate(graph_layers):
+            print('{}.'.format(i), layer)
+        drop_rate = 0.5
+        activator = nn.Tanh()
+        self.feauture_exctractor = nn.Sequential(
+            nn.Conv2d(in_channels=5, out_channels=64, kernel_size=3, padding=1),
+            nn.MaxPool2d(kernel_size=2),
+            nn.BatchNorm2d(num_features=64, eps=1e-4, momentum=0.2),
+            # nn.ReLU(),
+            activator,
+
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, padding=1),
+            nn.MaxPool2d(kernel_size=2),
+            nn.BatchNorm2d(num_features=64, eps=1e-4, momentum=0.2),
+            # nn.ReLU(),
+            activator,
+            nn.Dropout2d(drop_rate),
+
+            # nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=1),
+            graph_layers[3], # pretrained on imagenet
+            nn.BatchNorm2d(num_features=128, eps=1e-4, momentum=0.2),
+            # nn.ReLU(),
+            activator,
+
+            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, padding=1),
+            nn.MaxPool2d(kernel_size=2),
+            nn.BatchNorm2d(num_features=128, eps=1e-4, momentum=0.2),
+            # nn.ReLU(),
+            activator,
+            nn.Dropout(drop_rate),
+
+            # nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, padding=1),
+            graph_layers[6], # pretrained on imagenet
+            nn.MaxPool2d(kernel_size=2),
+            nn.BatchNorm2d(num_features=256, eps=1e-4, momentum=0.2),
+            # nn.ReLU(),
+            activator,
+
+            nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, padding=1),
+            nn.MaxPool2d(kernel_size=2),
+            nn.BatchNorm2d(num_features=256, eps=1e-4, momentum=0.2),
+            # nn.ReLU(),
+            activator,
+            nn.Dropout2d(drop_rate),
+        )
+        self.fc = nn.Sequential(
+            nn.Linear(in_features=256 * 2 * 2, out_features=512),
+            nn.BatchNorm1d(num_features=512, eps=1e-4, momentum=0.2),
+            # nn.ReLU(),
+            activator,
+            nn.Dropout(drop_rate),
+            nn.Linear(in_features=512, out_features=512),
+            nn.BatchNorm1d(num_features=512, eps=1e-4, momentum=0.2),
+            # nn.ReLU(),
+            activator,
+            nn.Linear(in_features=512, out_features=10),
+            # nn.BatchNorm1d(num_features=10),
+        )
         pass
 
     def forward(self, *input):
         x, = input
-        x = self.act(self.bn1(self.maxpool(self.cnv1(x))))
-        x = self.act(self.bn2(self.maxpool(self.cnv2(x))))
-        x = self.act(self.bn3(self.cnv3(x)))
-        x = self.act(self.bn4(self.maxpool(self.cnv4(x))))
-        x = self.act(self.bn5(self.maxpool(self.cnv5(x))))
-        x = self.act(self.bn6(self.maxpool(self.cnv6(x))))
+        x = self.feauture_exctractor(x)
         x = x.view(-1, 256*2*2)
-        print(x.shape)
-        x = self.dense1(x)
-        x = self.bnd1(x)
-        x = self.act(x)
-        x = self.act(self.bnd2(self.dense2(x)))
-        x = self.bnd3(self.dense3(x))
-        return x
+        x = self.fc(x)
+        return x, torch.argmax(input=x, dim=1)
 
 
 class ResNet(nn.Module):
@@ -221,8 +251,8 @@ def check_model_on_dataloader():
 def check_vgg5():
     vgg5 = VGG_5()
     test_in = torch.Tensor(2, 5, 64, 64)
-    test_out = vgg5(test_in)
-    print(test_out.shape)
+    test_out, test_pred = vgg5(test_in)
+    print(test_out.shape, test_pred.shape)
 
 
 if __name__ == '__main__':

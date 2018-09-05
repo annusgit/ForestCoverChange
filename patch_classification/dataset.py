@@ -60,7 +60,7 @@ seq = iaa.Sequential(
         iaa.Flipud(0.5), # vertically flip 50% of all images
 
         # crop some of the images by 0-20% of their height/width
-        sometimes(iaa.Crop(percent=(0, 0.2))),
+        # sometimes(iaa.Crop(percent=(0, 0.2))),
 
         # Apply affine transformations to some of the images
         # - scale to 80-120% of image height/width (each axis independently)
@@ -80,7 +80,7 @@ seq = iaa.Sequential(
 )
 ######################################################################################################
 
-def get_dataloaders(base_folder, batch_size):
+def get_dataloaders(base_folder, batch_size, one_hot=False):
     print('inside dataloading code...')
 
     class dataset(Dataset):
@@ -100,6 +100,10 @@ def get_dataloaders(base_folder, batch_size):
             # example is a tiff image, need to use gdal
             this_example = gdal.Open(example_path)
             this_label = all_labels[label_name]
+            if one_hot:
+                label_arr = np.zeros(10)
+                label_arr[this_label] = 1
+            # print(this_label, label_arr)
             example_array = this_example.GetRasterBand(self.bands[0]).ReadAsArray()
             for i in self.bands[1:]:
                 example_array = np.dstack((example_array,
@@ -112,7 +116,9 @@ def get_dataloaders(base_folder, batch_size):
                 pass
 
             # range of vals = [0,1]
-            example_array = (example_array.astype(np.float)/10000) # just to bring those values down
+            example_array = np.clip((example_array.astype(np.float)/4096), a_min=0, a_max=1) # just to bring those values down
+            # range of vals = [-1,1]
+            example_array = 2*example_array-1
 
             # max value in test set is 28000
             # this_max = example_array.max()
@@ -121,7 +127,10 @@ def get_dataloaders(base_folder, batch_size):
             # print(example_array.max(), example_array.min(), example_array.mean())
 
             example_array = toTensor(image=example_array)
+            if one_hot:
+                return {'input': example_array, 'label': torch.LongTensor(label_arr)}
             return {'input': example_array, 'label': this_label}
+
 
         def __len__(self):
             return len(self.example_dictionary)
@@ -163,7 +172,7 @@ def get_dataloaders(base_folder, batch_size):
 
 
     # create dataset class instances
-    bands = [8, 5, 4, 3, 2] # these are [NIR, Vegetation Red Edge, Red, Green, Blue] bands
+    bands = [4, 3, 2, 5, 8] # these are [NIR, Vegetation Red Edge, Red, Green, Blue] bands
     train_data = dataset(data_dictionary=train_dictionary, bands=bands, mode='train')
     val_data = dataset(data_dictionary=val_dictionary, bands=bands, mode='eval')
     test_data = dataset(data_dictionary=test_dictionary, bands=bands, mode='test')
@@ -256,7 +265,7 @@ def check_dataloaders():
     train_dataloader, val_dataloader, test_dataloader = get_dataloaders(base_folder='/home/annus/Desktop/'
                                                                                     'projects/forest_cover_change/'
                                                                                     'eurosat/images/tif/',
-                                                                        batch_size=1)
+                                                                        batch_size=16)
     # #
     # train_dataloader, val_dataloader, test_dataloader = get_dataloaders(base_folder='Eurosat/tif/',
     #                                                                     batch_size=16)
@@ -271,11 +280,11 @@ def check_dataloaders():
             if True:
                 # this = np.max(examples[0].numpy())
                 # print(this)
-                this = (examples[0].numpy()*400).transpose(1,2,0)[:,:,:3].astype(np.uint8)
-                print(this.shape)
+                this = ((examples[0].numpy()+1)/2*255).transpose(1,2,0)[:,:,:3].astype(np.uint8)
+                print(examples.shape, labels.shape)
                 # this = histogram_equalization(this)
                 pl.imshow(this)
-                pl.title('{}'.format(reversed_labels[int(labels.numpy())]))
+                pl.title('{}'.format(reversed_labels[int(np.argmax(labels[0].numpy(), axis=0))]))
                 pl.show()
 
 

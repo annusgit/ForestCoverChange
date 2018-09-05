@@ -17,7 +17,7 @@ from dataset import get_dataloaders
 from tensorboardX import SummaryWriter
 
 
-def train_net(model, base_folder, pre_model, save_dir, batch_size, lr, log_after, cuda, device):
+def train_net(model, base_folder, pre_model, save_dir, batch_size, lr, log_after, cuda, device, one_hot=False):
     if not pre_model:
         print(model)
     writer = SummaryWriter()
@@ -27,6 +27,13 @@ def train_net(model, base_folder, pre_model, save_dir, batch_size, lr, log_after
         print('log: training started on device: {}'.format(device))
     # define loss and optimizer
     optimizer = Adam(model.parameters(), lr=lr)
+    lr_final = 0.0000003
+    num_epochs = 500
+    LR_decay = (lr_final/lr)**(1./num_epochs)
+    scheduler = lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=LR_decay)
+    # print(LR_decay, optimizer.state)
+    # print(optimizer.param_groups[0]['lr'])
+    # criterion = nn.CrossEntropyLoss()
     criterion = nn.CrossEntropyLoss()
     train_loader, val_dataloader, test_loader = get_dataloaders(base_folder=base_folder,
                                                                 batch_size=batch_size)
@@ -38,24 +45,24 @@ def train_net(model, base_folder, pre_model, save_dir, batch_size, lr, log_after
         m_loss, m_accuracy = [], []
         if pre_model:
             # self.load_state_dict(torch.load(pre_model)['model'])
-            model.load_state_dict(torch.load(pre_model))
+            model.load_state_dict(torch.load(os.path.join(save_dir, "model-"+pre_model+'.pt')))
             print('log: resumed model {} successfully!'.format(pre_model))
             print(model)
 
             # starting point
             # model_number = int(pre_model.split('/')[1].split('-')[1].split('.')[0])
-            model_number = int(re.findall('\d+', str(pre_model))[0])
+            model_number = int(pre_model) #re.findall('\d+', str(pre_model))[0])
             i = i + model_number - 1
         else:
-            print('log: starting anew using ImageNet weights...')
+            print('log: starting anew...')
 
-        while True:
+        while i < num_epochs:
             i += 1
             net_loss = []
             # new model path
             save_path = os.path.join(save_dir, 'model-{}.pt'.format(i))
             # remember to save only five previous models, so
-            del_this = os.path.join(save_dir, 'model-{}.pt'.format(i - 6))
+            del_this = os.path.join(save_dir, 'model-{}.pt'.format(i-6))
             if os.path.exists(del_this):
                 os.remove(del_this)
                 print('log: removed {}'.format(del_this))
@@ -80,7 +87,10 @@ def train_net(model, base_folder, pre_model, save_dir, batch_size, lr, log_after
                 net_loss.append(loss.item())
 
                 # get accuracy metric
-                batch_correct = (label.eq(pred.long())).double().sum().item()
+                if one_hot:
+                    batch_correct = (torch.argmax(label, dim=1).eq(pred.long())).double().sum().item()
+                else:
+                    batch_correct = (label.eq(pred.long())).double().sum().item()
                 correct_count += batch_correct
                 # print(batch_correct)
                 total_count += np.float(pred.size(0))
@@ -100,6 +110,8 @@ def train_net(model, base_folder, pre_model, save_dir, batch_size, lr, log_after
                 clip_grad_norm_(model.parameters(), 0.05)
                 optimizer.step()
                 #################################
+            # remember this should be in the epoch loop ;)
+            scheduler.step()  # to dynamically change the learning rate
             mean_accuracy = correct_count / total_count * 100
             mean_loss = np.asarray(net_loss).mean()
             m_loss.append((i, mean_loss))
@@ -109,13 +121,16 @@ def train_net(model, base_folder, pre_model, save_dir, batch_size, lr, log_after
             writer.add_scalar(tag='train over_all accuracy', scalar_value=mean_accuracy, global_step=i)
 
             print('####################################')
-            print('epoch {} -> total loss = {:.5f}, total accuracy = {:.5f}%'.format(i, mean_loss, mean_accuracy))
+            print('epoch {} -> total loss = {:.5f}, total accuracy = {:.5f}% (lr: {})'.format(i,
+                                                                                              mean_loss,
+                                                                                              mean_accuracy,
+                                                                                              optimizer.param_groups[0]['lr']))
             print('####################################')
 
             # validate model after each epoch
             eval_net(model=model, writer=writer, criterion=criterion,
                      val_loader=val_dataloader, denominator=batch_size,
-                     cuda=cuda, device=device, global_step=i)
+                     cuda=cuda, device=device, global_step=i, one_hot=one_hot)
     pass
 
 
@@ -146,7 +161,10 @@ def eval_net(**kwargs):
             net_loss.append(loss.item())
 
             # get accuracy metric
-            batch_correct = (label.eq(pred.long())).double().sum().item()
+            if kwargs['one_hot']:
+                batch_correct = (torch.argmax(label, dim=1).eq(pred.long())).double().sum().item()
+            else:
+                batch_correct = (label.eq(pred.long())).double().sum().item()
             correct_count += batch_correct
             total_count += np.float(pred.size(0))
         #################################
@@ -204,7 +222,14 @@ def eval_net(**kwargs):
             # get accuracy metric
             # correct_count += np.sum((pred == label))
             # print(pred, label)
-            batch_correct = (label.eq(pred.long())).sum().item()
+            # get accuracy metric
+            if 'one_hot' in kwargs.keys():
+                if kwargs['one_hot']:
+                    batch_correct = (torch.argmax(label, dim=1).eq(pred.long())).double().sum().item()
+            else:
+                batch_correct = (label.eq(pred.long())).sum().item()
+            # print(label.shape, pred.shape)
+            # break
             correct_count += batch_correct
             # print(batch_correct)
             total_count += np.float(batch_size)
@@ -229,9 +254,6 @@ def eval_net(**kwargs):
 
 
 
-
-
-#
 
 
 
