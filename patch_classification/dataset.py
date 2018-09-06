@@ -9,6 +9,7 @@ import gdal
 # import json
 import torch
 import random
+import pickle as p
 import numpy as np
 random.seed(74)
 import matplotlib.pyplot as pl
@@ -135,42 +136,82 @@ def get_dataloaders(base_folder, batch_size, one_hot=False):
         def __len__(self):
             return len(self.example_dictionary)
 
+
+    """
+        Okay so here is how we do it. We save the train, test and validation dictionaries if they don't exist, 
+        and once they do, we load the preexisting ones to help us!
+    """
+    # check if we already have the data saved with us...
+    count_data = 0 # count tells us what to do
+    if os.path.exists('train_loader.pkl'):
+        count_data += 1
+        with open('train_loader.pkl', 'rb') as train_l:
+            train_dictionary = p.load(train_l)
+            print('INFO: Loaded pre-saved train data...')
+    if os.path.exists('val_loader.pkl'):
+        count_data += 1
+        with open('val_loader.pkl', 'rb') as val_l:
+            val_dictionary = p.load(val_l)
+            print('INFO: Loaded pre-saved eval data...')
+    if os.path.exists('test_loader.pkl'):
+        count_data += 1
+        with open('test_loader.pkl', 'rb') as test_l:
+            test_dictionary = p.load(test_l)
+            print('INFO: Loaded pre-saved test data...')
+
     # create training set examples dictionary
-    all_examples = {}
-    for folder in sorted(os.listdir(base_folder)):
-        # each folder name is a label itself
-        # new folder, new dictionary!
-        class_examples = []
-        inner_path = os.path.join(base_folder, folder)
-        for image in [x for x in os.listdir(inner_path) if x.endswith('.tif')]:
-            image_path = os.path.join(inner_path, image)
-            # for each index as key, we want to have its path and label as its items
-            class_examples.append(image_path)
-        all_examples[folder] = class_examples
+    if count_data != 3:
+        all_examples = {}
+        for folder in sorted(os.listdir(base_folder)):
+            # each folder name is a label itself
+            # new folder, new dictionary!
+            class_examples = []
+            inner_path = os.path.join(base_folder, folder)
+            #####################################3 this was a problem for a long time now.. because of not sorting it
+            all_images_of_current_class = [x for x in os.listdir(inner_path) if x.endswith('.tif')]
+            all_images_of_current_class.sort(key=lambda f: int(filter(str.isdigit, f)))
+            # if folder == 'Forest':
+            #     print(all_images_of_current_class)
+            for image in all_images_of_current_class:
+                # dirFiles.sort(key=lambda f: int(filter(str.isdigit, f)))
+                # print(image)
+                image_path = os.path.join(inner_path, image)
+                # for each index as key, we want to have its path and label as its items
+                class_examples.append(image_path)
+            all_examples[folder] = class_examples
 
-    # split them into train and test
-    train_dictionary, val_dictionary, test_dictionary = {}, {}, {}
-    for class_name in all_examples.keys():
-        class_examples = all_examples[class_name]
-        # print(class_examples)
-        random.shuffle(class_examples)
+        # split them into train and test
+        train_dictionary, val_dictionary, test_dictionary = {}, {}, {}
+        for class_name in all_examples.keys():
+            class_examples = all_examples[class_name]
+            # print(class_examples)
+            ########################## this doesn't work
+            # random.shuffle(class_examples)
+            ########################### but this does
+            random.Random(4).shuffle(class_examples)
 
-        total = len(class_examples)
-        train_count = int(total * 0.8); train_ = class_examples[:train_count]
-        test = class_examples[train_count:]
+            total = len(class_examples)
+            train_count = int(total * 0.8); train_ = class_examples[:train_count]
+            test = class_examples[train_count:]
 
-        total = len(train_)
-        train_count = int(total * 0.9); train = train_[:train_count]
-        validation = train_[train_count:]
+            total = len(train_)
+            train_count = int(total * 0.9); train = train_[:train_count]
+            validation = train_[train_count:]
 
-        for example in train:
-            train_dictionary[len(train_dictionary)] = (example, class_name)
-        for example in test:
-            test_dictionary[len(test_dictionary)] = (example, class_name)
-        for example in validation:
-            val_dictionary[len(val_dictionary)] = (example, class_name)
+            for example in train:
+                train_dictionary[len(train_dictionary)] = (example, class_name)
+            for example in test:
+                test_dictionary[len(test_dictionary)] = (example, class_name)
+            for example in validation:
+                val_dictionary[len(val_dictionary)] = (example, class_name)
+
+        # # test dataset
+        with open('train1.txt', 'wb') as train_check:
+            for k in range(len(train_dictionary)):
+                train_check.write('{}\n'.format(train_dictionary[k][0]))
 
 
+    print(map(len, [train_dictionary, val_dictionary, test_dictionary]))
     # create dataset class instances
     bands = [4, 3, 2, 5, 8] # these are [NIR, Vegetation Red Edge, Red, Green, Blue] bands
     train_data = dataset(data_dictionary=train_dictionary, bands=bands, mode='train')
@@ -186,7 +227,16 @@ def get_dataloaders(base_folder, batch_size, one_hot=False):
     test_dataloader = DataLoader(dataset=test_data, batch_size=batch_size,
                                  shuffle=True, num_workers=4)
 
-    return train_dataloader, val_dataloader, test_dataloader
+    # save the created datasets
+    if count_data != 3:
+        with open('train_loader.pkl', 'wb') as train_l:
+            p.dump(train_dictionary, train_l, protocol=p.HIGHEST_PROTOCOL)
+        with open('test_loader.pkl', 'wb') as test_l:
+            p.dump(test_dictionary, test_l, protocol=p.HIGHEST_PROTOCOL)
+        with open('val_loader.pkl', 'wb') as val_l:
+            p.dump(val_dictionary, val_l, protocol=p.HIGHEST_PROTOCOL)
+        print('INFO: saved data pickle files for later use')
+    return train_dataloader, val_dataloader, test_dataloader #, test_dictionary
 
 
 # We shall use this at inference time on our custom downloaded images...
@@ -309,8 +359,43 @@ def check_inference_loader():
     pass
 
 
+def check_data_sanity():
+    train, val, _, test1 = get_dataloaders(base_folder='/home/annus/Desktop/'
+                                                      'projects/forest_cover_change/'
+                                                      'eurosat/images/tif/',
+                                          batch_size=16)
+
+    train, val, _, test2 = get_dataloaders(base_folder='/home/annus/Desktop/'
+                                                      'projects/forest_cover_change/'
+                                                      'eurosat/images/tif/',
+                                          batch_size=16)
+
+
+    train, val, _, test3 = get_dataloaders(base_folder='/home/annus/Desktop/'
+                                                      'projects/forest_cover_change/'
+                                                      'eurosat/images/tif/',
+                                          batch_size=16)
+
+    def get_dict_diff(d1, d2):
+        return len(set(d1.values()) - set(d2.values()))
+
+    # compare on the same run
+    print(get_dict_diff(test1, test2))
+    print(get_dict_diff(test2, test3))
+    print(get_dict_diff(test3, test1))
+
+    # compare across runs
+    if os.path.exists('test1.pkl'):
+        with open('test1.pkl', 'rb') as ts1:
+            test1_old = p.load(ts1)
+        print('during cross runs, diff =', get_dict_diff(test2, test1_old))
+    else:
+        with open('test1.pkl', 'wb') as ts1:
+            p.dump(test1, ts1, protocol=p.HIGHEST_PROTOCOL)
+
+
 if __name__ == '__main__':
-    check_dataloaders()
+    check_data_sanity()
 
 
 

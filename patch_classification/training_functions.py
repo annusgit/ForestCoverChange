@@ -207,7 +207,7 @@ def eval_net(**kwargs):
                 test_x = test_x.cuda(device=device)
                 label = label.cuda(device=device)
             # forward
-            out_x, pred = model.forward(test_x)
+            out_x, pred = model(test_x)
             loss = criterion(out_x, label)
             un_confusion_meter.add(predicted=pred, target=label)
             confusion_meter.add(predicted=pred, target=label)
@@ -227,7 +227,7 @@ def eval_net(**kwargs):
                 if kwargs['one_hot']:
                     batch_correct = (torch.argmax(label, dim=1).eq(pred.long())).double().sum().item()
             else:
-                batch_correct = (label.eq(pred.long())).sum().item()
+                batch_correct = (label.eq(pred.long())).double().sum().item()
             # print(label.shape, pred.shape)
             # break
             correct_count += batch_correct

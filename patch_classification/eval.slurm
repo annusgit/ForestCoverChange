@@ -12,5 +12,5 @@ module load nvidia/7.5
 module load cudnn/7.5-v5
 
 ##python train.py --function train_net --data_path tif/ --save_dir vgg5 --batch_size 256 --lr 0.0022 --log_after 5 --cuda 1 --device 0 --pretrained_model 53
-python train.py --function eval_net --data_path tif/ --save_dir vgg5 --batch_size 512 --lr 0.0022 --log_after 2 --cuda 1 --device 0 --pretrained_model vgg5/model-234.pt
+python train.py --function eval_net --data_path tif/ --save_dir vgg5 --batch_size 1 --lr 0.0022 --log_after 1 --cuda 1 --device 0 --pretrained_model vgg5/model-234.pt
 ##python run_model.py resnet_models/model-559.pt test.tif

@@ -255,8 +255,20 @@ def check_vgg5():
     print(test_out.shape, test_pred.shape)
 
 
+def ptrblck_test():
+    model = VGG_5()
+    model.eval()
+    x = torch.randn(10, 5, 64, 64)
+    output_all, pred_all = model(x)
+    output_1, pred_1 = model(x[:5])
+    output_2, pred_2 = model(x[5:])
+    output_stacked = torch.cat((output_1, output_2), dim=0)
+    print(torch.allclose(output_all, output_stacked))
+    pass
+
+
 if __name__ == '__main__':
-    check_vgg5()
+    ptrblck_test()
 
 
 
