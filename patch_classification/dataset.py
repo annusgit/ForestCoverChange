@@ -227,6 +227,17 @@ def get_dataloaders(base_folder, batch_size, one_hot=False):
     test_dataloader = DataLoader(dataset=test_data, batch_size=batch_size,
                                  shuffle=True, num_workers=4)
 
+    # with gzip.open('help.zip', mode='wb') as helpme:
+    #     helpme.write(testman)
+    # import gzip
+    # file = gzip.GzipFile('dum.zip', 'wb')
+    # testman = {'data': test_dataloader}
+    # file.write(p.dumps(testman, protocol=p.HIGHEST_PROTOCOL))
+    # file.close()
+    # with open('help.pickle', 'wb') as helpme:
+    #     p.dump(testman, file=helpme, protocol=p.HIGHEST_PROTOCOL)
+
+
     # save the created datasets
     if count_data != 3:
         with open('train_loader.pkl', 'wb') as train_l:
