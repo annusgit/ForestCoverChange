@@ -61,7 +61,7 @@ seq = iaa.Sequential(
         iaa.Flipud(0.5), # vertically flip 50% of all images
 
         # crop some of the images by 0-20% of their height/width
-        # sometimes(iaa.Crop(percent=(0, 0.2))),
+        sometimes(iaa.Crop(percent=(0, 0.2))),
 
         # Apply affine transformations to some of the images
         # - scale to 80-120% of image height/width (each axis independently)
@@ -71,8 +71,8 @@ seq = iaa.Sequential(
         #         see API or scikit-image for which modes are available
         sometimes(iaa.Affine(
             scale={"x": (0.8, 1.2), "y": (0.8, 1.2)},
-            translate_percent={"x": (-0.2, 0.2), "y": (-0.2, 0.2)},
-            rotate=(-180, 175),
+            # translate_percent={"x": (-0.2, 0.2), "y": (-0.2, 0.2)},
+            # rotate=(-180, 175),
             mode=ia.ALL
         )),
     ],
@@ -345,7 +345,7 @@ def check_dataloaders():
                 print(examples.shape, labels.shape)
                 # this = histogram_equalization(this)
                 pl.imshow(this)
-                pl.title('{}'.format(reversed_labels[int(np.argmax(labels[0].numpy(), axis=0))]))
+                pl.title('{}'.format(reversed_labels[int(labels[0].numpy())]))
                 pl.show()
 
 
@@ -406,7 +406,7 @@ def check_data_sanity():
 
 
 if __name__ == '__main__':
-    check_data_sanity()
+    check_dataloaders()
 
 
 
