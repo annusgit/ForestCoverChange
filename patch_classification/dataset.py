@@ -110,14 +110,14 @@ def get_dataloaders(base_folder, batch_size, one_hot=False):
                 example_array = np.dstack((example_array,
                                            this_example.GetRasterBand(i).ReadAsArray())).astype(np.int16)
 
-            # transforms
+            # transforms for augmentation
             if self.mode == 'train':
                 example_array = np.squeeze(seq.augment_images(
                     (np.expand_dims(example_array, axis=0))), axis=0)
                 pass
 
             # range of vals = [0,1]
-            example_array = np.clip((example_array.astype(np.float)/4096), a_min=0, a_max=1) # just to bring those values down
+            example_array = np.clip((example_array.astype(np.float)/4096), a_min=0, a_max=1)
             # range of vals = [-1,1]
             example_array = 2*example_array-1
 
@@ -213,7 +213,8 @@ def get_dataloaders(base_folder, batch_size, one_hot=False):
 
     print(map(len, [train_dictionary, val_dictionary, test_dictionary]))
     # create dataset class instances
-    bands = [4, 3, 2, 5, 8] # these are [NIR, Vegetation Red Edge, Red, Green, Blue] bands
+    # bands = [4, 3, 2, 5, 8] # these are [Red, Green, Blue, NIR, Vegetation Red Edge] bands
+    bands = [4, 3, 2] # these are [Red, Green, Blue] bands only
     train_data = dataset(data_dictionary=train_dictionary, bands=bands, mode='train')
     val_data = dataset(data_dictionary=val_dictionary, bands=bands, mode='eval')
     test_data = dataset(data_dictionary=test_dictionary, bands=bands, mode='test')

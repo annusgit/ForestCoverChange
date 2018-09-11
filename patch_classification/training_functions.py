@@ -128,13 +128,14 @@ def train_net(model, base_folder, pre_model, save_dir, batch_size, lr, log_after
             print('####################################')
 
             # validate model after each epoch
-            eval_net(model=model, writer=writer, criterion=criterion,
-                     val_loader=val_dataloader, denominator=batch_size,
-                     cuda=cuda, device=device, global_step=i, one_hot=one_hot)
+            with torch.no_grad():
+                eval_net(model=model, writer=writer, criterion=criterion,
+                         val_loader=val_dataloader, denominator=batch_size,
+                         cuda=cuda, device=device, global_step=i, one_hot=one_hot)
     pass
 
 
-@torch.no_grad()
+# @torch.no_grad()
 def eval_net(**kwargs):
     model = kwargs['model']
     cuda = kwargs['cuda']
@@ -194,61 +195,62 @@ def eval_net(**kwargs):
         total_count = 0
         print('batch size = {}'.format(batch_size))
         model.eval()  # put in eval mode first
-        for idx, data in enumerate(test_loader):
-            # if idx == 1:
-            #     break
-            # print(model.training)
-            test_x, label = data['input'], data['label']
-            # print(test_x)
-            # print(test_x.shape)
-            # this = test_x.numpy().squeeze(0).transpose(1,2,0)
-            # print(this.shape, np.min(this), np.max(this))
-            if cuda:
-                test_x = test_x.cuda(device=device)
-                label = label.cuda(device=device)
-            # forward
-            out_x, pred = model(test_x)
-            loss = criterion(out_x, label)
-            un_confusion_meter.add(predicted=pred, target=label)
-            confusion_meter.add(predicted=pred, target=label)
+        with torch.no_grad():
+            for idx, data in enumerate(test_loader):
+                # if idx == 1:
+                #     break
+                # print(model.training)
+                test_x, label = data['input'], data['label']
+                # print(test_x)
+                # print(test_x.shape)
+                # this = test_x.numpy().squeeze(0).transpose(1,2,0)
+                # print(this.shape, np.min(this), np.max(this))
+                if cuda:
+                    test_x = test_x.cuda(device=device)
+                    label = label.cuda(device=device)
+                # forward
+                out_x, pred = model(test_x)
+                loss = criterion(out_x, label)
+                un_confusion_meter.add(predicted=pred, target=label)
+                confusion_meter.add(predicted=pred, target=label)
 
-            ###############################
-            # pred = pred.view(-1)
-            # pred = pred.cpu().numpy()
-            # label = label.cpu().numpy()
-            # print(pred.shape, label.shape)
-            ###############################
+                ###############################
+                # pred = pred.view(-1)
+                # pred = pred.cpu().numpy()
+                # label = label.cpu().numpy()
+                # print(pred.shape, label.shape)
+                ###############################
 
-            # get accuracy metric
-            # correct_count += np.sum((pred == label))
-            # print(pred, label)
-            # get accuracy metric
-            if 'one_hot' in kwargs.keys():
-                if kwargs['one_hot']:
-                    batch_correct = (torch.argmax(label, dim=1).eq(pred.long())).double().sum().item()
-            else:
-                batch_correct = (label.eq(pred.long())).double().sum().item()
-            # print(label.shape, pred.shape)
-            # break
-            correct_count += batch_correct
-            # print(batch_correct)
-            total_count += np.float(batch_size)
-            net_loss.append(loss.item())
-            if idx % log_after == 0:
-                print('log: on {}'.format(idx))
+                # get accuracy metric
+                # correct_count += np.sum((pred == label))
+                # print(pred, label)
+                # get accuracy metric
+                if 'one_hot' in kwargs.keys():
+                    if kwargs['one_hot']:
+                        batch_correct = (torch.argmax(label, dim=1).eq(pred.long())).double().sum().item()
+                else:
+                    batch_correct = (label.eq(pred.long())).double().sum().item()
+                # print(label.shape, pred.shape)
+                # break
+                correct_count += batch_correct
+                # print(batch_correct)
+                total_count += np.float(batch_size)
+                net_loss.append(loss.item())
+                if idx % log_after == 0:
+                    print('log: on {}'.format(idx))
 
-            #################################
-        mean_loss = np.asarray(net_loss).mean()
-        mean_accuracy = correct_count * 100 / total_count
-        print(correct_count, total_count)
-        print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
-        print('log: test:: total loss = {:.5f}, total accuracy = {:.5f}%'.format(mean_loss, mean_accuracy))
-        print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+                #################################
+            mean_loss = np.asarray(net_loss).mean()
+            mean_accuracy = correct_count * 100 / total_count
+            print(correct_count, total_count)
+            print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+            print('log: test:: total loss = {:.5f}, total accuracy = {:.5f}%'.format(mean_loss, mean_accuracy))
+            print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
 
-        with open('normalized.pkl', 'wb') as this:
-            pkl.dump(confusion_meter.value(), this, protocol=pkl.HIGHEST_PROTOCOL)
-        with open('un_normalized.pkl', 'wb') as this:
-            pkl.dump(un_confusion_meter.value(), this, protocol=pkl.HIGHEST_PROTOCOL)
+            with open('normalized.pkl', 'wb') as this:
+                pkl.dump(confusion_meter.value(), this, protocol=pkl.HIGHEST_PROTOCOL)
+            with open('un_normalized.pkl', 'wb') as this:
+                pkl.dump(un_confusion_meter.value(), this, protocol=pkl.HIGHEST_PROTOCOL)
         pass
     pass
 

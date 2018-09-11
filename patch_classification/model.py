@@ -12,65 +12,12 @@ from torchsummary import summary
 from torchviz import make_dot
 
 
-class VGG(nn.Module):
-    """
-        Get a pretrained VGG network (on ImageNet) and try to finetune it on EuroSat images
-        Reported acc is > 98% on Resnet-50, let's see what can we get from a VGG network
-    """
-
-    def __init__(self, in_channels):
-        super(VGG, self).__init__()
-        graph = models.vgg11_bn(pretrained=True)
-        # graph.load_state_dict(torch.load('/home/annus/.torch/models/vgg11_bn-6002323d.pth'))
-        graph_layers = list(graph.features) # only get the feature extractor, we don't need the classifier
-        # add a lot of dropout to make it generalize better...
-        graph_layers.insert(8, nn.Dropout2d(p=0.7))
-        graph_layers.insert(16, nn.Dropout2d(p=0.7))
-        graph_layers.insert(24, nn.Dropout2d(p=0.7))
-        graph_layers.insert(33, nn.Dropout2d(p=0.7))
-        new_graph = [] #[nn.BatchNorm2d(num_features=in_channels)] # will be applied at input
-        for layer in graph_layers:
-            new_graph.append(layer)
-        model_list = nn.ModuleList(new_graph)
-        self.feature_extracter = nn.Sequential(*model_list)
-        self.classifier = nn.Sequential(
-            nn.Linear(in_features=512*((64//2**5)**2), out_features=1024),
-            nn.ReLU(),
-            nn.Linear(in_features=1024, out_features=512),
-            nn.ReLU(),
-            nn.Dropout(p=0.7),
-            nn.Linear(in_features=512, out_features=256),
-            nn.ReLU(),
-            nn.Linear(in_features=256, out_features=128),
-            nn.ReLU(),
-            nn.Dropout(p=0.7),
-            nn.Linear(in_features=128, out_features=10),
-            nn.LogSoftmax(dim=0)
-        )
-        self.feature_extracter[1].momentum = 0.25
-        self.feature_extracter[5].momentum = 0.25
-        self.feature_extracter[10].momentum = 0.25
-        self.feature_extracter[13].momentum = 0.25
-        self.feature_extracter[18].momentum = 0.25
-        self.feature_extracter[21].momentum = 0.25
-        self.feature_extracter[26].momentum = 0.25
-        self.feature_extracter[29].momentum = 0.25
-
-    def forward(self, x):
-        x = self.feature_extracter(x)
-        x = self.classifier(x.view(x.size(0), -1))
-        return x, torch.argmax(input=x, dim=1)
-
-    def count_parameters(self):
-        return sum(p.numel() for p in self.parameters() if p.requires_grad)
-
-
-class VGG_5(nn.Module):
+class VGG_N(nn.Module):
     """
             The following is an implementation of the lasagne based binarized VGG network, but with floating point weights
     """
-    def __init__(self):
-        super(VGG_5, self).__init__()
+    def __init__(self, in_channels):
+        super(VGG_N, self).__init__()
         # need some pretrained help!
         graph = models.vgg11(pretrained=True)
         graph_layers = list(graph.features)
@@ -79,7 +26,7 @@ class VGG_5(nn.Module):
         drop_rate = 0.5
         activator = nn.Tanh()
         self.feauture_exctractor = nn.Sequential(
-            nn.Conv2d(in_channels=5, out_channels=64, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels=in_channels, out_channels=64, kernel_size=3, padding=1),
             nn.MaxPool2d(kernel_size=2),
             nn.BatchNorm2d(num_features=64, eps=1e-4, momentum=0.2),
             # nn.ReLU(),
@@ -225,7 +172,7 @@ def network():
     print(out.shape, pred.shape)
 
 
-@torch.no_grad()
+# @torch.no_grad()
 def check_model_on_dataloader():
     from dataset import get_dataloaders
     model = HyperSpectral_Resnet(in_channels=5)
@@ -248,15 +195,15 @@ def check_model_on_dataloader():
     pass
 
 
-def check_vgg5():
-    vgg5 = VGG_5()
-    test_in = torch.Tensor(2, 5, 64, 64)
+def check_vggN():
+    vgg5 = VGG_N(in_channels=3)
+    test_in = torch.Tensor(2, 3, 64, 64)
     test_out, test_pred = vgg5(test_in)
     print(test_out.shape, test_pred.shape)
 
 
 def ptrblck_test():
-    model = VGG_5()
+    model = VGG_N(in_channels=5)
     model.eval()
     x = torch.randn(10, 5, 64, 64)
     output_all, pred_all = model(x)
@@ -268,7 +215,7 @@ def ptrblck_test():
 
 
 if __name__ == '__main__':
-    ptrblck_test()
+    check_vggN()
 
 
 
