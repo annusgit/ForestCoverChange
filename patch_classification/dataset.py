@@ -213,8 +213,8 @@ def get_dataloaders(base_folder, batch_size, one_hot=False):
 
     print(map(len, [train_dictionary, val_dictionary, test_dictionary]))
     # create dataset class instances
-    # bands = [4, 3, 2, 5, 8] # these are [Red, Green, Blue, NIR, Vegetation Red Edge] bands
-    bands = [4, 3, 2] # these are [Red, Green, Blue] bands only
+    bands = [4, 3, 2, 5, 8] # these are [Red, Green, Blue, NIR, Vegetation Red Edge] bands
+    # bands = [4, 3, 2] # these are [Red, Green, Blue] bands only
     train_data = dataset(data_dictionary=train_dictionary, bands=bands, mode='train')
     val_data = dataset(data_dictionary=val_dictionary, bands=bands, mode='eval')
     test_data = dataset(data_dictionary=test_dictionary, bands=bands, mode='test')

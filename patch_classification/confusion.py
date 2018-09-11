@@ -19,7 +19,7 @@ def confusion(file_path):
     df_cm = pd.DataFrame(matrix, index=[i for i in all_labels],
                          columns=[i for i in all_labels])
     plt.figure(figsize=(10,7))
-    sn.heatmap(df_cm, annot=True)
+    sn.heatmap(df_cm, cmap='BuPu', annot=True)
     plt.show()
 
 

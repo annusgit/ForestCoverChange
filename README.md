@@ -35,10 +35,11 @@ You will need the following modules to get the code running
 </p>
 
 ### Patch-wise classification of Sentinel-2 Satellite Images.
-We used the [Eurosat](https://arxiv.org/pdf/1709.00029.pdf) data set and a [Resnet-50](https://pytorch.org/docs/stable/torchvision/models.html#torchvision.models.resnet50) model for classifying 64*64 patches of image.
-Here is our Confusion Matrix on the test set
+We used the [Eurosat](https://arxiv.org/pdf/1709.00029.pdf) data set and a two variants of VGG architecture for classifying 64*64 patches of image.
+Here are the two confusion matrices, the left one is with 3 channels and the right one is for 5 channels at the input of the VGG.
 <p align="center"> 
-    <img src="results/resnet_cm.png" width="500" height="500"/>
+    <img src="results/vgg-3.png" width="500" height="500"/>
+    <img src="results/vgg-5.png" width="500" height="500"/>
 </p>
 
 * The following images show our results one different landscapes. It should be noted that these images were not a part of the training or test set. They were downloaded separately from [scihub](https://scihub.copernicus.eu) and [earthexplorer](http://earthexplorer.usgs.gov) for inference.  
