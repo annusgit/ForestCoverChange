@@ -1,0 +1,3 @@
+[submodule "draw_convnet"]
+	path = draw_convnet
+	url = https://github.com/gwding/draw_convnet
