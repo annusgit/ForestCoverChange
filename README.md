@@ -36,7 +36,7 @@ You will need the following modules to get the code running
 
 ### Patch-wise classification of Sentinel-2 Satellite Images.
 We used the [Eurosat](https://arxiv.org/pdf/1709.00029.pdf) data set and a two variants of VGG architecture for classifying 64*64 patches of image.
-Here are the two confusion matrices, the left one is with 3 channels and the right one is for 5 channels at the input of the VGG.
+Here are the two confusion matrices, the left one is with 3 channels (96.38% acc. on the test set) and the right one is for 5 channels (98.05% acc. on the test set) at the input of the VGG.
 <p align="center"> 
     <img src="results/vgg-3.png" width="400" height="400"/>
     <img src="results/vgg-5.png" width="400" height="400"/>
