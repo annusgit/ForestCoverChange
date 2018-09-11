@@ -30,26 +30,26 @@ class VGG_N(nn.Module):
             nn.MaxPool2d(kernel_size=2),
             nn.BatchNorm2d(num_features=64, eps=1e-4, momentum=0.2),
             # nn.ReLU(),
-            activator,
+            nn.Tanh(),
 
             nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, padding=1),
             nn.MaxPool2d(kernel_size=2),
             nn.BatchNorm2d(num_features=64, eps=1e-4, momentum=0.2),
             # nn.ReLU(),
-            activator,
+            nn.Tanh(),
             nn.Dropout2d(drop_rate),
 
             # nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=1),
             graph_layers[3], # pretrained on imagenet
             nn.BatchNorm2d(num_features=128, eps=1e-4, momentum=0.2),
             # nn.ReLU(),
-            activator,
+            nn.Tanh(),
 
             nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, padding=1),
             nn.MaxPool2d(kernel_size=2),
             nn.BatchNorm2d(num_features=128, eps=1e-4, momentum=0.2),
             # nn.ReLU(),
-            activator,
+            nn.Tanh(),
             nn.Dropout(drop_rate),
 
             # nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, padding=1),
@@ -57,25 +57,25 @@ class VGG_N(nn.Module):
             nn.MaxPool2d(kernel_size=2),
             nn.BatchNorm2d(num_features=256, eps=1e-4, momentum=0.2),
             # nn.ReLU(),
-            activator,
+            nn.Tanh(),
 
             nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, padding=1),
             nn.MaxPool2d(kernel_size=2),
             nn.BatchNorm2d(num_features=256, eps=1e-4, momentum=0.2),
             # nn.ReLU(),
-            activator,
+            nn.Tanh(),
             nn.Dropout2d(drop_rate),
         )
         self.fc = nn.Sequential(
             nn.Linear(in_features=256 * 2 * 2, out_features=512),
             nn.BatchNorm1d(num_features=512, eps=1e-4, momentum=0.2),
             # nn.ReLU(),
-            activator,
+            nn.Tanh(),
             nn.Dropout(drop_rate),
             nn.Linear(in_features=512, out_features=512),
             nn.BatchNorm1d(num_features=512, eps=1e-4, momentum=0.2),
             # nn.ReLU(),
-            activator,
+            nn.Tanh(),
             nn.Linear(in_features=512, out_features=10),
             # nn.BatchNorm1d(num_features=10),
         )
@@ -200,6 +200,7 @@ def check_vggN():
     test_in = torch.Tensor(2, 3, 64, 64)
     test_out, test_pred = vgg5(test_in)
     print(test_out.shape, test_pred.shape)
+    summary(vgg5, input_size=(3, 64, 64))
 
 
 def ptrblck_test():
