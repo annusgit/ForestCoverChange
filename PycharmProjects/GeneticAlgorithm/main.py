@@ -8,7 +8,7 @@ from scipy import optimize
 
 
 def this_objective(population):
-    return population ** 5 + (population - 28) ** 2 + np.tan(population)
+    return np.cos(population**2+4)**3+(population-28)**3+np.cos(population)
 
 
 class Population(object):
@@ -74,8 +74,8 @@ class Population(object):
     def mutate(self):
         mutate = np.random.uniform(0, 1, self.size)
         select_to_mutate = mutate < self.mutation
-        self.population += select_to_mutate*np.random.uniform(low=-self.population.mean(),
-                                                              high=self.population.mean(),
+        self.population += select_to_mutate*np.random.uniform(low=-np.median(self.population),
+                                                              high=np.median(self.population),
                                                               size=self.size)
         pass
 
@@ -86,7 +86,7 @@ class Population(object):
 
 
 def main():
-    population = Population(size=2000, mutation_rate=0.01, num_parents=5, fittest=10, max_range=100000)
+    population = Population(size=2000, mutation_rate=0.08, num_parents=5, fittest=10, max_range=100000)
     generations = 2000000
     threshold = 1e-10
     # 1. calculate fitness,
