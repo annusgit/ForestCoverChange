@@ -8,7 +8,7 @@ from scipy import optimize
 
 
 def this_objective(population):
-    return np.cos(population**2+4)**3+(population-28)**3+np.cos(population)
+    return np.cbrt(np.cos(population**2+4))+(population-28)**3+np.cos(population)
 
 
 class Population(object):
@@ -72,6 +72,7 @@ class Population(object):
         pass
 
     def mutate(self):
+        # for mutation, we shall randomly change a few numbers in the whole
         mutate = np.random.uniform(0, 1, self.size)
         select_to_mutate = mutate < self.mutation
         self.population += select_to_mutate*np.random.uniform(low=-np.median(self.population),
