@@ -74,6 +74,14 @@ Here are the two confusion matrices, the left one is with 3 channels (96.38% acc
     <img src="results/muzaffarabad_patchwise_2.png"/>
 </p>
 
+# Usage
+## Inference on custom sentinel images downloaded from [Sentinel](https://scihub.copernicus.eu/) or EarthExplorer.
+```
+python -m pipeline.detect --images path/to/folder/containing/sentinel/images --model path/to/trained/model --save_dir temp --device cpu_or_gpu
+``` 
+**Options**
+
+
 ## Authors
 
 * **Annus Zulfiqar**

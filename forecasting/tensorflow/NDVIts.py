@@ -17,7 +17,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from DataPrep import *
 
-
 tf.set_random_seed(seed=2018)
 np.random.seed(seed=2018)
 
@@ -32,7 +31,7 @@ lambda_l2_reg = 0.0001  # L2 regularization of weights
 
 # preparing the data
 (X_batch, Y_batch), test_set = train_test_data(file_path="convertcsv.csv", batch_size=batch_size,
-                                               input_length=seq_len, test_percent=0.33)
+                                               input_length=seq_len, test_percent=0.33, scale_factor=1)
 inp_dim = X_batch.shape[2]
 out_dim = X_batch.shape[2]
 

@@ -52,7 +52,7 @@ def pre_data(file_path, batch_size, seq_len):
     return X_batch, Y_batch
 
 
-def train_test_data(file_path, batch_size, input_length, test_percent=0.2):
+def train_test_data(file_path, batch_size, input_length, test_percent=0.2, scale_factor=1):
     '''
         Prepare data for training and testing, split it into training and testing examples
         :batch_size: batch size for training/testing, type: int
@@ -63,7 +63,7 @@ def train_test_data(file_path, batch_size, input_length, test_percent=0.2):
     # converting mean values from the CSV file into a smoothened numpy array
     data_dir = file_path
     df = pandas.read_csv(data_dir, converters={"value_mean": float})["value_mean"].values
-    df = smooth(df, window_len=5)
+    df = scale_factor*smooth(df, window_len=5)
     # divide into train and test sets
     train_count = int((1-test_percent)*len(df))
     df_train = df[:train_count]

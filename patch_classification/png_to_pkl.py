@@ -10,10 +10,11 @@ import sys
 import cv2
 
 
-def tif_to_png(image_path):
+def tif_to_png(image_path, bands):
+    # bands is the list of bands to load from the image rasters
     image = gdal.Open(image_path)
     all_bands = [] #
-    for i in range(1, 1+image.RasterCount):
+    for i in bands: #range(1, 1+image.RasterCount):
         all_bands.append(image.GetRasterBand(i).ReadAsArray())
     image = np.dstack(all_bands)
     # print(image.max())
@@ -25,8 +26,8 @@ def tif_to_png(image_path):
     return image
 
 
-def png_to_pickle(image_file, pkl_file):
-    image = tif_to_png(image_path=image_file)
+def png_to_pickle(image_file, pkl_file, bands):
+    image = tif_to_png(image_path=image_file, bands=bands)
     save_name = pkl_file
     save_image = {
         'pixels': image,
