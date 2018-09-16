@@ -30,17 +30,20 @@ function cropout_aoi(image){
  * @return {ee.Image} cloud masked Sentinel-2 image
 */
 function maskS2clouds(image) {
-  var qa = image.select('QA60');
+  var qa = image.select('QA60')
 
   // Bits 10 and 11 are clouds and cirrus, respectively.
   var cloudBitMask = 1 << 10;
   var cirrusBitMask = 1 << 11;
 
   // Both flags should be set to zero, indicating clear conditions.
-  var mask = qa.bitwiseAnd(cloudBitMask).eq(0)
-      .and(qa.bitwiseAnd(cirrusBitMask).eq(0));
+  var mask = qa.bitwiseAnd(cloudBitMask).eq(0).and(
+             qa.bitwiseAnd(cirrusBitMask).eq(0))
 
-  return image.updateMask(mask);//.divide(10000);
+  // Return the masked and scaled data, without the QA bands.
+  return image.updateMask(mask) //.divide(10000)
+      .select("B.*")
+      .copyProperties(image, ["system:time_start"])
 }
 
 function scale(image, div) {
@@ -56,47 +59,49 @@ var landsat_8 = 'LANDSAT/LC08/C01/T1';
 var sentinel_2 = 'COPERNICUS/S2';
 var show_bands = ('B4', 'B3', 'B2');
 var export_bands = all_bands; //('B4', 'B3', 'B2', 'B5', 'B8');
-var this_data = sentinel_2;
-var allowed_cloud_percentage = 0.5;
+var this_collection = sentinel_2;
+var allowed_cloud_percentage = 5;
 var this_aoi = germany;
-var this_max = 5000;
+var this_max = 0.3*10000;
 var description = 'G_all_bands_';
 var folder = 'sentinel-2-europe';
 var prefix_name = 'g_median_all_bands_';
 
 
-// the following function returns mosaiced images, that are actually complete
-function get_selected_dataset(){
+// the following function returns mosaice images
+function get_images(){
   var count  = 1;
   var month; var month_interval = 11; var month_end = 11; // download one image for 6-month interval
   var year; var year_interval = 1; var year_end = 2019;
-  for (year = 2016; year < year_end; year+=year_interval) {
+  for (year = 2015; year < year_end; year+=year_interval) {
     for (month = 01; month < month_end; month+=month_interval) {
       var next_month = month + month_interval;
       print('currently on (' + month + '/' + year + ')->(' + next_month + '/' + year + ')');
-      // Now define the dates we want to get data on
-      var date_from = ee.Date({date: year + '-' + month + '-01'});
-      var date_to = ee.Date({date: year + '-' + next_month + '-01'});
+      // Now define the required dates to get the data from
+      var date_from = year + '-' + month + '-01';
+      var date_to = year + '-' + next_month + '-31';
       // import sentinel images, clip your area of interest, dates and cloud cover as needed
-      var image_collection = ee.ImageCollection(this_data) //
-                            .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', allowed_cloud_percentage))
-                            .filterDate({start:date_from, end:date_to})
-                            .filterBounds(this_aoi) // locates ones close to this polygon
-                            .map(cropout_aoi) // this actually does the clipping part ;
-                            .map(maskS2clouds);
-      var total_count = image_collection.size();
-      print('log: total images in collection =', total_count);
-      var this_image = image_collection.median(); // stacks images in one year and takes the mean for each pixel
-      Map.addLayer(this_image, {bands: show_bands, min: 0, max: this_max});
+      // print(date_from, date_to)
+      var collection = ee.ImageCollection('COPERNICUS/S2')
+      .filterDate(date_from, date_to)
+      // Pre-filter to get less cloudy granules.
+      .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', allowed_cloud_percentage))
+      .map(cropout_aoi)
+      .map(maskS2clouds);
+
+      var composite = collection.median();
+      // var count = 4;
+      // Display the results.
+      Map.addLayer(composite, {bands: ['B4', 'B3', 'B2'], min: 0, max: 0.3*10000}, 'RGB');
       Export.image.toDrive({
-                            image: this_image.select(export_bands),
-                            description: description + count,
-                            folder: folder,
-                            fileNamePrefix: prefix_name + count,
-                            // dimensions,
-                            region: this_aoi,
-                            scale: 10
-                            });
+                        image: composite.select(export_bands),
+                        description: description + count,
+                        folder: folder,
+                        fileNamePrefix: prefix_name + count,
+                        // dimensions,
+                        region: this_aoi,
+                        scale: 10
+                        });
       count += 1;
     }
   }
@@ -159,7 +164,7 @@ function get_all_images(){
 /*////////////////////////////////////////////////////////////////////////////////////////
 //  make function calls beyond this point                                                //
 */////////////////////////////////////////////////////////////////////////////////////////
-get_selected_dataset();
+get_images();
 
 
 // random codes for rawal lake
@@ -189,7 +194,55 @@ get_selected_dataset();
 //                       });
 
 
+// This example uses the Sentinel-2 QA band to cloud mask
+// the collection.  The Sentinel-2 cloud flags are less
+// selective, so the collection is also pre-filtered by the
+// CLOUDY_PIXEL_PERCENTAGE flag, to use only relatively
+// cloud-free granule.
 
+// run some tests here
+if (false){
+  // Function to mask clouds using the Sentinel-2 QA band.
+  function maskS2clouds(image) {
+    var qa = image.select('QA60')
+
+    // Bits 10 and 11 are clouds and cirrus, respectively.
+    var cloudBitMask = 1 << 10;
+    var cirrusBitMask = 1 << 11;
+
+    // Both flags should be set to zero, indicating clear conditions.
+    var mask = qa.bitwiseAnd(cloudBitMask).eq(0).and(
+               qa.bitwiseAnd(cirrusBitMask).eq(0))
+
+    // Return the masked and scaled data, without the QA bands.
+    return image.updateMask(mask) //.divide(10000)
+        .select("B.*")
+        .copyProperties(image, ["system:time_start"])
+  }
+
+  // Map the function over one year of data and take the median.
+  // Load Sentinel-2 TOA reflectance data.
+  var collection = ee.ImageCollection('COPERNICUS/S2')
+      .filterDate('2018-01-01', '2018-12-31')
+      // Pre-filter to get less cloudy granules.
+      .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20))
+      .map(cropout_aoi)
+      .map(maskS2clouds)
+
+  var composite = collection.median()
+  var count = 4;
+  // Display the results.
+  Map.addLayer(composite, {bands: ['B4', 'B3', 'B2'], min: 0, max: 0.3*10000}, 'RGB')
+  Export.image.toDrive({
+                        image: composite.select(export_bands),
+                        description: description + count,
+                        folder: folder,
+                        fileNamePrefix: prefix_name + count,
+                        // dimensions,
+                        region: this_aoi,
+                        scale: 10
+                        });
+}
 
 
 
