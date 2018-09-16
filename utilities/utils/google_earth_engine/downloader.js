@@ -49,18 +49,20 @@ function scale(image, div) {
 
 
 // declare vars here
-var all_bands = ['B1', 'B2', 'B3',
-                  'B4', 'B5', 'B6',
-                  'B7', 'B8', 'B8A',
-                  'B9', 'B10', 'B11',
-                  'B12'];
-var this_aoi = pakistan;
-var landsat_7 = 'LANDSAT/LC08/C01/T1';
-// var landsat_7 = 'LANDSAT/LE07/C01/T1_RT';
-// var landsat_7 = 'LANDSAT/LE07/C01/T1_RT';
-var show_bands = ['B3', 'B2', 'B1'];
-var export_bands = ('B4', 'B3', 'B2');
-var this_max = 20000;
+var all_bands = ['B1', 'B2', 'B3', 'B4', 'B5',
+                 'B6', 'B7', 'B8', 'B8A',
+                 'B9', 'B10', 'B11', 'B12'];
+var landsat_8 = 'LANDSAT/LC08/C01/T1';
+var sentinel_2 = 'COPERNICUS/S2';
+var show_bands = ('B4', 'B3', 'B2');
+var export_bands = all_bands; //('B4', 'B3', 'B2', 'B5', 'B8');
+var this_data = sentinel_2;
+var allowed_cloud_percentage = 0.5;
+var this_aoi = germany;
+var this_max = 5000;
+var description = 'G_all_bands_';
+var folder = 'sentinel-2-europe';
+var prefix_name = 'g_median_all_bands_';
 
 
 // the following function returns mosaiced images, that are actually complete
@@ -76,21 +78,21 @@ function get_selected_dataset(){
       var date_from = ee.Date({date: year + '-' + month + '-01'});
       var date_to = ee.Date({date: year + '-' + next_month + '-01'});
       // import sentinel images, clip your area of interest, dates and cloud cover as needed
-      var image_collection = ee.ImageCollection(landsat_7) //
-                            // .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 0.5))
+      var image_collection = ee.ImageCollection(this_data) //
+                            .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', allowed_cloud_percentage))
                             .filterDate({start:date_from, end:date_to})
                             .filterBounds(this_aoi) // locates ones close to this polygon
-                            .map(cropout_aoi); // actually does the clipping part
-                            // .map(maskS2clouds)
+                            .map(cropout_aoi) // this actually does the clipping part ;
+                            .map(maskS2clouds);
       var total_count = image_collection.size();
       print('log: total images in collection =', total_count);
-      var this_image = image_collection.median();
-      Map.addLayer(this_image, {bands: show_bands, max: this_max});
+      var this_image = image_collection.median(); // stacks images in one year and takes the mean for each pixel
+      Map.addLayer(this_image, {bands: show_bands, min: 0, max: this_max});
       Export.image.toDrive({
                             image: this_image.select(export_bands),
-                            description: 'German_S2_rgb_' + count,
-                            folder: 'germany_s2',
-                            fileNamePrefix: 'g_rgb_' + count,
+                            description: description + count,
+                            folder: folder,
+                            fileNamePrefix: prefix_name + count,
                             // dimensions,
                             region: this_aoi,
                             scale: 10

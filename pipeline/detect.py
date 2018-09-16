@@ -24,7 +24,8 @@ def do(args):
         os.mkdir(image_save)
     if not os.path.exists(label_save):
         os.mkdir(label_save)
-    model = restore_model(model_path=args.model, device=args.device)
+    model = restore_model(model_name=args.model_name, channels=args.channels,
+                          model_path=args.model_path, device=args.device)
     images_list = [x for x in os.listdir(args.images_path) if x.endswith('.png') or x.endswith('.tif')]
     images_list.sort(key=lambda f: int(filter(str.isdigit, f))) # sort the images in the right order
     print('INFO: TESTING IN THE FOLLOWING ORDER: \n', images_list)
@@ -37,7 +38,7 @@ def do(args):
         png_to_pickle(image_file=full_path, pkl_file='tmp.pkl', bands=args.bands)
         # this function returns shape of our used image and raw forest percentage
         (H, W, C), forest_percentage = batch_wise_inference(model=model, image_path='tmp.pkl',
-                                                            batch_size=args.batch_size, device=args.device,
+                                                            batch_size=20, device=args.device,
                                                             number='tmp', count=count,
                                                             total=len(images_list))
         # and this returns a refined value of forestation
@@ -47,7 +48,7 @@ def do(args):
                                                                                     '{}.png'.format(count)),
                                                        label_save_path=os.path.join(label_save,
                                                                                     '{}.png'.format(count)),
-                                                       shape=(H,W,C))
+                                                       shape=(H,W,C if C == 3 else 3))
         print('\nINFO: {}% Forestation Found.'.format(filtered_forest_percentage))
         forestation.append(filtered_forest_percentage) # forest_percentage
     print(image_save, os.path.join(image_save, 'out.avi'))
@@ -75,8 +76,10 @@ def do(args):
 def main():
     args = ap.ArgumentParser()
     args.add_argument('--images', dest='images_path')
-    args.add_argument('--model', dest='model_path')
-    args.add_argument('--bands', nargs='+', type=int)
+    args.add_argument('--model_type', dest='model_name')
+    args.add_argument('--channels', type=int, dest='channels')
+    args.add_argument('--trained_model', dest='model_path')
+    args.add_argument('--bands', nargs='+', type=int, dest='bands')
     args.add_argument('--save_dir', dest='save_dir')
     args.add_argument('--device', dest='device')
     arguments = args.parse_args()

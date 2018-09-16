@@ -12,6 +12,8 @@ import cv2
 
 def tif_to_png(image_path, bands):
     # bands is the list of bands to load from the image rasters
+    # bands = [4,3,2,5,8]
+    # bands = [8,5,2,3,4]
     image = gdal.Open(image_path)
     all_bands = [] #
     for i in bands: #range(1, 1+image.RasterCount):

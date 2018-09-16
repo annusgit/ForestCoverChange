@@ -4,6 +4,7 @@
 from __future__ import print_function
 from __future__ import division
 import os
+import sys
 # import cv2
 import gdal
 # import json
@@ -269,7 +270,13 @@ def get_inference_loader(image_path, batch_size):
             # print(example_array.max())
             # pl.imshow(example_array)
             # pl.show()
-            example_array = (example_array.astype(np.float)/4096)
+
+            # range of vals = [0,1]
+            example_array = np.clip((example_array.astype(np.float)/4096), a_min=0, a_max=1)
+            # range of vals = [-1,1]
+            example_array = 2*example_array-1
+
+            # example_array = (example_array.astype(np.float)/4096)
             # ex_array = []
             # for t in range(3, -1, -1):
             #     temp = np.expand_dims(example_array[:,:,t], 2)
@@ -406,9 +413,27 @@ def check_data_sanity():
             p.dump(test1, ts1, protocol=p.HIGHEST_PROTOCOL)
 
 
-if __name__ == '__main__':
-    check_dataloaders()
+def check_downloaded_images():
+    example_path = sys.argv[1]
+    this_example = gdal.Open(example_path)
+    total = this_example.RasterCount
+    bands = [4, 3, 2]
+    # bands = [4, 3, 2]
+    print(this_example.RasterCount)
+    example_array = this_example.GetRasterBand(bands[0]).ReadAsArray()
+    for i in bands[1:]:
+        example_array = np.dstack((example_array,
+                                   this_example.GetRasterBand(i).ReadAsArray())).astype(np.int16)
+    print(example_array.max())
+    show_image = (example_array/4096*255).astype(np.uint8)
+    pl.imshow(show_image)
+    pl.show()
+    pass
 
+
+if __name__ == '__main__':
+    # check_dataloaders()
+    check_downloaded_images()
 
 
 

@@ -77,10 +77,15 @@ Here are the two confusion matrices, the left one is with 3 channels (96.38% acc
 # Usage
 ## Inference on custom sentinel images downloaded from [Sentinel](https://scihub.copernicus.eu/) or EarthExplorer.
 ```
-python -m pipeline.detect --images path/to/folder/containing/sentinel/images --model path/to/trained/model --save_dir temp --device cpu_or_gpu
+cd location/of/ForestCoverChange/
+python -m pipeline.detect --images path/to/folder/containing/images/ --model_type model_name --channels number_of_channels_depending_on_the_model --trained_model path/to/pretrained/model --bands list_of_bands_to_use --save_dir path/to/save/results/ --device cpu_or_gpu
 ``` 
-**Options**
-
+**For example,**
+```
+cd /home/annus/PycharmProjects/ForestCoverChange/
+python -m pipeline.detect --images /home/annus/Desktop/13bands_european_image_time_series/ --model_type VGG_N --channels 3 --trained_model patch_classification/trained_models/vgg3.pt --bands 4 3 2 --save_dir temp-3 --device cpu
+``` 
+Both pretrained models VGG_3 and VGG_5 are available in `patch_classification/trained_models/`
 
 ## Authors
 

@@ -84,8 +84,9 @@ def test_model_on_real_sentinel_image():
     cv2.imwrite('image_test_muzaffarabad.png', (255*image_read).astype(np.uint8))
 
 
-def restore_model(model_path, device):
-    net = ResNet(in_channels=3)
+def restore_model(model_name, channels, model_path, device):
+    # net = VGG_N(in_channels=5)
+    net = eval(model_name)(in_channels=channels)
     net.load_state_dict(torch.load(model_path, map_location=device))
     net.to(device=device)
     net.eval()
@@ -99,7 +100,10 @@ def batch_wise_inference(model, image_path, batch_size, device, number, count, t
     # np.save('test_image.npy', test_image)
     # np.save('image_pred.npy', image_pred)
     # del test_image, image_pred
-    test_image = np.memmap('test_image_{}.npy'.format(number), dtype=np.uint16, mode='w+', shape=(H,W,C))
+    image_C = C
+    if C > 3:
+        image_C = 3
+    test_image = np.memmap('test_image_{}.npy'.format(number), dtype=np.uint16, mode='w+', shape=(H,W,image_C))
     image_pred = np.memmap('image_pred_{}.npy'.format(number), dtype=np.uint8, mode='w+', shape=(H, W))
 
     # this is a much better approach, batch wise inference...
@@ -123,7 +127,7 @@ def batch_wise_inference(model, image_path, batch_size, device, number, count, t
         for k in range(len(x1)):
             rgb = test_x[k,:,:,:]
             rgb = rgb[:,:,[2,1,0]]
-            test_image[x1[k]:x2[k],y1[k]:y2[k],:] = rgb
+            test_image[x1[k]:x2[k],y1[k]:y2[k],:] = rgb[:,:,:3] #
             # print(test_image[x1[k]:x2[k],y1[k]:y2[k],:])
             image_pred[x1[k]:x2[k],y1[k]:y2[k]] = pred[k]
             # print(pred[k])
