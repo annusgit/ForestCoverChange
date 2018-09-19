@@ -10,6 +10,7 @@ from __future__ import division
 import os
 import argparse as ap
 import matplotlib as mpl
+from subprocess import call
 import matplotlib.pyplot as pl
 from patch_classification import png_to_pickle as png_to_pickle
 from patch_classification.run_model import restore_model, batch_wise_inference
@@ -18,10 +19,16 @@ from patch_classification.change_images_to_video import convert_frames_to_video
 
 
 def do(args):
-    image_save = os.path.join(args.save_dir, 'images')
+    inputs_save = os.path.join(args.save_dir, 'images')
+    image_save = os.path.join(inputs_save, 'grids')
+    down_image_save = os.path.join(inputs_save, 'downsampled')
     label_save = os.path.join(args.save_dir, 'labels')
+    if not os.path.exists(inputs_save):
+        os.mkdir(inputs_save)
     if not os.path.exists(image_save):
         os.mkdir(image_save)
+    if not os.path.exists(down_image_save):
+        os.mkdir(down_image_save)
     if not os.path.exists(label_save):
         os.mkdir(label_save)
     model = restore_model(model_name=args.model_name, channels=args.channels,
@@ -46,6 +53,8 @@ def do(args):
                                                        pred_path='image_pred_tmp.npy',
                                                        image_save_path=os.path.join(image_save,
                                                                                     '{}.png'.format(count)),
+                                                       downsampled_image_save_path=os.path.join(down_image_save,
+                                                                                    '{}.png'.format(count)),
                                                        label_save_path=os.path.join(label_save,
                                                                                     '{}.png'.format(count)),
                                                        shape=(H,W,C if C == 3 else 3))
@@ -53,7 +62,16 @@ def do(args):
         forestation.append(filtered_forest_percentage) # forest_percentage
     print(image_save, os.path.join(image_save, 'out.avi'))
     convert_frames_to_video(pathIn=image_save, pathOut=os.path.join(image_save, 'out.avi'), fps=2)
+    convert_frames_to_video(pathIn=down_image_save, pathOut=os.path.join(down_image_save, 'out.avi'), fps=2)
     convert_frames_to_video(pathIn=label_save, pathOut=os.path.join(label_save, 'out.avi'), fps=2)
+    convert_avi_to_gif = 'ffmpeg -i {} -r 10 -f image2pipe -vcodec ' \
+                         'ppm - |convert -delay 5 -loop 0 - {}'.format('out.avi', 'out.gif')
+    call('cd {}'.format(image_save))
+    call(convert_avi_to_gif, shell=True)
+    call('cd {}'.format(down_image_save))
+    call(convert_avi_to_gif, shell=True)
+    call('cd {}'.format(label_save))
+    call(convert_avi_to_gif, shell=True)
     # make a graph of the forestation change
     print(forestation)
     figure = pl.figure()

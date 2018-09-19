@@ -13,9 +13,9 @@ def convert_frames_to_video(pathIn, pathOut, fps):
 
     # for sorting the file names properly
     # files.sort(key=lambda x: int(x[5:-4]))
-    # files.sort(key=lambda f: int(filter(str.isdigit, f)))
+    files.sort(key=lambda f: int(filter(str.isdigit, f)))
     # sorted(files)
-
+    print('INFO: sort order -> {}'.format(files))
     print('converting now...')
     for i in range(len(files)):
         filename = os.path.join(pathIn, '{}.png'.format(i+1))

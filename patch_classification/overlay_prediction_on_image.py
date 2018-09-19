@@ -94,7 +94,8 @@ def overlayed_output():
     pass
 
 
-def overlay_with_grid(image_path, pred_path, image_save_path, label_save_path, shape, show=False):
+def overlay_with_grid(image_path, pred_path, image_save_path, downsampled_image_save_path,
+                      label_save_path, shape, show=False):
     # use one of the following based on the size of the image; if image is huge, go with the first one!
     ##########################################################################
     (H, W, C) = shape
@@ -166,21 +167,20 @@ def overlay_with_grid(image_path, pred_path, image_save_path, label_save_path, s
 
     # Save the figure
     fig.savefig(image_save_path, dpi=my_dpi)
+
+    ############ we will save downsampled images to show how it relates to pixel-wise results ##########
     # save colored label as well
     # 1. reduce 64*64 blocks, 2. apply filter to remove segmentation noise, 3. convert labels to colors
     colored_labels = block_reduce(full_label, block_size=(64,64), func=np.max)
-    colored_labels = cv2.medianBlur(colored_labels, ksize=3)
+    # colored_labels = cv2.medianBlur(colored_labels, ksize=3)
     filtered_forest = colored_labels[colored_labels == 1].sum()/colored_labels.reshape(-1).shape[0]*100
     colored_labels = convert_to_colors(colored_labels, flag='forest')
     # print(set( tuple(v) for m2d in colored_labels for v in m2d )) # if you want to check unique colors
     pl.imsave(label_save_path, colored_labels)
-    # fig = pl.figure()
-    # colored_labels = Image.fromarray(colored_labels)
-    # pl.axis('off')
-    # pl.axis('on')
-    # pl.imshow(colored_labels)
-    # pl.savefig(label_save_path, dpi=my_dpi)
-    # pl.axis('off')
+    # downsample and save input image
+    downsampled_input_image = block_reduce(full_image, block_size=(64,64,1), func=np.max)
+    # downsampled_image_path = os.path.join(os.path.splitext(image_save_path)[0]+'_down.png')
+    pl.imsave(downsampled_image_save_path, downsampled_input_image)
     if show:
         pl.show()
     return filtered_forest
