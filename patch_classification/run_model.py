@@ -104,7 +104,7 @@ def batch_wise_inference(model, image_path, batch_size, device, number, count, t
     if C > 3:
         image_C = 3
     test_image = np.memmap('test_image_{}.npy'.format(number), dtype=np.uint16, mode='w+', shape=(H,W,image_C))
-    image_pred = np.memmap('image_pred_{}.npy'.format(number), dtype=np.uint8, mode='w+', shape=(H, W))
+    image_pred = np.memmap('image_pred_{}.npy'.format(number), dtype=np.uint8, mode='w+', shape=(H,W))
 
     # this is a much better approach, batch wise inference...
     # also calculate the forest % in each image
@@ -122,7 +122,13 @@ def batch_wise_inference(model, image_path, batch_size, device, number, count, t
         forest_count += (pred == 1).sum().item()   # manually insert the label of forests
         test_x = (test_x.numpy()).transpose(0, 2, 3, 1)
         # print(test_x.max())
-        test_x = (test_x*255).astype(np.uint8)
+        # test_x = (test_x*255).astype(np.uint8)
+        # convert test image tensor to rgb
+        # test_x range [-1,1]
+        test_x = (test_x + 1)  # range [0,2]
+        test_x /= 2  # range [0,1]
+        test_x *= 255  # range [0, 255] but float
+        test_x = test_x.astype(np.uint8)
         x1, x2, y1, y2 = indices[:,0], indices[:,1], indices[:,2], indices[:,3]
         for k in range(len(x1)):
             rgb = test_x[k,:,:,:]

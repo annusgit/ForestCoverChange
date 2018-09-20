@@ -2,9 +2,16 @@
 from __future__ import print_function
 from __future__ import division
 from os.path import isfile, join
+from subprocess import call
 import numpy as np
 import cv2
 import os
+
+
+def avi_to_gif(inpath, outpath):
+    convert_avi_to_gif = 'ffmpeg -i {} -r 10 -f image2pipe -vcodec ' \
+                         'ppm - |convert -delay 5 -loop 0 - {}'.format(inpath, outpath)
+    call(convert_avi_to_gif, shell=True)
 
 
 def convert_frames_to_video(pathIn, pathOut, fps):

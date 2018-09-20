@@ -10,12 +10,11 @@ from __future__ import division
 import os
 import argparse as ap
 import matplotlib as mpl
-from subprocess import call
 import matplotlib.pyplot as pl
 from patch_classification import png_to_pickle as png_to_pickle
 from patch_classification.run_model import restore_model, batch_wise_inference
 from patch_classification.overlay_prediction_on_image import overlay_with_grid
-from patch_classification.change_images_to_video import convert_frames_to_video
+from patch_classification.change_images_to_video import convert_frames_to_video, avi_to_gif
 
 
 def do(args):
@@ -64,14 +63,13 @@ def do(args):
     convert_frames_to_video(pathIn=image_save, pathOut=os.path.join(image_save, 'out.avi'), fps=2)
     convert_frames_to_video(pathIn=down_image_save, pathOut=os.path.join(down_image_save, 'out.avi'), fps=2)
     convert_frames_to_video(pathIn=label_save, pathOut=os.path.join(label_save, 'out.avi'), fps=2)
-    convert_avi_to_gif = 'ffmpeg -i {} -r 10 -f image2pipe -vcodec ' \
-                         'ppm - |convert -delay 5 -loop 0 - {}'.format('out.avi', 'out.gif')
-    call('cd {}'.format(image_save))
-    call(convert_avi_to_gif, shell=True)
-    call('cd {}'.format(down_image_save))
-    call(convert_avi_to_gif, shell=True)
-    call('cd {}'.format(label_save))
-    call(convert_avi_to_gif, shell=True)
+    # call(convert_avi_to_gif, shell=True)
+    # call(convert_avi_to_gif, shell=True)
+    # call(convert_avi_to_gif, shell=True)
+    avi_to_gif(inpath=os.path.join(image_save, 'out.avi'), outpath=os.path.join(image_save, 'out.gif'))
+    avi_to_gif(inpath=os.path.join(down_image_save, 'out.avi'), outpath=os.path.join(down_image_save, 
+    																				'out.gif'))
+    avi_to_gif(inpath=os.path.join(image_save, 'out.avi'), outpath=os.path.join(label_save, 'out.gif'))
     # make a graph of the forestation change
     print(forestation)
     figure = pl.figure()
