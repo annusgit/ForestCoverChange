@@ -8,7 +8,7 @@ from scipy import optimize
 
 
 def this_objective(population):
-    return np.cbrt(np.cos(population**2+4))+(population-28)**3+np.cos(population)
+    return np.sin(np.cos(population**2+41))+(population-9)**5+np.cos(population/6)
 
 
 class Population(object):
