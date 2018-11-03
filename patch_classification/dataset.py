@@ -331,9 +331,10 @@ def histogram_equalization(in_image):
 
 
 def check_dataloaders():
-    train_dataloader, val_dataloader, test_dataloader = get_dataloaders(base_folder='/home/annus/Desktop/'
+    train_dataloader, val_dataloader, test_dataloader = get_dataloaders(base_folder='/home/annus/Desktop/folders/'
+                                                                                    'summer@TUKL_Kaiserslautern/'
                                                                                     'projects/forest_cover_change/'
-                                                                                    'eurosat/images/tif/',
+                                                                                    'eurosat/images/tif',
                                                                         batch_size=16)
     # #
     # train_dataloader, val_dataloader, test_dataloader = get_dataloaders(base_folder='Eurosat/tif/',
@@ -432,8 +433,8 @@ def check_downloaded_images():
 
 
 if __name__ == '__main__':
-    # check_dataloaders()
-    check_downloaded_images()
+    check_dataloaders()
+    # check_downloaded_images()
 
 
 
