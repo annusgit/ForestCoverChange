@@ -34,9 +34,6 @@ def main(this_example):
     print(show_image.shape)
     pl.imshow(show_image)
     pl.show()
-    # write_png(z=example_array, name='color.png')
-    # other_bands = get_combination(example=example, bands=[4,3,2,5,8])
-    # write_png(z=other_bands, name='58_bands.png')
     pass
 
 

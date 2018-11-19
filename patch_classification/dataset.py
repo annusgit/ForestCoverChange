@@ -24,18 +24,29 @@ from imgaug import augmenters as iaa
 # 2. random flips,
 # 3. random rotations,
 
-all_labels = {
-            'AnnualCrop'           : 0,
-            'Forest'               : 1,
-            'HerbaceousVegetation' : 2,
-            'Highway'              : 3,
-            'Industrial'           : 4,
-            'Pasture'              : 5,
-            'PermanentCrop'        : 6,
-            'Residential'          : 7,
-            'River'                : 8,
-            'SeaLake'              : 9
-            }
+German_labels = {
+                'AnnualCrop'           : 0,
+                'Forest'               : 1,
+                'HerbaceousVegetation' : 2,
+                'Highway'              : 3,
+                'Industrial'           : 4,
+                'Pasture'              : 5,
+                'PermanentCrop'        : 6,
+                'Residential'          : 7,
+                'River'                : 8,
+                'SeaLake'              : 9
+                }
+
+Pakistani_labels = {
+                    'pakistan_forest_sentinel_': 0,
+                    'pakistan_residential_sentinel_': 1,
+                    'pakistan_pastures_sentinel_': 2,
+                    'pakistan_vegetation_sentinel_': 3,
+                    'pakistan_plainland_sentinel_': 4,
+                    'pakistan_snow_sentinel_': 5
+                   }
+
+all_labels = Pakistani_labels
 
 def toTensor(image):
     "converts a single input image to tensor"
@@ -82,15 +93,14 @@ seq = iaa.Sequential(
 )
 ######################################################################################################
 
-def get_dataloaders(base_folder, batch_size, one_hot=False):
+def get_dataloaders(base_folder, batch_size, one_hot=False, custom_size=False):
     print('inside dataloading code...')
 
     class dataset(Dataset):
         def __init__(self, data_dictionary, bands, mode='train'):
             super(dataset, self).__init__()
             self.example_dictionary = data_dictionary
-            # with open(mode+'.txt', 'wb') as this:
-            #     this.write(json.dumps(self.example_dictionary))
+            self.custom_size = custom_size # incase the images are not all the same size
             self.bands = bands # bands are a list bands to use as data, pass them as a list []
             self.mode = mode
             self.max = 0
@@ -110,6 +120,13 @@ def get_dataloaders(base_folder, batch_size, one_hot=False):
             for i in self.bands[1:]:
                 example_array = np.dstack((example_array,
                                            this_example.GetRasterBand(i).ReadAsArray())).astype(np.int16)
+            # if size if not 64*64, randomly crop 64*64 patch from it
+            crop_size = 64
+            if example_array.shape[0] < crop_size or example_array.shape[1] < crop_size:
+                return self.__getitem__(np.random.randint(self.__len__()))
+            x = random.randint(0, example_array.shape[0] - crop_size)
+            y = random.randint(0, example_array.shape[1] - crop_size)
+            example_array = example_array[x:x + crop_size, y:y + crop_size, :]
 
             # transforms for augmentation
             if self.mode == 'train':
@@ -212,7 +229,7 @@ def get_dataloaders(base_folder, batch_size, one_hot=False):
                 train_check.write('{}\n'.format(train_dictionary[k][0]))
 
 
-    print(map(len, [train_dictionary, val_dictionary, test_dictionary]))
+    print('[training, evaluation, testing] -> ', map(len, [train_dictionary, val_dictionary, test_dictionary]))
     # create dataset class instances
     bands = [4, 3, 2, 5, 8] # these are [Red, Green, Blue, NIR, Vegetation Red Edge] bands
     # bands = [4, 3, 2] # these are [Red, Green, Blue] bands only
@@ -331,12 +348,20 @@ def histogram_equalization(in_image):
 
 
 def check_dataloaders():
-    train_dataloader, val_dataloader, test_dataloader = get_dataloaders(base_folder='/home/annus/Desktop/folders/'
-                                                                                    'summer@TUKL_Kaiserslautern/'
-                                                                                    'projects/forest_cover_change/'
-                                                                                    'eurosat/images/tif',
-                                                                        batch_size=16)
-    # #
+    # train_dataloader, val_dataloader, test_dataloader = get_dataloaders(base_folder='/home/annus/Desktop/folders/'
+    #                                                                                 'summer@TUKL_Kaiserslautern/'
+    #                                                                                 'projects/forest_cover_change/'
+    #                                                                                 'eurosat/images/tif',
+    #                                                                     batch_size=16)
+
+    # # Pakistani data
+    train_dataloader, val_dataloader, \
+    test_dataloader = get_dataloaders(base_folder='/home/annus/PycharmProjects/'
+                                                    'ForestCoverChange_inputs_and_numerical_results/'
+                                                    'patch_wise/Pakistani_data/'
+                                                    'full_pakistan_data_unpacked/',
+                                    batch_size=16)
+
     # train_dataloader, val_dataloader, test_dataloader = get_dataloaders(base_folder='Eurosat/tif/',
     #                                                                     batch_size=16)
 
