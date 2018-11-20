@@ -1,0 +1,28 @@
+
+1. hasen et.al (2013) offers a lot of details about the forest change in various areas of the world from 2000-2012 but shows no details of how he obtained those maps other than telling that it was google's earth engine based use of landsat dataset. It was basically a GIS analysis of forest change, and did not have a deep learning or any kind of learning problem to solve. 
+
+2. S.P.S Khuswaha (1989) talks about his own geographical area of interest, Karnatika India, and uses the landsat dataset for doing so. He uses the database available at that time and also compares the results with his own survey of the area. But this paper is not helpful at all in understanding how do use deep learning for doing to same task!
+
+3. Salman H.Khan et.al (2017) talk about using deep learning for doing the same task of forest cover change detection. Mainly talks about harvest and fire reasons for this forest cover change. Tries to solve the artifacts in images problem in a 3-stage temporal process. find details in paper. Discusses about first removing cloud artifacts from the images. Does not use any lstms but simply CNN architecture that feeds in a sequence of time lapsed frames of patches to make predictions. Also does some bounding boxes for change detection and uses Edge-boxes for doing so. Uses an IOU of 0.1 for saying it's a correct prediction.     
+
+4. Ovidiu Csillik's paper is on the problem of segmentation, not forestation change. It mainly talks about some 'SLIC' algorithm for doing this task and uses "superpixels".
+
+5. Hafiz A. Afify only talks about 4 different techniques for detecting change in satellite images. Uses only 2 images; one from 1990 and other one from 2000 and analyses the results of change detection using PCA, image rationing, image differencing and post-classfication differencing. So it is a good paper for change detection but not great for finding out how to label my dataset.
+
+6. This paper introduces a tool that uses ndvi for temporal analysis of images for vegetation change. It's called PHENOSAT. Also talks about MVC. Talks about a proof that vegetation change follows a temporally-well-defined pattern which can be captured via a logistic function. Analyses the change in terms of dormancy, sescence etc. Used NDVI and EVI (enhanced vegetation index). Provides various metrics to be used for forest change detection. 
+
+7. Bengali paper. Talks about using synthetic aperture radar images (SAR) and some other similar formats including PALSAR. They work on two images from 1994 and 2007 each. Demonstrate a low accuracy of 83% on recognition of areas in these areas from five classes (forest, upland/soil, lowland, settlements and water). Partially utilize LANDSAT as well. Use maximum likelihood classifier.
+
+8. Discusses change detection in LANDSAT images using some kind of fancy Anderson level-1. Change and no-change pixels are combined into a form of binary mask for using as training data. ISA is impervious surface area. Mainly focuses it for detecting change due to impervious surfaces (urban development areas such as pavements and roads etc.). Also uses two scenes from different areas for doing so. Pipeline: a) create dataset, b) generate decision tree and c) perform land cover classification. Did this to update some maps from 2001 to 2006 using this approach.
+
+9. Uses a classification tree algorithm to detect forest cover change in Congo during the period 2000-2010. Where population is growing, forest cover loss will occur. Basically extends on the work of Hansen et al. in [1]. Scales value to within 1-255 to use as they are easier to process. Uses Modis to augment Landsat imagery. Says that growing season images are better for analyzing forest cover change etc. Used bagged classification tree models. Manually created a dataset for doing so.
+
+10. Uses temporal data over Australia (provided by National Forest Trend, NFT, and National Carbon Accounting System, NCAS). Forest is defined as atleast 20% of canopy reaching atleast 2m hieght. NCAS and NFT are datasets for forest cover change detection. 
+
+11. (V.V.Important) Forest cover change is the main topic of this paper. Uses Global Land Survey 1990 as a reference. Also uses classification tree for performing classification of input image. North American Forest Disturbance is another dataset for this purpose. The best paper for forest cover change so far. He developes his own data set for analysing forest cover change. Is able to achieve ~85% accuracy overall. Does differenciation using decision trees for FF, NN, FN, NF. (F-> forest, N-> not forest)
+
+12. Compares four classification algorithms (Naive bayes, SVM, classification and regression tree (CART) and KNN) to assess which one performs best for classification of hyper-spectral imagery. Study area is Beijing, China, and it includes most of landcover types including universities, parks, construction sites and residential sites and use World-view2 to get the data. Used PCA to merge the bands and get a new multispectral image. Used Trimble eCongnition for performing image segmentation. 
+
+13. It's just a general listing of some material. Not super useful.
+
+14. 
