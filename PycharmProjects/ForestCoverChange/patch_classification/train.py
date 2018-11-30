@@ -33,7 +33,7 @@ if __name__ == '__main__':
     device = int(args.device)
 
     function_to_call = eval(function)
-    net = VGG_N(in_channels=3)
+    net = VGG_N(in_channels=5)
 
     function_to_call(model=net,
                      base_folder=data_path,

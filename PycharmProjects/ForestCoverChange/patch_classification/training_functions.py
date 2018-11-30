@@ -150,7 +150,7 @@ def eval_net(**kwargs):
         correct_count, total_count = 0, 0
         net_loss = []
         model.eval()  # put in eval mode first ############################
-        print('evaluating with batch size = 1')
+        print('evaluating now...')
         for idx, data in enumerate(val_loader):
             test_x, label = data['input'], data['label']
             if cuda:

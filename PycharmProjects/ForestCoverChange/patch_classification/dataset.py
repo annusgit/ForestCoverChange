@@ -375,16 +375,16 @@ def check_dataloaders():
     #                                                                     batch_size=16)
 
     # # Pakistani data
-    train_dataloader, val_dataloader, \
-    test_dataloader = get_dataloaders(base_folder='/home/annus/PycharmProjects/'
-                                                  'ForestCoverChange_inputs_and_numerical_results/'
-                                                  'patch_wise/Pakistani_data/'
-                                                  'full_pakistan_data_unpacked/',
-                                      batch_size=16)
-
     # train_dataloader, val_dataloader, \
-    # test_dataloader = get_dataloaders(base_folder='Pakistani_Forest_Data/full_pakistan_data/',
+    # test_dataloader = get_dataloaders(base_folder='/home/annus/PycharmProjects/'
+    #                                               'ForestCoverChange_inputs_and_numerical_results/'
+    #                                               'patch_wise/Pakistani_data/'
+    #                                               'full_pakistan_data_unpacked/',
     #                                   batch_size=16)
+
+    train_dataloader, val_dataloader, \
+    test_dataloader = get_dataloaders(base_folder='Pakistani_Forest_Data/full_pakistan_data/',
+                                      batch_size=16)
 
     # train_dataloader, val_dataloader, test_dataloader = get_dataloaders(base_folder='Eurosat/tif/',
     #                                                                     batch_size=16)
