@@ -81,7 +81,7 @@ def train_net(model, base_folder, pre_model, save_dir, batch_size, lr, log_after
                     test_x = test_x.cuda(device=device)
                     label = label.cuda(device=device)
                 # forward
-                out_x, pred = model.forward(test_x)
+                out_x, pred = model.i(test_x)
                 # out_x, pred = out_x.cpu(), pred.cpu()
                 loss = criterion(out_x, label)
                 net_loss.append(loss.item())
