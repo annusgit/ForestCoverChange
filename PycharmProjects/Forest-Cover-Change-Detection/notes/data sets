@@ -1,0 +1,21 @@
+
+1. Landsat is over 40 years of data. (available on their website and cloud***)
+
+2. Sentinel-1 is radar images (I think)***
+
+3. Sentinel-2 is multi-spectral satellite imagery (I think)***
+
+4. Modis (available data covers the same geographical location twice a day***)
+
+5. Australian Reflectance Grid (ARG) from the Geoscience Australia. Processed images are called Landsat Nadir Bidirectional Reflectance Distribution Function-Adjusted (NBAR) images (referenced in [3]). The NBAR images also have corresponding "Pixel Quality Maps" available that contain flags to indicate different defects in the images. for example, if a band is saturated, or clouds in images or cloud shadows, topographic shadows etc.
+
+################ 1, 2, 3 and 4 can be downloaded and labelled using open-source QGIS software a. using NDVI and b. using signature-based classification #################
+
+6. Quickbirds dataset (mentioned in [4])
+
+7. World-view mentioned (mentioned in [4])
+
+8. ISPRS dataset for segmentation
+
+9. EuroSat dataset for patch-wise classification (labeled sentinel-2 images from DFKI)
+

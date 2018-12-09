@@ -1,0 +1,16 @@
+
+1. An important detail that we missed out on the change detection problem is that with a satellite we will have a lot of "incomplete" images; meaning we will have images with clouds in them which means parts of the original scenary would be occluded and this will happen for a lot of examples because clouds are everywhere! So how do we deal with problem will be a major aspect of the required pipeline for the solution. One solution available is to use "Image Inpainting" but its reliability and effectiveness is yet to be tested. Salman H. Khan et.al provides some information on this method. One way of doing this inpainting is to use images from other bands for reconstruction of the images. find more details in the paper. Also they build a Multi-Resolution Profile (MRP) of the image i.e Multi-scale Region Proposals.
+
+2. In [3], you can find the image artifact removal in a 3-step process. 1) gap filling, 2) Masked sparse reconstruction and 3) thin cloud removal.
+
+3. OBIA stands for object based image analysis (mentioned in [4])
+
+4. The country's hills were once home to endless stretches of pine and fir, but these days Pakistan's forest cover is somewhere below 2 percent. In the United States, that number is roughly 33 percent and in India 23 percent. (https://www.washingtonpost.com/news/worldviews/wp/2016/05/18/pakistans-plan-for-tackling-deforestation-a-billion-trees/?noredirect=on&utm_term=.5b5903999a89)
+
+5. For better performance, you should stack the ndvi matrix over the rgb image to get a full 4-dimensional image to train on!!! 
+
+6. One more thing, you can do this, segment the images (in a time-series) for finding forest cover areas, after that you can apply a gaussian blur on each individual image for noise removal and finally subtract consecutive images to find the change that has occured.  
+
+7. There is this concept of Maximum value composites, where we can generate a cloundless composite of the training data to be used for one year. For this we simply iterate over the same pixel over a temporal series of images of the same scene and retain only the highest value and then do this for all the pixels. This way we end up with and MVC.
+
+8. 

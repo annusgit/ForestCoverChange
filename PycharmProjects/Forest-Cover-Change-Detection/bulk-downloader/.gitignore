@@ -1,0 +1,9 @@
+# PyCharm
+.idea
+
+# Eclipse
+.project
+.pydevproject
+
+# Python compiled files
+*.py[cod]
