@@ -198,6 +198,7 @@ def get_shapes(structure):
         get_shapes(struct)
 
 if __name__ == '__main__':
+    # let's fix this thing
     test_model()
 
 
