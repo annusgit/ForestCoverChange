@@ -120,7 +120,6 @@ def get_dataloaders(base_folder, batch_size, one_hot=False, custom_size=False):
             for i in self.bands[1:]:
                 example_array = np.dstack((example_array,
                                            this_example.GetRasterBand(i).ReadAsArray())).astype(np.int16)
-
             '''
                 This is a very bad approach because we have no idea how 
                 many images are going to training, testing and validation!

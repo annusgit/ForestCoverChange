@@ -29,10 +29,12 @@ def get_combination(example, bands):
 
 def main(this_example):
     example = gdal.Open(this_example)
+    print(example.RasterCount)
     example_array = get_combination(example=example, bands=[4,3,2])
     show_image = np.asarray(np.clip(example_array/4096, 0, 1)*255, dtype=np.uint8)
     print(show_image.shape)
     pl.imshow(show_image)
+    pl.imsave('/home/annus/Desktop/figure.png', show_image)
     pl.show()
     pass
 
