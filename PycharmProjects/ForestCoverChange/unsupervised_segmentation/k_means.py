@@ -11,7 +11,6 @@ from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
 
 
-
 def call_kmeans(samples_vec, n_clusters=10, n_iterations=30, pickle_file='kmeans.pkl'):
     np.random.seed(int(time.time()))
     kmeans = KMeans(n_clusters=n_clusters,
@@ -20,7 +19,7 @@ def call_kmeans(samples_vec, n_clusters=10, n_iterations=30, pickle_file='kmeans
                     max_iter=n_iterations,
                     tol=1e-4,
                     precompute_distances='auto',
-                    verbose=True,
+                    verbose=False,
                     random_state=int(time.time()),
                     algorithm='auto').fit(samples_vec)
     with open(pickle_file, 'wb') as pickle:

@@ -1,9 +1,12 @@
 
 
+# an implementation of the convolutional lstm in pytorch taken from
+
 from __future__ import print_function, division
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
+import numpy as np
 
 
 class ConvLSTMCell(nn.Module):
@@ -79,7 +82,6 @@ class ConvLSTM(nn.Module):
             raise ValueError('Inconsistent list length.')
 
         self.height, self.width = input_size
-
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.kernel_size = kernel_size
@@ -171,20 +173,20 @@ class ConvLSTM(nn.Module):
 
 
 def test_model():
-    height, width, channels = 64, 64, 5
+    height, width, channels = 50, 50, 1
     model = ConvLSTM(input_size=(height, width),
                      input_dim=channels,
-                     hidden_dim=[4, 4, 5],
+                     hidden_dim=[10],
                      kernel_size=(3, 3),
-                     num_layers=3,
+                     num_layers=1,
                      batch_first=True,
                      bias=True,
                      return_all_layers=False)
     # input (b, t, c, h, w)
-    test_input = torch.Tensor(16, 4, 5, 64, 64)
-    print(test_input.shape)
+    test_input = torch.Tensor(16, 4, channels, height, width)
+    print('test_input.shape = ', test_input.shape)
     hidden_list, output_list = model(test_input)
-    print(len(output_list), len(hidden_list))
+    print('len(output_list), len(hidden_list) = ', len(output_list), len(hidden_list))
     get_shapes(hidden_list)
     get_shapes(output_list)
     pass
@@ -197,9 +199,38 @@ def get_shapes(structure):
             return
         get_shapes(struct)
 
+def test_model_on_moving_mnist():
+    height, width, channels = 32, 32, 1
+    model = ConvLSTM(input_size=(height, width),
+                     input_dim=channels,
+                     hidden_dim=[10],
+                     kernel_size=(3, 3),
+                     num_layers=1,
+                     batch_first=True,
+                     bias=True,
+                     return_all_layers=False)
+
+    # input (b, t, c, h, w)
+    moving_mnist = np.load('../moving_mnist/data.npy')
+    moving_mnist = np.expand_dims(moving_mnist, axis=4).transpose(0,1,4,3,2)
+    moving_mnist_tensor = torch.Tensor(moving_mnist) #.unsqueeze(4).transpose((0,1,4,3,2))
+    test_input = moving_mnist_tensor[0:16,]
+    print('test_input.shape = ', test_input.shape)
+    hidden_list, output_list = model(test_input)
+    print('len(output_list), len(hidden_list) = ', len(output_list), len(hidden_list))
+    get_shapes(hidden_list)
+
+    # test_input = torch.Tensor(16, 4, channels, height, width)
+    # print('test_input.shape = ', test_input.shape)
+    # hidden_list, output_list = model(test_input)
+    # print('len(output_list), len(hidden_list) = ', len(output_list), len(hidden_list))
+    # get_shapes(hidden_list)
+    # get_shapes(output_list)
+    pass
+
 if __name__ == '__main__':
     # let's fix this thing
-    test_model()
+    test_model_on_moving_mnist()
 
 
 
