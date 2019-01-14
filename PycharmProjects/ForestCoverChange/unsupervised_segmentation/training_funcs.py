@@ -37,7 +37,8 @@ def train_net(model, data_path, pre_model, save_dir, batch_size, lr, log_after, 
     # criterion = nn.CrossEntropyLoss()
     criterion = nn.CrossEntropyLoss()
     train_loader, val_dataloader, test_loader = get_dataloaders(path_to_nparray=data_path,
-                                                                batch_size=batch_size)
+                                                                batch_size=batch_size,
+                                                                normalize=True)
     if not os.path.exists(save_dir):
         os.mkdir(save_dir)
 

@@ -33,7 +33,7 @@ def toTensor(image):
     return torch.from_numpy(image).float()
 
 
-def get_dataloaders(path_to_nparray, batch_size):
+def get_dataloaders(path_to_nparray, batch_size, normalize=False):
     print('inside dataloading code...')
 
     class dataset(Dataset):
@@ -43,6 +43,7 @@ def get_dataloaders(path_to_nparray, batch_size):
             # we will map the array to readable one within this function
             self.dataset = np.load(path_to_nparray, mmap_mode='r')
             self.data_list = data_list # this will differentiate between training, testing and validation lists
+            self.normalize = normalize
             pass
 
         def __getitem__(self, k):
@@ -52,8 +53,11 @@ def get_dataloaders(path_to_nparray, batch_size):
             # this is very very important, because we are loading from three different sets
             example_number = self.data_list[example_number]
             example = np.expand_dims(self.dataset[label, example_number, :], axis=2)
+            if normalize:
+                example = 2*(example/4096.).clip(0,1)-1
             example = torch.Tensor(example)
             # print(label_arr)
+            # print(example)
             return example, label
 
         def __len__(self):
@@ -95,7 +99,7 @@ def get_dataloaders(path_to_nparray, batch_size):
 
 def check_dataloaders():
     load1, load2, load3 = get_dataloaders(path_to_nparray='/home/annus/Desktop/signatures/all_signatures.npy',
-                                          batch_size=16)
+                                          batch_size=16, normalize=True)
     for idx, data in enumerate(load2):
         examples, labels = data
         print('on batch {}/{}, {}'.format(idx + 1, len(load2), examples.size()))

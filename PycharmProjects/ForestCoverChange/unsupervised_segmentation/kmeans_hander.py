@@ -2,6 +2,7 @@
 
 from __future__ import print_function, division
 import os
+from scipy import ndimage
 from k_means import *
 import matplotlib.pyplot as pl
 import torch
@@ -11,6 +12,8 @@ import torch.nn.functional as F
 from model import MODEL
 
 
+color_mapping = {0: (255,0,0), 1: (0,255,0), 2: (0,0,255), 3: (255,255,0), 4:(0,255,255)}
+
 def combine_bands(mapped_bands_list, coordinates):
     r, r_, c, c_ = coordinates
     full_array = mapped_bands_list[0][r:r_, c:c_]
@@ -19,7 +22,7 @@ def combine_bands(mapped_bands_list, coordinates):
     return full_array
 
 
-def run_clustering(example_path, clusters_save_path, look_at_images=False):
+def run_clustering(example_path, clusters_save_path, look_at_images=False, normalize=True):
     # first map all bands in memory for reading later on...
     all_bands = []
     for i in range(1,14):
@@ -53,6 +56,9 @@ def run_clustering(example_path, clusters_save_path, look_at_images=False):
                 pl.show()
 
             samples_vec = full_array.reshape((-1, 13))
+            if normalize:
+                samples_vec = 2*(samples_vec/4096.).clip(0,1)-1
+                # print(samples_vec)
             samples_vec = np.nan_to_num(samples_vec) # important nan save
             print('Calling kmeans on {}/{} images'.format(count, total))
             call_kmeans(samples_vec=samples_vec, n_clusters=n_clusters, n_iterations=n_iterations,
@@ -92,7 +98,7 @@ def recombine_clusters_and_view(clusters_save_path):
 
 
 @torch.no_grad()
-def classify_cluster_centers(clusters_save_path, model_path):
+def classify_cluster_centers(clusters_save_path, model_path, save_image=None):
     full_test_site_shape = (3663, 5077)
     stride = 400
     # row and column wise stride on the entire image
@@ -130,8 +136,18 @@ def classify_cluster_centers(clusters_save_path, model_path):
                 # convert classified array to image
                 mini_image_array = classified_mini_array.reshape(stride, stride)
                 full_classified_image[row*stride:(row+1)*stride, col*stride:(col+1)*stride] = mini_image_array
-    pl.imshow(full_classified_image)
+    # apply median filter for clearer results
+    full_classified_image = ndimage.median_filter(full_classified_image, size=5)
+    print(full_classified_image.shape)
+    pl.imshow(full_classified_image, cmap='tab10', alpha=1.0)
     pl.show()
+    if save_image:
+        # new array for saving rgb image
+        image = np.zeros(shape=(full_classified_image.shape[0], full_classified_image.shape[1], 3))
+        for j in range(5):
+            image[full_classified_image == j, :] = color_mapping[j]
+        pl.imsave(save_image, image)
+        print('log: Saved {}'.format(save_image))
     pass
 
 
@@ -183,38 +199,63 @@ def classify_cluster_arrays(example_path, clusters_save_path, model_path):
                     vals, counts = np.unique(pred_numpy, return_counts=True)
                     this_index = np.argmax(counts)
                     classified_mini_array[classified_mini_array == u] = vals[this_index]
-                    # print('{}%'.format(counts[this_index]))
-                    # print()
-
-
-                # # now we assign classes to clusters on the bases of their classification results
-                # classified_mini_array = kmeans_subset_labels.copy()
-                # for u in range(10): # because we have ten clusters in each subset
-                #     # u is the cluster number
-                #     classified_mini_array[kmeans_subset_labels == u] = pred_arr[u]
 
                 # convert classified array to image
                 mini_image_array = classified_mini_array.reshape(stride, stride)
                 full_classified_image[row*stride:(row+1)*stride, col*stride:(col+1)*stride] = mini_image_array
-    pl.imshow(full_classified_image)
+
+    pl.imshow(full_classified_image, cmap='tab10', alpha=1.0)
     pl.show()
     pass
 
 
+def cross_clustering_single_image(clusters_save_path):
+    '''
+        Will combine clusters from a single image using cluster centers for smaller subsets
+    :return:
+    '''
+    full_test_site_shape = (3663, 5077)
+    stride = 400
+    all_cluster_centers = None
+    # row and column wise stride on the entire image
+    for row in range(0, full_test_site_shape[0] // stride):
+        for col in range(0, full_test_site_shape[1] // stride):
+            this_cluster_save_path = os.path.join(clusters_save_path, '{}_{}_{}_{}.pkl'.format(row * stride,
+                                                                                               (row + 1) * stride,
+                                                                                               col * stride,
+                                                                                               (col + 1) * stride))
+            print("rows {}-{}, columns {}-{}".format(row * stride, (row + 1) * stride,
+                                                     col * stride, (col + 1) * stride))
+            with open(this_cluster_save_path, 'rb') as read_this_one:
+                kmeans_subset = pkl.load(read_this_one)
+                # print(kmeans_subset.labels_)
+                if all_cluster_centers is not None:
+                    all_cluster_centers = np.dstack((kmeans_subset.cluster_centers_, all_cluster_centers))
+                else:
+                    all_cluster_centers = kmeans_subset.cluster_centers_
+    print(all_cluster_centers.shape)
+    pass
+
+
+
 if __name__ == '__main__':
     # run_clustering(example_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-    #                   'full-test-site-pakistan/numpy_sums/2015',
-    #      clusters_save_path='/home/annus/Desktop/all_clustering_results/2015')
+    #                   'full-test-site-pakistan/numpy_sums/2018',
+    #      clusters_save_path='/home/annus/Desktop/all_clustering_results/normalized/2018',
+    #                normalize=True)
 
-    # recombine_clusters_and_view('/home/annus/Desktop/all_clustering_results/2015')
+    # recombine_clusters_and_view('/home/annus/Desktop/all_clustering_results/2018/')
 
-    # classify_cluster_centers(clusters_save_path='/home/annus/Desktop/all_clustering_results/2015',
-    #                               model_path='/home/annus/Desktop/trained_models/model-25.pt')
+    # classify_cluster_centers(clusters_save_path='/home/annus/Desktop/all_clustering_results/normalized/2018',
+    #                          model_path='/home/annus/Desktop/trained_signature_classifier_normalized_input/model-7.pt',
+    #                          save_image='/home/annus/Desktop/normalized_results/2018.png')
 
-    classify_cluster_arrays(example_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-                                         'full-test-site-pakistan/numpy_sums/2015',
-                            clusters_save_path='/home/annus/Desktop/all_clustering_results/2015',
-                            model_path='/home/annus/Desktop/trained_models/model-25.pt')
+    # classify_cluster_arrays(example_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+    #                                      'full-test-site-pakistan/numpy_sums/2018',
+    #                         clusters_save_path='/home/annus/Desktop/all_clustering_results/2018',
+    #                         model_path='/home/annus/Desktop/trained_models/model-25.pt')
+
+    cross_clustering_single_image(clusters_save_path='/home/annus/Desktop/all_clustering_results/normalized/2018')
 
 
 ############################################################################################################
