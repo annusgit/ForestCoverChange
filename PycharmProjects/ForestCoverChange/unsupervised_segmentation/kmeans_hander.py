@@ -1,7 +1,13 @@
 
 
+"""
+    TODO: Add support for k-means for one whole image and then combine for multi-temporal k-means
+"""
+
+
 from __future__ import print_function, division
 import os
+import random
 from scipy import ndimage
 from k_means import *
 import matplotlib.pyplot as pl
@@ -152,7 +158,7 @@ def classify_cluster_centers(clusters_save_path, model_path, save_image=None):
 
 
 @torch.no_grad()
-def classify_cluster_arrays(example_path, clusters_save_path, model_path):
+def classify_cluster_arrays(example_path, clusters_save_path, model_path, is_normalized=True):
     # we'll need the data for it too
     all_bands = []
     for i in range(1, 14):
@@ -191,7 +197,10 @@ def classify_cluster_arrays(example_path, clusters_save_path, model_path):
                 # pick 100 vectors for each cluster, classify and assign to clusters
                 classified_mini_array = kmeans_subset_labels.copy()
                 for u in range(10): # because we have ten clusters in each subset
-                    test_vectors = np.expand_dims(samples_vec[kmeans_subset_labels==u][:100], axis=2)
+                    test_these = samples_vec[kmeans_subset_labels==u]
+                    if is_normalized:
+                        test_these = 2*(test_these/4096.).clip(0,1)-1 # if normalization is used
+                    test_vectors = np.expand_dims(test_these[random.sample(range(len(test_these)), 100)], axis=2)
                     test_tensor = torch.Tensor(test_vectors)
                     # print(test_tensor.shape)
                     out_x, pred = model(test_tensor)
@@ -209,33 +218,124 @@ def classify_cluster_arrays(example_path, clusters_save_path, model_path):
     pass
 
 
-def cross_clustering_single_image(clusters_save_path):
+def cross_clustering_single_image(clusters_save_path, model_path):
     '''
         Will combine clusters from a single image using cluster centers for smaller subsets
     :return:
     '''
     full_test_site_shape = (3663, 5077)
     stride = 400
+    full_test_site_used_shape = (stride * (full_test_site_shape[0] // stride),
+                                 stride * (full_test_site_shape[1] // stride))
+    # print(full_test_site_used_shape)
+    n_clusters = 400
+    n_iterations = 30
     all_cluster_centers = None
+    all_cluster_labels = np.zeros(full_test_site_used_shape[0]*full_test_site_used_shape[1])
+
+    full_clustered_image = np.zeros(shape=(stride * int(full_test_site_shape[0] / stride),
+                                           stride * int(full_test_site_shape[1] / stride)))
+
     # row and column wise stride on the entire image
+    # count = -1
     for row in range(0, full_test_site_shape[0] // stride):
         for col in range(0, full_test_site_shape[1] // stride):
+            # count += 1
             this_cluster_save_path = os.path.join(clusters_save_path, '{}_{}_{}_{}.pkl'.format(row * stride,
                                                                                                (row + 1) * stride,
                                                                                                col * stride,
                                                                                                (col + 1) * stride))
-            print("rows {}-{}, columns {}-{}".format(row * stride, (row + 1) * stride,
-                                                     col * stride, (col + 1) * stride))
+            print("log: Reading rows {}-{}, columns {}-{}".format(row * stride, (row + 1) * stride,
+                                                                  col * stride, (col + 1) * stride))
             with open(this_cluster_save_path, 'rb') as read_this_one:
                 kmeans_subset = pkl.load(read_this_one)
-                # print(kmeans_subset.labels_)
                 if all_cluster_centers is not None:
-                    all_cluster_centers = np.dstack((kmeans_subset.cluster_centers_, all_cluster_centers))
+                    all_cluster_centers = np.dstack((all_cluster_centers, kmeans_subset.cluster_centers_))
                 else:
                     all_cluster_centers = kmeans_subset.cluster_centers_
-    print(all_cluster_centers.shape)
-    pass
+                array = kmeans_subset.labels_.reshape(stride, stride)
+                full_clustered_image[row * stride:(row + 1) * stride, col * stride:(col + 1) * stride] = array
+                # bad bad bad
+                # all_cluster_labels[count*stride**2:count*stride**2+stride**2] = np.asarray(array.reshape(-1) +
+                #                                                                            10*count, dtype=np.uint16)
 
+    pl.imshow(full_clustered_image)
+    pl.title('Input image')
+    pl.show()
+
+    # verified that this doesn't work
+    # reshaping loop (because I feel insecure with this thing)
+    all_cluster_labels = full_clustered_image.reshape((-1, 108))
+    # print(another == all_cluster_labels)
+    # print(np.unique(all_cluster_labels), all_cluster_labels.dtype)
+
+    all_cluster_centers = all_cluster_centers.transpose((2, 1, 0))
+    all_cluster_centers = all_cluster_centers.reshape((-1, 13))
+
+    # update labels to new values to keep them separated
+    for i in range(all_cluster_labels.shape[1]):
+        all_cluster_labels[:, i] += 10*i
+
+    # cluster cluster-centers now
+    print('log: Clustering now...')
+    kmeans = call_kmeans(samples_vec=all_cluster_centers, n_clusters=n_clusters, n_iterations=n_iterations,
+                         pickle_file=None)
+    print('log: done clustering')
+    # print(kmeans.labels_.shape)
+    # we should have n_clusters unique labels now
+    # now we assign classes to clusters on the bases of their classification results
+    # because we have 108 subsets, each having their own 0-9 cluster labels
+    print('log: assigning new labels...')
+    # for i in range(108):
+    for i in range(all_cluster_labels.shape[1]):
+        for j in range(10):
+            all_cluster_labels[all_cluster_labels == i*10+j] = kmeans.labels_[i*10+j]
+
+    # check
+    # show_image = all_cluster_labels.reshape(full_test_site_used_shape)
+    # pl.imshow(show_image)
+    # pl.title('Classified image')
+    # pl.show()
+    # return
+
+    ########### classification starts now ...
+    # load model for inference
+    model = MODEL(in_channels=13)
+    model.load_state_dict(torch.load(model_path))
+    print('log: loaded saved model {}'.format(model_path))
+    model.eval()
+
+    outer_kmeans_centers = np.expand_dims(kmeans.cluster_centers_, 2)
+    outer_kmeans_centers_tensor = torch.Tensor(outer_kmeans_centers)
+    out_x, pred = model(outer_kmeans_centers_tensor)
+    pred_arr = pred.numpy()
+
+    # now we assign classes to clusters on the bases of their classification results
+    all_cluster_labels = all_cluster_labels.reshape(-1)
+    for u in range(n_clusters):  # because we n_clusters now
+        # u is the cluster number
+        all_cluster_labels[all_cluster_labels == u] = pred_arr[u]
+        pass
+
+    show_image = all_cluster_labels.reshape(full_test_site_used_shape)
+    pl.imshow(show_image)
+    pl.title('Classified image')
+    pl.show()
+
+    all_labels = {
+        'new_signature_lowvegetation': 0,
+        'new_signature_forest': 1,
+        'new_signature_urban': 2,
+        'new_signature_cropland': 3,
+        'new_signature_waterbody': 4
+    }
+    reversed_labels = {v:k for k,v in all_labels.items()}
+    classes_found = np.unique(show_image)
+    for p in classes_found:
+        pl.imshow(show_image == p)
+        pl.title('Class {}'.format(reversed_labels[p]))
+        pl.show()
+    pass
 
 
 if __name__ == '__main__':
@@ -244,18 +344,20 @@ if __name__ == '__main__':
     #      clusters_save_path='/home/annus/Desktop/all_clustering_results/normalized/2018',
     #                normalize=True)
 
-    # recombine_clusters_and_view('/home/annus/Desktop/all_clustering_results/2018/')
+    # recombine_clusters_and_view('/home/annus/Desktop/all_clustering_results/normalized/2018/')
 
     # classify_cluster_centers(clusters_save_path='/home/annus/Desktop/all_clustering_results/normalized/2018',
     #                          model_path='/home/annus/Desktop/trained_signature_classifier_normalized_input/model-7.pt',
     #                          save_image='/home/annus/Desktop/normalized_results/2018.png')
 
     # classify_cluster_arrays(example_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-    #                                      'full-test-site-pakistan/numpy_sums/2018',
-    #                         clusters_save_path='/home/annus/Desktop/all_clustering_results/2018',
-    #                         model_path='/home/annus/Desktop/trained_models/model-25.pt')
+    #                                      'full-test-site-pakistan/numpy_sums/2017',
+    #                         clusters_save_path='/home/annus/Desktop/all_clustering_results/normalized/2017',
+    #                         model_path='/home/annus/Desktop/trained_signature_classifier_normalized_input/model-7.pt')
 
-    cross_clustering_single_image(clusters_save_path='/home/annus/Desktop/all_clustering_results/normalized/2018')
+    cross_clustering_single_image(clusters_save_path='/home/annus/Desktop/all_clustering_results/normalized/2018',
+                                  model_path='/home/annus/Desktop/trained_signature_classifier_normalized_input/'
+                                             'model-7.pt')
 
 
 ############################################################################################################
