@@ -9,6 +9,7 @@ import time
 import gdal
 import torch
 import random
+import pickle
 import numpy as np
 random.seed(int(time.time()))
 import matplotlib.pyplot as pl
@@ -46,10 +47,17 @@ def get_images_from_large_file(image_path, bands, label_path, site_size, min_coo
     max_x, max_y = convert_lat_lon_to_xy(ds=covermap, coordinates=max_coords)
     # read the corresponding label at 360m per pixel resolution
     label = channel.ReadAsArray(min_x, min_y, abs(max_x - min_x), abs(max_y - min_y))
+    # np.save('/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/ESA_landcover_dataset/raw/'
+    #         'label_full_test_site.npy', label)
 
     # let's reshape it to match our actual image
     label = misc.imresize(label, size=site_size, interp='nearest')
     label = ndimage.median_filter(label, size=7)
+    # re_label = np.load('/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/ESA_landcover_dataset/raw/'
+    #                    'label_full_test_site.npy')
+    # re_label = misc.imresize(re_label, size=site_size, interp='nearest')
+    # re_label = ndimage.median_filter(re_label, size=7)
+    # print(np.all(label==re_label))
     pl.imshow(label)
     pl.title('Full label Image')
     pl.show()
@@ -57,23 +65,24 @@ def get_images_from_large_file(image_path, bands, label_path, site_size, min_coo
     # let's get the actual image now
     image_ds = gdal.Open(image_path, gdal.GA_ReadOnly)
     x_size, y_size = image_ds.RasterXSize, image_ds.RasterYSize
+    all_raster_bands = [image_ds.GetRasterBand(x) for x in bands]
 
-    stride = 2000
-    error_pixels = 50 # add this to remove the error pixels at the boundary of the test image
+    # stride = 3000  # for testing only
+    error_pixels = 50  # add this to remove the error pixels at the boundary of the test image
     for i in range(y_size//stride):
         for j in range(x_size//stride):
             # read the raster band by band for this subset
-            subset = np.nan_to_num(image_ds.GetRasterBand(bands[0]).ReadAsArray(j*stride+error_pixels,
-                                                                                i*stride+error_pixels,
-                                                                                stride, stride))
-            for n in bands[1:]:
-                subset = np.dstack((subset, np.nan_to_num(image_ds.GetRasterBand(n).ReadAsArray(j*stride+error_pixels,
-                                                                                                i*stride+error_pixels,
-                                                                                                stride,
-                                                                                                stride))))
+            subset = np.nan_to_num(all_raster_bands[0].ReadAsArray(j*stride+error_pixels,
+                                                                   i*stride+error_pixels,
+                                                                   stride, stride))
+            for band in all_raster_bands[1:]:
+                subset = np.dstack((subset, np.nan_to_num(band.ReadAsArray(j*stride+error_pixels,
+                                                                           i*stride+error_pixels,
+                                                                           stride,
+                                                                           stride))))
             image_subset = np.asarray(255*(subset[:,:,[4,3,2]]/4096.0).clip(0,1), dtype=np.uint8)
-            label_subset = label[j*stride+error_pixels:(j+1)*stride+error_pixels,
-                                i*stride+error_pixels:(i+1)*stride+error_pixels]
+            label_subset = label[i*stride+error_pixels:(i+1)*stride+error_pixels,
+                                j*stride+error_pixels:(j+1)*stride+error_pixels]
             # image_subset[:,:,0] = label_subset
             pl.subplot(1,2,1)
             pl.imshow(image_subset)
@@ -105,30 +114,37 @@ def crop_center(img, crop_size):
     starty = y // 2 - (crop_size // 2)
     return img[startx:startx + crop_size, starty:starty + crop_size, :]
 
+
 def crop_and_rotate(**kwargs):
-    croped_image, croped_label = kwargs['image'], kwargs['label']
-    # print(np.unique(croped_label))
+    croped_image, croped_label, model_input_size = kwargs['image'], kwargs['label'], kwargs['model_input_size']
     """
         will create an example to train on...
     :param croped_image: np array of image
     :param croped_label: np array of label (colored)
     :return: image and labeled processed and augmented if needed
     """
+    # if random.randint(0, 2) == 1:
+    #     crop_size = model_input_size
+    #     x = random.randint(0, croped_image.shape[0] - crop_size)
+    #     y = random.randint(0, croped_image.shape[1] - crop_size)
+    #     croped_image = croped_image[x:x + crop_size, y:y + crop_size, :]
+    #     croped_label = croped_label[x:x + crop_size, y:y + crop_size]
+    #     return croped_image, croped_label
+
     # first crop
-    crop_size = 512
+    crop_size = kwargs['first_crop_size']
     x = random.randint(0, croped_image.shape[0] - crop_size)
     y = random.randint(0, croped_image.shape[1] - crop_size)
     croped_image = croped_image[x:x + crop_size, y:y + crop_size, :]
-    croped_label = croped_label[x:x + crop_size, y:y + crop_size, :]
+    croped_label = croped_label[x:x + crop_size, y:y + crop_size]
 
     #################################################################333333
-    croped_label = convert_labels(label_im=croped_label)
-    croped_label = np.expand_dims(fix(target_image=croped_label), axis=2)
+    croped_label = np.expand_dims(croped_label, axis=2)
     #################################################################333333
 
     # choice on cropping
     choice = random.randint(0, 2)
-    crop_size = 64
+    crop_size = model_input_size
     if choice == 0:  # just crop and return
         x = random.randint(0, croped_image.shape[0] - crop_size)
         y = random.randint(0, croped_image.shape[1] - crop_size)
@@ -170,23 +186,18 @@ def crop_and_rotate(**kwargs):
 
     return croped_image.copy(), croped_label.copy()
 
+
 def convert_labels(label_im):
-    # 29(0): background/clutter, 76(1): buildings, 150(2): trees,
-    # 179(3): cars, 226(4): low_vegetation, 255(5): impervious_surfaces
-    # conversions = {29:0, 76:1, 150:2, 179:3, 226:4, 255:5}
-    # we are removing the cars class because of excessive downsampling used in the dataset, but not now...
-    conversions = {29:0, 76:1, 150:2, 179:3, 226:4, 255:5}
-    gray = cv2.cvtColor(label_im, cv2.COLOR_RGB2GRAY)
-    for k in conversions.keys():
-        gray[gray == k] = conversions[k]
-    # print(np.unique(gray))
-    return gray
+    label_im = np.asarray(label_im/10, dtype=np.uint8)
+    return label_im
+
 
 def fix(target_image):
     # 6 is the noise class, generated during augmentation
     target_image[target_image < 0] = 6
     target_image[target_image > 5] = 6
     return target_image
+
 
 def toTensor(**kwargs):
     image, label = kwargs['image'], kwargs['label']
@@ -198,135 +209,223 @@ def toTensor(**kwargs):
     return torch.from_numpy(image).float(), torch.from_numpy(label).long()
 
 
-def get_dataloaders(images_path, labels_path, batch_size):
+def get_dataloaders(images_path, bands, labels_path, save_data_path, block_size=256, model_input_size=64,
+                    train_split=0.8, batch_size=16, num_workers=4):
     print('inside dataloading code...')
     class dataset(Dataset):
-        def __init__(self, data_dictionary, mode='train'):
+        def __init__(self, data_list, image_ds, label_image, mode='train'):
+            '''
+            :param data_list: list of all
+            :param raster_bands: raster bands list of examples image
+            :param raster_size: raster spatial size
+            :param model_input_size: size of image input to the model
+            :param label_image: label image numpy array
+            :param mode: train or test?
+            '''
             super(dataset, self).__init__()
-            self.example_dictionary = data_dictionary
+            self.data_list = data_list
+            self.image_ds = image_ds
+            self.raster_bands = [self.image_ds.GetRasterBand(x) for x in bands]
+            self.block_size = block_size
+            self.label_image = label_image
+            self.model_input_size = model_input_size
+            # this is just a rough estimate, actual augmentation will result in many more images
+            self.images_per_dimension = self.block_size//model_input_size
+            self.total_images = self.images_per_dimension * self.images_per_dimension * len(self.data_list)
             self.mode = mode
+            # print(len(self), len(data_list))
             pass
 
         def __getitem__(self, k):
-            example_path, label_path = self.example_dictionary[k]
-            example_image = cv2.imread(example_path) # because pl imposed an alpha channel on it...
-            target_image = cv2.imread(label_path)
-            print(target_image.shape)
+            if self.mode == 'test':
+                # 1. find out which image subset is it and then crop out that area first
+                # no augmentation here, just stride-wise cropping out subset images
+                this_block = int(k/self.images_per_dimension**2)
+                _, example_indices, label_indices = self.data_list[this_block]
+                this_example = np.nan_to_num(self.raster_bands[0].ReadAsArray(*example_indices))
+                for band in self.raster_bands[1:]:
+                    this_example = np.dstack((this_example, np.nan_to_num(band.ReadAsArray(*example_indices))))
+                this_label = self.label_image[label_indices[0]:label_indices[1], label_indices[2]:label_indices[3]]
 
-            # transforms
-            if self.mode == 'train':
-                # print('mode is not train')
-                example_image, target_image = crop_and_rotate(image=example_image, label=target_image)
-                target_image = target_image[:,:,0]
+                # 2. next find out which sub-subset is it and crop it out
+                subset_sum = k % int(self.images_per_dimension**2)
+                this_row = subset_sum // self.images_per_dimension
+                this_col = subset_sum % self.images_per_dimension
 
+                this_example_subset = this_example[this_row*self.model_input_size:(this_row+1)*self.model_input_size,
+                                                    this_col*self.model_input_size:(this_col+1)*self.model_input_size,:]
+                this_label_subset = this_label[this_row*self.model_input_size:(this_row+1)*self.model_input_size,
+                                                this_col*self.model_input_size:(this_col+1)*self.model_input_size]
+                this_label_subset = convert_labels(this_label_subset)
 
-            example_image, target_image = toTensor(image=example_image, label=target_image)
-            return {'input': example_image, 'label': target_image}
+                # image_subset = np.asarray(255*(this_example_subset[:,:,[4,3,2]]/4096.0).clip(0, 1), dtype=np.uint8)
+                # pl.subplot(1, 2, 1)
+                # pl.imshow(image_subset)
+                # pl.subplot(1, 2, 2)
+                # pl.imshow(this_label_subset)
+                # pl.show()
+                this_example_subset, this_label_subset = toTensor(image=this_example_subset, label=this_label_subset)
+                return {'input': this_example_subset, 'label': this_label_subset}
+
+            elif self.mode == 'train':
+                # total images are 64 and x25 for augmentation
+                subset_image_index = k % len(self.data_list)
+                _, example_indices, label_indices = self.data_list[subset_image_index]
+
+                # 1. get the whole training block first
+                this_example = np.nan_to_num(self.raster_bands[0].ReadAsArray(*example_indices))
+                for band in self.raster_bands[1:]:
+                    this_example = np.dstack((this_example, np.nan_to_num(band.ReadAsArray(*example_indices))))
+
+                this_label = self.label_image[label_indices[0]:label_indices[1], label_indices[2]:label_indices[3]]
+                this_label = convert_labels(this_label)
+
+                # 2. Next step, crop out from anywhere and get an augmented image and label
+                this_example_subset, this_label_subset = crop_and_rotate(image=this_example, label=this_label,
+                                                                         first_crop_size=block_size//2,
+                                                                         model_input_size=model_input_size)
+                this_label_subset = this_label_subset[:,:,0]
+
+                # image_subset = np.asarray(255*(this_example_subset[:,:,[4,3,2]]/4096.0).clip(0, 1), dtype=np.uint8)
+                # pl.subplot(1, 2, 1)
+                # pl.imshow(image_subset)
+                # pl.subplot(1, 2, 2)
+                # pl.imshow(this_label_subset)
+                # pl.show()
+
+                this_example_subset, this_label_subset = toTensor(image=this_example_subset, label=this_label_subset)
+                return {'input': this_example_subset, 'label': this_label_subset}
+            else:
+                return -1
 
         def __len__(self):
-            return len(self.example_dictionary)
+            return 25*self.total_images if self.mode == 'train' else self.total_images
+    ######################################################################################
+    # generate training and testing lists here
+    error_pixels = 50  # add this to remove the error pixels at the boundary of the test image
+    image_ds = gdal.Open(images_path)
+    x_size, y_size = image_ds.RasterXSize, image_ds.RasterYSize
+    if not os.path.exists(save_data_path):
+        print('LOG: No Saved Data Found! Generating Now...')
+        all_examples = []
+        count = -1
+        for i in range(y_size//block_size):
+            for j in range(x_size//block_size):
+                count += 1
+                # tuple -> [image_subset_indices, label_subset_indices]
+                all_examples.append((count, (j*block_size+error_pixels, i*block_size+error_pixels,
+                                             block_size, block_size),
+                                     (i*block_size+error_pixels,(i+1)*block_size+error_pixels,
+                                      j*block_size+error_pixels,(j+1)*block_size+error_pixels)))
+        print('LOG: total examples:', len(all_examples))
 
-    # train and test examples dirs only
-    train_images_dir = os.path.join(images_path, 'train')
-    train_labels_dir = os.path.join(labels_path, 'train')
-    test_images_dir = os.path.join(images_path, 'test')
-    test_labels_dir = os.path.join(labels_path, 'test')
+        train_test_split = int(train_split*len(all_examples))
+        random.shuffle(all_examples)
+        train_eval_list = all_examples[:train_test_split]
+        test_list = all_examples[train_test_split:]
 
-    # create training set examples dictionary
-    train_examples_dictionary = {}
-    for name in os.listdir(train_images_dir):
-        this_image_path = os.path.join(train_images_dir, name)
-        this_label_path = os.path.join(train_labels_dir, name) # image because image and label have the same name!
-        # for each index as key, we want to have its path and label as its items
-        train_examples_dictionary[len(train_examples_dictionary)] = (this_image_path, this_label_path)
+        train_eval_split = int(0.90*len(train_eval_list))  # 10% of training examples are for validation
+        random.shuffle(train_eval_list)
+        train_list = train_eval_list[:train_eval_split]
+        eval_list = train_eval_list[train_eval_split:]
+        with open(save_data_path, 'wb') as save_pickle:
+            pickle.dump((train_list, eval_list, test_list), file=save_pickle, protocol=pickle.HIGHEST_PROTOCOL)
+        print('LOG: Data saved!')
+    else:
+        print('LOG: Found Saved Data! Loading Now...')
+        with open(save_data_path, 'rb') as save_pickle:
+            train_list, eval_list, test_list = pickle.load(save_pickle)
 
-    # at this point, we have our train data dictionary mapping file paths to labels
-    # we can split it into two dicts if we want, for example
-    keys = train_examples_dictionary.keys()
-    random.shuffle(keys)
-    train_dictionary, val_dictionary = {}, {}
-    for l, key in enumerate(keys):
-        if l % 15 == 0:
-            val_dictionary[len(val_dictionary)] = train_examples_dictionary[key]
-            continue
-        train_dictionary[len(train_dictionary)] = train_examples_dictionary[key]
+    print('LOG: [train_list, eval_list, test_list] ->', map(len, (train_list, eval_list, test_list)))
+    print('LOG: set(train_list).isdisjoint(set(eval_list)) ->', set(train_list).isdisjoint(set(eval_list)))
+    print('LOG: set(train_list).isdisjoint(set(test_list)) ->', set(train_list).isdisjoint(set(test_list)))
+    print('LOG: set(test_list).isdisjoint(set(eval_list)) ->', set(test_list).isdisjoint(set(eval_list)))
+    ######################################################################################
+    # print([index for (index, tup1, tup2) in train_list])
+    # print([index for (index, tup1, tup2) in eval_list])
+    # print([index for (index, tup1, tup2) in test_list])
 
-    # create test set examples dictionary
-    test_dictionary = {}
-    for name in os.listdir(test_images_dir):
-        this_image_path = os.path.join(test_images_dir, name)
-        this_label_path = os.path.join(test_labels_dir, name)
-        # for each index as key, we want to have its path and label as its...
-        test_dictionary[len(test_dictionary)] = (this_image_path, this_label_path)
+    # load the label image
+    re_label = np.load(labels_path)
+    re_label = misc.imresize(re_label, size=(y_size, x_size), interp='nearest')
+    re_label = ndimage.median_filter(re_label, size=7)
 
     # create dataset class instances
-    train_data = dataset(data_dictionary=train_dictionary)
-    val_data = dataset(data_dictionary=val_dictionary)
-    test_data = dataset(data_dictionary=test_dictionary)
-    test_data = dataset(data_dictionary=test_dictionary)
-    print('train examples =', len(train_dictionary), 'val examples =', len(val_dictionary),
-          'test examples =', len(test_dictionary))
+    # images_per_image means approx. how many images are in each example
+    train_data = dataset(data_list=train_list, image_ds=image_ds, label_image=re_label, mode='train')
+    eval_data = dataset(data_list=eval_list, image_ds=image_ds, label_image=re_label, mode='test')
+    test_data = dataset(data_list=test_list, image_ds=image_ds, label_image=re_label, mode='test')
 
-    train_dataloader = DataLoader(dataset=train_data, batch_size=batch_size,
-                                  shuffle=True, num_workers=4)
-    val_dataloader = DataLoader(dataset=val_data, batch_size=batch_size,
-                                shuffle=True, num_workers=4)
-    test_dataloader = DataLoader(dataset=test_data, batch_size=batch_size,
-                                 shuffle=True, num_workers=4)
+    # for j in range(10):
+    #     print(train_data[j])
+    # for j in range(len(eval_data)):
+    #     print(eval_data[j])
+    # for j in range(len(test_data)):
+    #     print(test_data[j])
+
+    train_dataloader = DataLoader(dataset=train_data, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    val_dataloader = DataLoader(dataset=eval_data, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+    test_dataloader = DataLoader(dataset=test_data, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 
     return train_dataloader, val_dataloader, test_dataloader
 
 
 def main():
-    train_dataloader, val_dataloader, test_dataloader = get_dataloaders(images_path='/home/annus/_/'
-                                                                                    'ISPRS_BENCHMARK_DATASETS/'
-                                                                                    'Vaihingen/datainhere/'
-                                                                                    'croped_jpg_images/',
-                                                                        labels_path= '/home/annus/_/'
-                                                                                    'ISPRS_BENCHMARK_DATASETS/'
-                                                                                    'Vaihingen/datainhere/'
-                                                                                    'croped_jpg_labels/',
-                                                                        batch_size=1)
-    # #
-    # train_dataloader, val_dataloader, test_dataloader = get_dataloaders(images_path='../../jpg_images/',
-    #                                                                     labels_path='../../jpg_labels/',
-    #                                                                     batch_size=16)
+    loaders = get_dataloaders(images_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+                                          'ESA_landcover_dataset/raw/full_test_site_2015.tif',
+                              bands=range(1,14),
+                              labels_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+                                          'ESA_landcover_dataset/raw/label_full_test_site.npy',
+                              save_data_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+                                             'ESA_landcover_dataset/raw/pickled_data.pkl',
+                              block_size=256, model_input_size=64, batch_size=16, num_workers=0)
 
-    # print(len(train_dataloader), len(val_dataloader), len(test_dataloader))
-    count = 0
-    while True:
-        count += 1
-        for idx, data in enumerate(train_dataloader):
-            examples, labels = data['input'], data['label']
-            print('{} -> on batch {}/{}, {}'.format(count, idx+1, len(train_dataloader), examples.size()))
-            if True:
-                this = (examples[0].numpy()).transpose(1,2,0).astype(np.uint8)
-                that = labels[0].numpy().astype(np.uint8)
-                print(np.unique(that))
-                pl.subplot(121)
-                pl.imshow(this)
-                pl.subplot(122)
-                pl.imshow(that)
-                pl.show()
+    # loaders = get_dataloaders(images_path='dataset/full_test_site_2015.tif',
+    #                           bands=range(1,14),
+    #                           labels_path='dataset/label_full_test_site.npy',
+    #                           save_data_path='dataset/pickled_data.pkl',
+    #                           block_size=256, model_input_size=64, batch_size=16, num_workers=0)
+
+    train_dataloader, val_dataloader, test_dataloader = loaders
+    for idx, data in enumerate(train_dataloader):
+        examples, labels = data['input'], data['label']
+        print('-> on batch {}/{}, {}'.format(idx+1, len(train_dataloader), examples.size()))
+        if True:
+            this_example_subset = (examples[0].numpy()).transpose(1,2,0)
+            this = np.asarray(255*(this_example_subset[:,:,[4,3,2]]/4096.0).clip(0,1), dtype=np.uint8)
+            that = labels[0].numpy().astype(np.uint8)
+            # print()
+            print(this.shape, that.shape, np.unique(that))
+            pl.subplot(121)
+            pl.imshow(this)
+            pl.subplot(122)
+            pl.imshow(that)
+            pl.show()
 
 
 if __name__ == '__main__':
-    # main()
-    get_images_from_large_file(image_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-                                          'ESA_landcover_dataset/raw/full_test_site_2015.tif',
-                               bands=range(1,14),
-                               label_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-                                          'ESA_landcover_dataset/raw/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.tif',
-                               site_size=(3663, 5077),
-                               min_coords=(34.46484326132815, 73.30923379854437),
-                               max_coords=(34.13584821210507, 73.76516641573187),
-                               destination='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-                                           'ESA_landcover_dataset/divided',
-                               stride=256)
+    main()
+    # get_images_from_large_file(image_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+    #                                       'ESA_landcover_dataset/raw/full_test_site_2015.tif',
+    #                            bands=range(1,14),
+    #                            label_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+    #                                       'ESA_landcover_dataset/raw/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.tif',
+    #                            site_size=(3663, 5077),
+    #                            min_coords=(34.46484326132815, 73.30923379854437),
+    #                            max_coords=(34.13584821210507, 73.76516641573187),
+    #                            destination='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+    #                                        'ESA_landcover_dataset/divided',
+    #                            stride=256)
 
-
-
-
+    # get_dataloaders(images_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+    #                             'ESA_landcover_dataset/raw/full_test_site_2015.tif',
+    #                 bands=range(1,14),
+    #                 labels_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+    #                             'ESA_landcover_dataset/raw/label_full_test_site.npy',
+    #                 save_data_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+    #                                'ESA_landcover_dataset/raw/pickled_data.pkl',
+    #                 block_size=1500, model_input_size=500, batch_size=16)
+    pass
 
 
 
