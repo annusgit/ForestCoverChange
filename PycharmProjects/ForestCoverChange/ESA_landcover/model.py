@@ -12,113 +12,31 @@ from torch.optim import *
 import torch.nn.functional as F
 from torch.nn.utils import clip_grad_norm_
 import torch.utils.model_zoo as model_zoo
-from dataset import get_dataloaders
+from dataset import get_dataloaders_generated_data
 import os
 import numpy as np
 import pickle as pkl
 import PIL.Image as Image
-from tensorboardX import SummaryWriter
 import itertools
 import matplotlib as mpl
 # mpl.use('Agg')
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
-from sklearn.metrics import confusion_matrix
-from torchnet.meter import ConfusionMeter as CM
-import seaborn as sn
-import pandas as pd
-
-
-class_names = ['background/clutter', 'buildings', 'trees', 'cars', 'low_vegetation', 'impervious_surfaces', 'noise']
-# class_names = ['background/clutter', 'buildings', 'trees', 'low_vegetation', 'impervious_surfaces']
-
-# the following methods are used to generate the confusion matrix
-###########################################################################################################33
-def fig2data ( fig ):
-    """
-    @brief Convert a Matplotlib figure to a 4D numpy array with RGBA channels and return it
-    @param fig a matplotlib figure
-    @return a numpy 3D array of RGBA values
-    """
-    # draw the renderer
-    fig.canvas.draw ( )
-
-    # Get the RGBA buffer from the figure
-    w,h = fig.canvas.get_width_height()
-    buf = np.fromstring( fig.canvas.tostring_argb(), dtype=np.uint8 )
-    buf.shape = ( w, h,4 )
-
-    # canvas.tostring_argb give pixmap in ARGB mode. Roll the ALPHA channel to have it in RGBA mode
-    buf = np.roll ( buf, 3, axis = 2 )
-    return buf
-
-def fig2img (fig):
-    """
-    @brief Convert a Matplotlib figure to a PIL Image in RGBA format and return it
-    @param fig a matplotlib figure
-    @return a Python Imaging Library ( PIL ) image
-    """
-    # put the figure pixmap into a numpy array
-    buf = fig2data (fig)
-    w, h, d = buf.shape
-    return Image.frombytes("RGBA", (w ,h), buf.tostring())
-
-
-def plot_confusion_matrix(cm, classes,
-                          normalize=False,
-                          title='Confusion matrix',
-                          cmap=plt.cm.Blues):
-    """
-            This function prints and plots the confusion matrix.
-            Normalization can be applied by setting `normalize=True`.
-    """
-    if normalize:
-        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-        print("Normalized confusion matrix")
-    else:
-        print('Confusion matrix, without normalization')
-
-    # print(cm)
-
-    plt.imshow(cm, interpolation='nearest', cmap=cmap)
-    plt.title(title)
-    plt.colorbar()
-    tick_marks = np.arange(len(classes))
-    plt.xticks(tick_marks, classes, rotation=45)
-    plt.yticks(tick_marks, classes)
-
-    fmt = '.2f' if normalize else 'd'
-    thresh = cm.max() / 2.
-    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-        plt.text(j, i, format(cm[i, j], fmt),
-                 horizontalalignment="center",
-                 color="white" if cm[i, j] > thresh else "black")
-
-    plt.tight_layout()
-    plt.ylabel('True label')
-    plt.xlabel('Predicted label')
-###########################################################################################################33
+from torchsummary import summary
+from torchvision import models
 
 
 class UNet_down_block(nn.Module):
     """
         Encoder class
     """
-    def __init__(self, input_channel, output_channel, pretrained_weights=None):
+    def __init__(self, input_channel, output_channel):
         super(UNet_down_block, self).__init__()
         self.conv1 = nn.Conv2d(input_channel, output_channel, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(output_channel, output_channel, kernel_size=3, padding=1)
         self.bn1 = nn.BatchNorm2d(num_features=output_channel)
         self.bn2 = nn.BatchNorm2d(num_features=output_channel)
         self.relu = nn.ReLU()
-
-        # load previously trained weights
-        # pretrained_weights = [conv1_W, conv1_b, conv2_W, conv2_b]
-        if pretrained_weights:
-            self.conv1.weight = torch.nn.Parameter(torch.Tensor(pretrained_weights[0].transpose(3, 2, 1, 0)))
-            self.conv1.bias = torch.nn.Parameter(torch.Tensor(pretrained_weights[1].flatten()))
-            self.conv2.weight = torch.nn.Parameter(torch.Tensor(pretrained_weights[2].transpose(3, 2, 1, 0)))
-            self.conv2.bias = torch.nn.Parameter(torch.Tensor(pretrained_weights[3].flatten()))
 
     def forward(self, x):
         x = self.relu(self.bn1(self.conv1(x)))
@@ -130,7 +48,7 @@ class UNet_up_block(nn.Module):
     """
         Decoder class
     """
-    def __init__(self, prev_channel, input_channel, output_channel, pretrained_weights=None):
+    def __init__(self, prev_channel, input_channel, output_channel):
         super(UNet_up_block, self).__init__()
         self.tr_conv_1 = nn.ConvTranspose2d(input_channel, output_channel, kernel_size=2, stride=2)
         self.conv_1 = nn.Conv2d(input_channel, output_channel, kernel_size=3, stride=1, padding=1)
@@ -138,16 +56,6 @@ class UNet_up_block(nn.Module):
         self.bn1 = nn.BatchNorm2d(num_features=output_channel)
         self.bn2 = nn.BatchNorm2d(num_features=output_channel)
         self.relu = nn.ReLU()
-
-        # load pretrained weights
-        # pretrained_weights = [tconv_W, tconv_b, conv1_W, conv1_b, conv2_W, conv2_b]
-        if pretrained_weights:
-            self.tr_conv_1.weight = torch.nn.Parameter(torch.Tensor(pretrained_weights[0].transpose(3, 2, 1, 0)))
-            self.tr_conv_1.bias = torch.nn.Parameter(torch.Tensor(pretrained_weights[1]).view(-1))
-            self.conv_1.weight = torch.nn.Parameter(torch.Tensor(pretrained_weights[2].transpose(3, 2, 1, 0)))
-            self.conv_1.bias = torch.nn.Parameter(torch.Tensor(pretrained_weights[3]).view(-1))
-            self.conv_2.weight = torch.nn.Parameter(torch.Tensor(pretrained_weights[4].transpose(3, 2, 1, 0)))
-            self.conv_2.bias = torch.nn.Parameter(torch.Tensor(pretrained_weights[5]).view(-1))
 
     def forward(self, prev_feature_map, x):
         x = self.tr_conv_1(x)
@@ -171,66 +79,22 @@ class UNet(nn.Module):
             print('total number of weights to be loaded into pytorch model =', len(model_dict.keys()))
 
         self.bn_init = nn.BatchNorm2d(num_features=input_channels)
-
-        # create encoders and pass pretrained weights...
-        if model_dir_path:
-            self.encoder_1 = UNet_down_block(input_channels, 64, [model_dict['e1c1'], model_dict['e1c1_b'],
-                                                                  model_dict['e1c2'], model_dict['e1c2_b']])
-            self.encoder_2 = UNet_down_block(64, 128, [model_dict['e2c1'], model_dict['e2c1_b'],
-                                                       model_dict['e2c2'], model_dict['e2c2_b']])
-            self.encoder_3 = UNet_down_block(128, 256, [model_dict['e3c1'], model_dict['e3c1_b'],
-                                                        model_dict['e3c2'], model_dict['e3c2_b']])
-            self.encoder_4 = UNet_down_block(256, 512, [model_dict['e4c1'], model_dict['e4c1_b'],
-                                                        model_dict['e4c2'], model_dict['e4c2_b']])
-        else:
-            self.encoder_1 = UNet_down_block(input_channels, 64, None)
-            self.encoder_2 = UNet_down_block(64, 128, None)
-            self.encoder_3 = UNet_down_block(128, 256, None)
-            self.encoder_4 = UNet_down_block(256, 512, None)
-
+        self.encoder_1 = UNet_down_block(input_channels, 64)
+        self.encoder_2 = UNet_down_block(64, 128)
+        self.encoder_3 = UNet_down_block(128, 256)
+        self.encoder_4 = UNet_down_block(256, 512)
         self.max_pool = nn.MaxPool2d(2, 2)
         self.dropout = nn.Dropout2d(0.5)
-
         self.mid_conv1 = nn.Conv2d(512, 1024, 3, padding=1)
         self.mid_conv2 = nn.Conv2d(1024, 1024, 3, padding=1)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout2d(0.5)
-
-        # load mid_conv weights
-        if model_dir_path:
-            self.mid_conv1.weight = torch.nn.Parameter(torch.Tensor(model_dict['mid_conv1'].transpose(3, 2, 1, 0)))
-            self.mid_conv1.bias = torch.nn.Parameter(torch.Tensor(model_dict['mid_conv1_b'][:,:,:].flatten()))
-            self.mid_conv2.weight = torch.nn.Parameter(torch.Tensor(model_dict['mid_conv2'].transpose(3, 2, 1, 0)))
-            self.mid_conv2.bias = torch.nn.Parameter(torch.Tensor(model_dict['mid_conv2_b']).view(-1))
-
-
-        # create decoders and load pretrained weights
-        if model_dir_path:
-            self.decoder_1 = UNet_up_block(512, 1024, 512, [model_dict['d1tc'], model_dict['d1tc_b'],
-                                                            model_dict['d1c1'], model_dict['d1c1_b'],
-                                                            model_dict['d1c2'], model_dict['d1c2_b']])
-            self.decoder_2 = UNet_up_block(256, 512, 256, [model_dict['d2tc'], model_dict['d2tc_b'],
-                                                           model_dict['d2c1'], model_dict['d2c1_b'],
-                                                           model_dict['d2c2'], model_dict['d2c2_b']])
-            self.decoder_3 = UNet_up_block(128, 256, 128, [model_dict['d3tc'], model_dict['d3tc_b'],
-                                                           model_dict['d3c1'], model_dict['d3c1_b'],
-                                                           model_dict['d3c2'], model_dict['d3c2_b']])
-            self.decoder_4 = UNet_up_block(64, 128, 64, [model_dict['d4tc'], model_dict['d4tc_b'],
-                                                         model_dict['d4c1'], model_dict['d4c1_b'],
-                                                         model_dict['d4c2'], model_dict['d4c2_b']])
-        else:
-            self.decoder_1 = UNet_up_block(512, 1024, 512, None)
-            self.decoder_2 = UNet_up_block(256, 512, 256, None)
-            self.decoder_3 = UNet_up_block(128, 256, 128, None)
-            self.decoder_4 = UNet_up_block(64, 128, 64, None)
-
+        self.decoder_1 = UNet_up_block(512, 1024, 512)
+        self.decoder_2 = UNet_up_block(256, 512, 256)
+        self.decoder_3 = UNet_up_block(128, 256, 128)
+        self.decoder_4 = UNet_up_block(64, 128, 64)
         self.last_conv = nn.Conv2d(64, num_classes, kernel_size=1)
         self.softmax = nn.Softmax(dim=1)
-
-        # load final_conv weights
-        if model_dir_path:
-            self.last_conv.weight = torch.nn.Parameter(torch.Tensor(model_dict['final_conv'].transpose(3, 2, 1, 0)))
-            self.last_conv.bias = torch.nn.Parameter(torch.Tensor(model_dict['final_conv_b']).view(-1))
         pass
 
     def forward(self, x):
@@ -285,11 +149,18 @@ def check_model_on_dataloader():
     #                                          'ESA_landcover_dataset/raw/pickled_data.pkl',
     #                           block_size=256, model_input_size=64, batch_size=16, num_workers=4)
 
-    loaders = get_dataloaders(images_path='dataset/full_test_site_2015.tif',
-                              bands=range(1, 14),
-                              labels_path='dataset/label_full_test_site.npy',
-                              save_data_path='dataset/pickled_data.pkl',
-                              block_size=256, model_input_size=64, batch_size=128, num_workers=8)
+    # loaders = get_dataloaders_generated_data(generated_data_path='/home/annus/PycharmProjects/'
+    #                                                              'ForestCoverChange_inputs_and_numerical_results/'
+    #                                                              'ESA_landcover_dataset/divided',
+    #                                          save_data_path='/home/annus/PycharmProjects/'
+    #                                                         'ForestCoverChange_inputs_and_numerical_results/'
+    #                                                         'ESA_landcover_dataset/generated_data.pkl',
+    #                                          block_size=256, model_input_size=64, batch_size=16, num_workers=8)
+
+    loaders = get_dataloaders_generated_data(generated_data_path='generated_dataset',
+                                             save_data_path='pickled_generated_datalist.pkl',
+                                             block_size=256, model_input_size=64, batch_size=128, num_workers=8)
+
 
     with torch.no_grad():
         train_dataloader, val_dataloader, test_dataloader = loaders
@@ -305,8 +176,20 @@ def check_model_on_dataloader():
 
 
 if __name__ == '__main__':
-    check_model_on_dataloader()
-    pass
+    # check_model_on_dataloader()
+    graph = models.vgg11(pretrained=True)
+    graph.eval()
+    graph_layers = list(graph.features)
+    for i, layer in enumerate(graph_layers):
+        print('{}.'.format(i), layer)
+
+    model = UNet(input_channels=13, num_classes=23)
+    model.eval()
+    print(model)
+    # with torch.no_grad():
+    #     summary(graph, input_size=(3, 64, 64))
+    #     summary(model, input_size=(13, 64, 64))
+    # pass
 
 
 

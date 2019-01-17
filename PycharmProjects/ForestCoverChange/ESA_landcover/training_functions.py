@@ -8,48 +8,47 @@ from torch.optim import *
 import torch.nn.functional as F
 from torch.nn.utils import clip_grad_norm_
 import torch.utils.model_zoo as model_zoo
-from dataset import get_dataloaders
+from dataset import get_dataloaders_generated_data
 import os
-import psutil
 import numpy as np
 import pickle as pkl
-import PIL.Image as Image
-from tensorboardX import SummaryWriter
 import itertools
 import matplotlib as mpl
-# mpl.use('Agg')
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
-from sklearn.metrics import confusion_matrix
 from torchnet.meter import ConfusionMeter as CM
-import seaborn as sn
-import pandas as pd
 
 
-def train_net(model, images, labels, block_size, input_dim, workers, pre_model, save_data, save_dir,
-              sum_dir, batch_size, lr, log_after, cuda, device):
-    print(model)
+def train_net(model, generated_data_path, images, labels, block_size, input_dim, workers, pre_model,
+              save_data, save_dir, sum_dir, batch_size, lr, epochs, log_after, cuda, device):
+    # print(model)
     if cuda:
-        print('GPU')
+        print('log: Using GPU')
         model.cuda(device=device)
     # define loss and optimizer
     optimizer = RMSprop(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()
-
     #### scheduler addition
     lr_final = 0.0000003
-    num_epochs = 500
-    LR_decay = (lr_final / lr) ** (1. / num_epochs)
+    LR_decay = (lr_final / lr) ** (1. / epochs)
     scheduler = lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=LR_decay)
 
-    loaders = get_dataloaders(images_path=images,
-                              bands=range(1,14),
-                              labels_path=labels,
-                              save_data_path=save_data,
-                              block_size=block_size,
-                              model_input_size=input_dim,
-                              batch_size=batch_size,
-                              num_workers=workers)
+    # loaders = get_dataloaders(images_path=images,
+    #                           bands=range(1,14),
+    #                           labels_path=labels,
+    #                           save_data_path=save_data,
+    #                           block_size=block_size,
+    #                           model_input_size=input_dim,
+    #                           batch_size=batch_size,
+    #                           num_workers=workers)
+
+    loaders = get_dataloaders_generated_data(generated_data_path=generated_data_path,
+                                             save_data_path=save_data,
+                                             block_size=block_size,
+                                             model_input_size=input_dim,
+                                             batch_size=batch_size,
+                                             num_workers=workers)
+
     train_loader, val_dataloader, test_loader = loaders
 
     if not os.path.exists(save_dir):
@@ -57,148 +56,80 @@ def train_net(model, images, labels, block_size, input_dim, workers, pre_model, 
     if not os.path.exists(sum_dir):
         os.mkdir(sum_dir)
     # writer = SummaryWriter()
-    if True:
-        i = 0
-        m_loss, m_accuracy = [], []
-        num_classes = 7
-        if pre_model:
-            # self.load_state_dict(torch.load(pre_model)['model'])
-            model.load_state_dict(torch.load(pre_model))
-            print('log: resumed model {} successfully!'.format(pre_model))
-            model_number = int(pre_model.split('/')[1].split('-')[1].split('.')[0])
-        else:
-            model_number = 0
-            print('log: starting anew...')
-        while True:
-            i += 1
-            net_loss = []
-            net_accuracy = []
-            if not pre_model:
-                save_path = os.path.join(save_dir, 'model-{}.pt'.format(i))
-            else:
-                save_path = os.path.join(save_dir, 'model-{}.pt'.format(i+model_number-1))
-            if i > 1 and not os.path.exists(save_path):
-                torch.save(model.state_dict(), save_path)
-                # remember to save only five previous models, so
-                del_this = os.path.join(save_dir, 'model-{}.pt'.format(i+model_number-6))
-                if os.path.exists(del_this):
-                    os.remove(del_this)
-                    print('log: removed {}'.format(del_this))
-                print('log: saved {}'.format(save_path))
-            list_of_pred = []
-            list_of_labels = []
-            for idx, data in enumerate(train_loader):
-                ##########################
-                model.train()
-                ##########################
-                test_x, label = data['input'], data['label']
-                # image0 = test_x[0]
-                test_x = test_x.cuda(device=device) if cuda else test_x
-                size = test_x.size(-1)
-                # forward
-                out_x, softmaxed = model.forward(test_x)
-                pred = torch.argmax(softmaxed, dim=1)
-                pred = pred.cpu()
-                out_x = out_x.cpu()
-                image1 = pred[0]
-                image2 = label[0]
-                show_image = (test_x[0].cpu().numpy()).transpose(1, 2, 0)
-                show_image = np.asarray(255*(show_image[:,:,[4,3,2]]/4096.0).clip(0,1), dtype=np.uint8)
+    if pre_model:
+        model_number = pre_model
+        model_path = os.path.join(save_dir, 'model-{}.pt'.format(pre_model))
+        model.load_state_dict(torch.load(model_path))
+        print('log: Resuming from model {} ...'.format(pre_model))
+    else:
+        model_number = 0
+        print('log: No trained model passed. Starting from scratch...')
+        model_path = os.path.join(save_dir, 'model-{}.pt'.format(model_number))
 
-                # if idx % (len(train_loader)/2) == 0:
-                #     writer.add_image('input', show_image, i)
-                #     writer.add_image('pred', image1, i)
-                #     writer.add_image('label', image2, i)
+    ###############################################################################
+    # training loop
+    for k in range(epochs):
+        net_loss = []
+        net_accuracy = []
+        model_path = os.path.join(save_dir, 'model-{}.pt'.format(model_number))
+        if not os.path.exists(model_path):
+            torch.save(model.state_dict(), model_path)
+            # remember to save only five previous models, so
+            del_this = os.path.join(save_dir, 'model-{}.pt'.format(model_number-6))
+            if os.path.exists(del_this):
+                os.remove(del_this)
+                print('log: removed {}'.format(del_this))
+            print('log: saved {}'.format(model_path))
 
-                try:
-                    loss = criterion(out_x, label)
-                except:
-                    print(np.unique(pred), np.unique(label))
+        for idx, data in enumerate(train_loader):
+            model.train()
+            test_x, label = data['input'], data['label']
+            test_x = test_x.cuda(device=device) if cuda else test_x
+            label = label.cuda(device=device) if cuda else label
+            dimension = test_x.size(-1)
+            out_x, softmaxed = model.forward(test_x)
+            pred = torch.argmax(softmaxed, dim=1)
+            # pred = pred.cpu()
+            # out_x = out_x.cpu()
+            loss = criterion(out_x, label)
+            accurate = (pred == label).sum()
 
-                # get accuracy metric
-                accurate = (pred == label).sum()
-                # also convert into np arrays to be used for confusion matrix
-                pred_np = pred.numpy(); list_of_pred.append(pred_np)
-                label_np = label.numpy(); list_of_labels.append(label_np)
+            numerator = accurate
+            denominator = test_x.size(0) * dimension ** 2
+            accuracy = numerator * 100 / denominator
+            if idx % log_after == 0 and idx > 0:
+                print('{}. ({}/{}) output size = {}, loss = {}, '
+                      'accuracy = {}/{} = {:.2f}%'.format(k,
+                                                          idx,
+                                                          len(train_loader),
+                                                          out_x.size(),
+                                                          loss.item(),
+                                                          numerator,
+                                                          denominator,
+                                                          accuracy))
+            #################################
+            # three steps for backprop
+            model.zero_grad()
+            loss.backward()
+            # perform gradient clipping between loss backward and optimizer step
+            clip_grad_norm_(model.parameters(), 0.05)
+            optimizer.step()
+            net_accuracy.append(accuracy)
+            net_loss.append(loss.item())
+            #################################
 
-                # writer.add_scalar(tag='loss', scalar_value=loss.item(), global_step=i)
-                # writer.add_scalar(tag='over_all accuracy',
-                #                   scalar_value=accurate*100/(test_x.size(0)*size**2),
-                #                   global_step=i)
+        # this should be done at the end of epoch only
+        scheduler.step()  # to dynamically change the learning rate
+        mean_accuracy = np.asarray(net_accuracy).mean()
+        mean_loss = np.asarray(net_loss).mean()
+        print('####################################')
+        print('LOG: epoch {} -> total loss = {:.5f}, total accuracy = {:.5f}%'.format(k, mean_loss, mean_accuracy))
+        print('####################################')
 
-                # # per class accuracies
-                # avg = []
-                # for j in range(num_classes):
-                #     class_pred = (pred == j)
-                #     class_label = (label == j)
-                #     class_accuracy = (class_pred == class_label).sum()
-                #     class_accuracy = class_accuracy * 100 / (test_x.size(0) * size ** 2)
-                #     avg.append(class_accuracy)
-                #     writer.add_scalar(tag='class_{} accuracy'.format(j), scalar_value=class_accuracy, global_step=i)
-                # classes_avg_acc = np.asarray(avg).mean()
-                # writer.add_scalar(tag='classes avg. accuracy', scalar_value=classes_avg_acc, global_step=i)
-
-                if idx % log_after == 0 and idx > 0:
-                    numerator = accurate
-                    denominator = test_x.size(0)*size**2
-                    # proc = psutil.Process()
-                    # print(proc.open_files())
-                    print('{}. ({}/{}) image size = {}, loss = {}, '
-                          'accuracy = {}/{} = {:.2f}%'.format(i,
-                                                              idx,
-                                                              len(train_loader),
-                                                              out_x.size(),
-                                                              loss.item(),
-                                                              numerator,
-                                                              denominator,
-                                                              100*numerator/denominator))
-                #################################
-                # three steps for backprop
-                model.zero_grad()
-                loss.backward()
-                # perform gradient clipping between loss backward and optimizer step
-                clip_grad_norm_(model.parameters(), 0.05)
-                optimizer.step()
-                accuracy = accurate * 100 / (test_x.size(0)*size**2)
-                net_accuracy.append(accuracy)
-                net_loss.append(loss.item())
-                #################################
-            # this should be done at the end of epoch only
-            scheduler.step()  # to dynamically change the learning rate
-            mean_accuracy = np.asarray(net_accuracy).mean()
-            mean_loss = np.asarray(net_loss).mean()
-            m_loss.append((i, mean_loss))
-            m_accuracy.append((i, mean_accuracy))
-            print('####################################')
-            print('epoch {} -> total loss = {:.5f}, total accuracy = {:.5f}%'.format(i, mean_loss, mean_accuracy))
-            print('####################################')
-
-            # # one epoch complete, get new confusion matrix!
-            # cm_preds = np.vstack(list_of_pred)
-            # cm_preds = cm_preds.reshape(-1)
-            # cm_labels = np.vstack(list_of_labels)
-            # cm_labels = cm_labels.reshape(-1)
-            # cnf_matrix = confusion_matrix(cm_labels, cm_preds)
-            # fig1 = plt.figure()
-            # plot_confusion_matrix(cnf_matrix, classes=class_names,
-            #                       title='Confusion matrix, without normalization')
-            # # Plot normalized confusion matrix
-            # fig2 = plt.figure()
-            # plot_confusion_matrix(cnf_matrix, classes=class_names, normalize=True,
-            #                       title='Normalized confusion matrix')
-            # get1 = np.asarray(fig2img(fig1))
-            # get2 = np.asarray(fig2img(fig2))
-            # # print(get1.size)
-
-
-            # validate model
-            # if i % 10 == 0:
-            eval_net(model=model, criterion=criterion, val_loader=val_dataloader,
-                     denominator=batch_size * size**2, cuda=cuda, device=device,
-                     writer=None, num_classes=num_classes, batch_size=batch_size, step=i)
-    # writer.export_scalars_to_json("./all_scalars.json")
-    # writer.close()
-
+        # validate model
+        print('log: Evaluating now...')
+        eval_net(model=model, criterion=criterion, val_loader=val_dataloader, denominator=batch_size*dimension**2,
+                 cuda=cuda, device=device, writer=None, batch_size=batch_size, step=k)
     pass
 
 
@@ -207,15 +138,10 @@ def eval_net(**kwargs):
     device = kwargs['device']
     model = kwargs['model']
     model.eval()
-
     if cuda:
         model.cuda(device=device)
     if 'writer' in kwargs.keys():
-        num_classes = kwargs['num_classes']
-        batch_size = kwargs['batch_size']
-        # writer = kwargs['writer']
-        step = kwargs['step']
-        denominator = kwargs['denominator']
+        # it means this is evaluation at training time
         val_loader = kwargs['val_loader']
         model = kwargs['model']
         criterion = kwargs['criterion']
@@ -223,35 +149,22 @@ def eval_net(**kwargs):
         for idx, data in enumerate(val_loader):
             test_x, label = data['input'], data['label']
             test_x = test_x.cuda() if cuda else test_x
-            # forward
-            out_x, pred = model.forward(test_x)
-            pred = pred.cpu()
-            loss = criterion(out_x.cpu(), label)
-            # get accuracy metric
+            label = label.cuda() if cuda else label
+            out_x, softmaxed = model.forward(test_x)
+            pred = torch.argmax(softmaxed, dim=1)
+            # pred = pred.cpu()
+            loss = criterion(out_x, label)
             accuracy = (pred == label).sum()
             accuracy = accuracy * 100 / (test_x.size(0)*64**2)
             net_accuracy.append(accuracy)
             net_loss.append(loss.item())
-
-            # per class accuracies
-            # avg = []
-            # for j in range(num_classes):
-            #     class_pred = (pred == j)
-            #     class_label = (label == j)
-            #     class_accuracy = (class_pred == class_label).sum()
-            #     class_accuracy = class_accuracy * 100 / (batch_size * 32 ** 2)
-            #     avg.append(class_accuracy)
-            #     writer.add_scalar(tag='class_{} accuracy'.format(j), scalar_value=class_accuracy, global_step=step)
-            # classes_avg_acc = np.asarray(avg).mean()
-            # writer.add_scalar(tag='classes avg. accuracy', scalar_value=classes_avg_acc, global_step=step)
-
             #################################
         mean_accuracy = np.asarray(net_accuracy).mean()
         mean_loss = np.asarray(net_loss).mean()
         # writer.add_scalar(tag='eval accuracy', scalar_value=mean_accuracy, global_step=step)
         # writer.add_scalar(tag='eval loss', scalar_value=mean_loss, global_step=step)
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
-        print('log: validation:: total loss = {:.5f}, total accuracy = {:.5f}%'.format(mean_loss, mean_accuracy))
+        print('LOG: validation:: total loss = {:.5f}, total accuracy = {:.5f}%'.format(mean_loss, mean_accuracy))
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
 
     else:
