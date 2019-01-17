@@ -258,20 +258,65 @@ class UNet(nn.Module):
         return x, self.softmax(x) # the final vector and the corresponding softmaxed prediction
 
 
-@torch.no_grad()
+# @torch.no_grad()
 def check_model():
     model = UNet(input_channels=13, num_classes=22)
     model.eval()
     in_tensor = torch.Tensor(16, 13, 64, 64)
-    out_tensor, softmaxed = model(in_tensor)
-    print(out_tensor.shape, softmaxed.shape)
-    print(torch.argmax(softmaxed, dim=1)[0,:,:])
+    with torch.no_grad():
+        out_tensor, softmaxed = model(in_tensor)
+        print(out_tensor.shape, softmaxed.shape)
+        print(torch.argmax(softmaxed, dim=1)[0,:,:])
+    pass
+
+
+# @torch.no_grad()
+def check_model_on_dataloader():
+    model = UNet(input_channels=13, num_classes=22)
+    model.eval()
+    model.cuda(device=0)
+
+    # loaders = get_dataloaders(images_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+    #                                       'ESA_landcover_dataset/raw/full_test_site_2015.tif',
+    #                           bands=range(1,14),
+    #                           labels_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+    #                                       'ESA_landcover_dataset/raw/label_full_test_site.npy',
+    #                           save_data_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+    #                                          'ESA_landcover_dataset/raw/pickled_data.pkl',
+    #                           block_size=256, model_input_size=64, batch_size=16, num_workers=4)
+
+    loaders = get_dataloaders(images_path='dataset/full_test_site_2015.tif',
+                              bands=range(1, 14),
+                              labels_path='dataset/label_full_test_site.npy',
+                              save_data_path='dataset/pickled_data.pkl',
+                              block_size=256, model_input_size=64, batch_size=128, num_workers=8)
+
+    with torch.no_grad():
+        train_dataloader, val_dataloader, test_dataloader = loaders
+        for idx, data in enumerate(train_dataloader):
+            examples, labels = data['input'], data['label']
+            examples = examples.cuda(device=0)
+            print('-> on batch {}/{}, {}'.format(idx + 1, len(train_dataloader), examples.size()))
+            out_tensor, prediction = model(examples)
+            print(examples.shape, labels.shape, out_tensor.shape,
+                  prediction.shape, torch.argmax(prediction, dim=1)[0,:,:].shape)
+
     pass
 
 
 if __name__ == '__main__':
-    check_model()
+    check_model_on_dataloader()
     pass
+
+
+
+
+
+
+
+
+
+
 
 
 

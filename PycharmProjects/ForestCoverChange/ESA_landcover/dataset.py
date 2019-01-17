@@ -192,10 +192,10 @@ def convert_labels(label_im):
     return label_im
 
 
-def fix(target_image):
+def fix(target_image, total_labels):
     # 6 is the noise class, generated during augmentation
-    target_image[target_image < 0] = 6
-    target_image[target_image > 5] = 6
+    target_image[target_image < 0] = 0
+    target_image[target_image > total_labels] = 0
     return target_image
 
 
@@ -210,10 +210,10 @@ def toTensor(**kwargs):
 
 
 def get_dataloaders(images_path, bands, labels_path, save_data_path, block_size=256, model_input_size=64,
-                    train_split=0.8, batch_size=16, num_workers=4):
+                    train_split=0.8, batch_size=16, num_workers=4, max_label=22):
     print('inside dataloading code...')
     class dataset(Dataset):
-        def __init__(self, data_list, image_ds, label_image, mode='train'):
+        def __init__(self, data_list, image_path, label_image, mode='train'):
             '''
             :param data_list: list of all
             :param raster_bands: raster bands list of examples image
@@ -224,8 +224,9 @@ def get_dataloaders(images_path, bands, labels_path, save_data_path, block_size=
             '''
             super(dataset, self).__init__()
             self.data_list = data_list
-            self.image_ds = image_ds
-            self.raster_bands = [self.image_ds.GetRasterBand(x) for x in bands]
+            self.image_path = image_path
+            # self.image_ds = gdal.Open(images_path)
+            # self.raster_bands = [self.image_ds.GetRasterBand(x) for x in bands]
             self.block_size = block_size
             self.label_image = label_image
             self.model_input_size = model_input_size
@@ -237,13 +238,15 @@ def get_dataloaders(images_path, bands, labels_path, save_data_path, block_size=
             pass
 
         def __getitem__(self, k):
+            image_ds = gdal.Open(self.image_path)
+            raster_bands = [image_ds.GetRasterBand(x) for x in bands]
             if self.mode == 'test':
                 # 1. find out which image subset is it and then crop out that area first
                 # no augmentation here, just stride-wise cropping out subset images
                 this_block = int(k/self.images_per_dimension**2)
                 _, example_indices, label_indices = self.data_list[this_block]
-                this_example = np.nan_to_num(self.raster_bands[0].ReadAsArray(*example_indices))
-                for band in self.raster_bands[1:]:
+                this_example = np.nan_to_num(raster_bands[0].ReadAsArray(*example_indices))
+                for band in raster_bands[1:]:
                     this_example = np.dstack((this_example, np.nan_to_num(band.ReadAsArray(*example_indices))))
                 this_label = self.label_image[label_indices[0]:label_indices[1], label_indices[2]:label_indices[3]]
 
@@ -256,7 +259,7 @@ def get_dataloaders(images_path, bands, labels_path, save_data_path, block_size=
                                                     this_col*self.model_input_size:(this_col+1)*self.model_input_size,:]
                 this_label_subset = this_label[this_row*self.model_input_size:(this_row+1)*self.model_input_size,
                                                 this_col*self.model_input_size:(this_col+1)*self.model_input_size]
-                this_label_subset = convert_labels(this_label_subset)
+                this_label_subset = fix(convert_labels(this_label_subset), total_labels=max_label)
 
                 # image_subset = np.asarray(255*(this_example_subset[:,:,[4,3,2]]/4096.0).clip(0, 1), dtype=np.uint8)
                 # pl.subplot(1, 2, 1)
@@ -265,6 +268,7 @@ def get_dataloaders(images_path, bands, labels_path, save_data_path, block_size=
                 # pl.imshow(this_label_subset)
                 # pl.show()
                 this_example_subset, this_label_subset = toTensor(image=this_example_subset, label=this_label_subset)
+                image_ds = None
                 return {'input': this_example_subset, 'label': this_label_subset}
 
             elif self.mode == 'train':
@@ -273,8 +277,8 @@ def get_dataloaders(images_path, bands, labels_path, save_data_path, block_size=
                 _, example_indices, label_indices = self.data_list[subset_image_index]
 
                 # 1. get the whole training block first
-                this_example = np.nan_to_num(self.raster_bands[0].ReadAsArray(*example_indices))
-                for band in self.raster_bands[1:]:
+                this_example = np.nan_to_num(raster_bands[0].ReadAsArray(*example_indices))
+                for band in raster_bands[1:]:
                     this_example = np.dstack((this_example, np.nan_to_num(band.ReadAsArray(*example_indices))))
 
                 this_label = self.label_image[label_indices[0]:label_indices[1], label_indices[2]:label_indices[3]]
@@ -284,7 +288,7 @@ def get_dataloaders(images_path, bands, labels_path, save_data_path, block_size=
                 this_example_subset, this_label_subset = crop_and_rotate(image=this_example, label=this_label,
                                                                          first_crop_size=block_size//2,
                                                                          model_input_size=model_input_size)
-                this_label_subset = this_label_subset[:,:,0]
+                this_label_subset = fix(this_label_subset[:,:,0], total_labels=max_label)
 
                 # image_subset = np.asarray(255*(this_example_subset[:,:,[4,3,2]]/4096.0).clip(0, 1), dtype=np.uint8)
                 # pl.subplot(1, 2, 1)
@@ -294,12 +298,14 @@ def get_dataloaders(images_path, bands, labels_path, save_data_path, block_size=
                 # pl.show()
 
                 this_example_subset, this_label_subset = toTensor(image=this_example_subset, label=this_label_subset)
+                image_ds = None
                 return {'input': this_example_subset, 'label': this_label_subset}
             else:
+                image_ds = None
                 return -1
 
         def __len__(self):
-            return 25*self.total_images if self.mode == 'train' else self.total_images
+            return self.total_images if self.mode == 'train' else self.total_images
     ######################################################################################
     # generate training and testing lists here
     error_pixels = 50  # add this to remove the error pixels at the boundary of the test image
@@ -352,9 +358,9 @@ def get_dataloaders(images_path, bands, labels_path, save_data_path, block_size=
 
     # create dataset class instances
     # images_per_image means approx. how many images are in each example
-    train_data = dataset(data_list=train_list, image_ds=image_ds, label_image=re_label, mode='train')
-    eval_data = dataset(data_list=eval_list, image_ds=image_ds, label_image=re_label, mode='test')
-    test_data = dataset(data_list=test_list, image_ds=image_ds, label_image=re_label, mode='test')
+    train_data = dataset(data_list=train_list, image_path=images_path, label_image=re_label, mode='train')
+    eval_data = dataset(data_list=eval_list, image_path=images_path, label_image=re_label, mode='test')
+    test_data = dataset(data_list=test_list, image_path=images_path, label_image=re_label, mode='test')
 
     # for j in range(10):
     #     print(train_data[j])
@@ -371,20 +377,20 @@ def get_dataloaders(images_path, bands, labels_path, save_data_path, block_size=
 
 
 def main():
-    loaders = get_dataloaders(images_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-                                          'ESA_landcover_dataset/raw/full_test_site_2015.tif',
-                              bands=range(1,14),
-                              labels_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-                                          'ESA_landcover_dataset/raw/label_full_test_site.npy',
-                              save_data_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-                                             'ESA_landcover_dataset/raw/pickled_data.pkl',
-                              block_size=256, model_input_size=64, batch_size=16, num_workers=0)
-
-    # loaders = get_dataloaders(images_path='dataset/full_test_site_2015.tif',
+    # loaders = get_dataloaders(images_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+    #                                       'ESA_landcover_dataset/raw/full_test_site_2015.tif',
     #                           bands=range(1,14),
-    #                           labels_path='dataset/label_full_test_site.npy',
-    #                           save_data_path='dataset/pickled_data.pkl',
-    #                           block_size=256, model_input_size=64, batch_size=16, num_workers=0)
+    #                           labels_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+    #                                       'ESA_landcover_dataset/raw/label_full_test_site.npy',
+    #                           save_data_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+    #                                          'ESA_landcover_dataset/raw/pickled_data.pkl',
+    #                           block_size=256, model_input_size=64, batch_size=16, num_workers=4)
+
+    loaders = get_dataloaders(images_path='dataset/full_test_site_2015.tif',
+                              bands=range(1,14),
+                              labels_path='dataset/label_full_test_site.npy',
+                              save_data_path='dataset/pickled_data.pkl',
+                              block_size=256, model_input_size=64, batch_size=16, num_workers=6)
 
     train_dataloader, val_dataloader, test_dataloader = loaders
     for idx, data in enumerate(train_dataloader):
@@ -396,11 +402,11 @@ def main():
             that = labels[0].numpy().astype(np.uint8)
             # print()
             print(this.shape, that.shape, np.unique(that))
-            pl.subplot(121)
-            pl.imshow(this)
-            pl.subplot(122)
-            pl.imshow(that)
-            pl.show()
+            # pl.subplot(121)
+            # pl.imshow(this)
+            # pl.subplot(122)
+            # pl.imshow(that)
+            # pl.show()
 
 
 if __name__ == '__main__':
