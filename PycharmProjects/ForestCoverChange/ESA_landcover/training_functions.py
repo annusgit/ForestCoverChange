@@ -56,30 +56,29 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
     if not os.path.exists(sum_dir):
         os.mkdir(sum_dir)
     # writer = SummaryWriter()
-    if pre_model:
+    if pre_model == -1:
+        model_number = 0
+        print('log: No trained model passed. Starting from scratch...')
+        # model_path = os.path.join(save_dir, 'model-{}.pt'.format(model_number))
+    else:
         model_number = pre_model
         model_path = os.path.join(save_dir, 'model-{}.pt'.format(pre_model))
         model.load_state_dict(torch.load(model_path))
-        print('log: Resuming from model {} ...'.format(pre_model))
-    else:
-        model_number = 0
-        print('log: No trained model passed. Starting from scratch...')
-        model_path = os.path.join(save_dir, 'model-{}.pt'.format(model_number))
-
+        print('log: Resuming from model {} ...'.format(model_path))
     ###############################################################################
     # training loop
     for k in range(epochs):
         net_loss = []
         net_accuracy = []
-        model_path = os.path.join(save_dir, 'model-{}.pt'.format(model_number))
+        model_path = os.path.join(save_dir, 'model-{}.pt'.format(model_number+k))
         if not os.path.exists(model_path):
             torch.save(model.state_dict(), model_path)
+            print('log: saved {}'.format(model_path))
             # remember to save only five previous models, so
-            del_this = os.path.join(save_dir, 'model-{}.pt'.format(model_number-6))
+            del_this = os.path.join(save_dir, 'model-{}.pt'.format(model_number+k-6))
             if os.path.exists(del_this):
                 os.remove(del_this)
                 print('log: removed {}'.format(del_this))
-            print('log: saved {}'.format(model_path))
 
         for idx, data in enumerate(train_loader):
             model.train()
@@ -95,8 +94,8 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
             accurate = (pred == label).sum()
 
             numerator = accurate
-            denominator = test_x.size(0) * dimension ** 2
-            accuracy = numerator * 100 / denominator
+            denominator = float(test_x.size(0)*dimension**2)
+            accuracy = float(numerator)*100/denominator
             if idx % log_after == 0 and idx > 0:
                 print('{}. ({}/{}) output size = {}, loss = {}, '
                       'accuracy = {}/{} = {:.2f}%'.format(k,

@@ -25,15 +25,22 @@ plt.switch_backend('agg')
 from torchsummary import summary
 from torchvision import models
 
+# for getting pretrained layers from a vgg
+matching_layers = [3, 6, 8, 11, 13, 16, 18]
+
 
 class UNet_down_block(nn.Module):
     """
         Encoder class
     """
-    def __init__(self, input_channel, output_channel):
+    def __init__(self, input_channel, output_channel, conv_1=None, conv_2=None):
         super(UNet_down_block, self).__init__()
-        self.conv1 = nn.Conv2d(input_channel, output_channel, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(output_channel, output_channel, kernel_size=3, padding=1)
+        if conv_1:
+            print('pretrained', conv_1)
+        if conv_2:
+            print('pretrained', conv_2)
+        self.conv1 = conv_1 if conv_1 else nn.Conv2d(input_channel, output_channel, kernel_size=3, padding=1)
+        self.conv2 = conv_2 if conv_2 else nn.Conv2d(output_channel, output_channel, kernel_size=3, padding=1)
         self.bn1 = nn.BatchNorm2d(num_features=output_channel)
         self.bn2 = nn.BatchNorm2d(num_features=output_channel)
         self.relu = nn.ReLU()
@@ -68,20 +75,15 @@ class UNet_up_block(nn.Module):
 
 class UNet(nn.Module):
 
-    def __init__(self, input_channels, num_classes, model_dir_path=None):
+    def __init__(self, input_channels, num_classes):
         super(UNet, self).__init__()
-        if model_dir_path:
-            # start by loading the pretrained weights from model_dict saved earlier
-            with open(model_dir_path, 'rb') as handle:
-                model_dict = pkl.load(handle)
-                print('log: loaded saved model dictionary')
-            print('total number of weights to be loaded into pytorch model =', len(model_dict.keys()))
-
+        VGG = models.vgg11(pretrained=True)
+        pretrained_layers = list(VGG.features)
         self.bn_init = nn.BatchNorm2d(num_features=input_channels)
         self.encoder_1 = UNet_down_block(input_channels, 64)
-        self.encoder_2 = UNet_down_block(64, 128)
-        self.encoder_3 = UNet_down_block(128, 256)
-        self.encoder_4 = UNet_down_block(256, 512)
+        self.encoder_2 = UNet_down_block(64, 128, conv_1=pretrained_layers[3])
+        self.encoder_3 = UNet_down_block(128, 256, conv_1=pretrained_layers[6], conv_2=pretrained_layers[8])
+        self.encoder_4 = UNet_down_block(256, 512, conv_1=pretrained_layers[11], conv_2=pretrained_layers[13])
         self.max_pool = nn.MaxPool2d(2, 2)
         self.dropout = nn.Dropout2d(0.5)
         self.mid_conv1 = nn.Conv2d(512, 1024, 3, padding=1)
@@ -118,7 +120,7 @@ class UNet(nn.Module):
         x = self.decoder_3(self.x2_cat, x)
         x = self.decoder_4(self.x1_cat, x)
         x = self.last_conv(x)
-        return x, self.softmax(x) # the final vector and the corresponding softmaxed prediction
+        return x, self.softmax(x)  # the final vector and the corresponding softmaxed prediction
 
 
 # @torch.no_grad()
@@ -174,37 +176,46 @@ def check_model_on_dataloader():
     pass
 
 
-def see_children_recursively(graph):
+def see_children_recursively(graph, layer=None):
     further = False
     children = list(graph.children())
     for child in children:
         further = True
-        see_children_recursively(child)
-    if not further and isinstance(graph, nn.Conv2d):
-        print(graph)
+        if layer:
+            see_children_recursively(child, layer)
+        else:
+            see_children_recursively(child)
+    if layer:
+        if not further and isinstance(graph, layer):
+            print(graph)
+    else:
+        if not further:
+            print(graph)
+    # matching_pairs.append((graph.in_channels, graph.out_channels))
 
 
 if __name__ == '__main__':
-    # check_model_on_dataloader()
-    VGG = models.vgg11(pretrained=True)
-    VGG.eval()
-    feature_layers = list(VGG.features)
-    classifier_layers = list(VGG.classifier)
-    # for i, layer in enumerate(feature_layers):
-    #     print('{}.'.format(i), layer)
-    # for i, layer in enumerate(classifier_layers):
-    #     print('{}.'.format(i), layer)
-
-    model = UNet(input_channels=13, num_classes=23)
-    model.eval()
-
-    see_children_recursively(graph=VGG)
-    print('\n\n\n')
-    see_children_recursively(graph=model)
-    # print(model)
-    # with torch.no_grad():
-    #     summary(graph, input_size=(3, 228, 228))
-    #     summary(model, input_size=(13, 64, 64))
+    check_model_on_dataloader()
+    # VGG = models.vgg11(pretrained=True)
+    # VGG.eval()
+    # feature_layers = list(VGG.features)
+    # classifier_layers = list(VGG.classifier)
+    # # for i, layer in enumerate(feature_layers):
+    # #     print('{}.'.format(i), layer)
+    # # for i, layer in enumerate(classifier_layers):
+    # #     print('{}.'.format(i), layer)
+    #
+    # model = UNet(input_channels=13, num_classes=23)
+    # model.eval()
+    #
+    # see_children_recursively(graph=VGG)
+    # print('\n\n\n')
+    # see_children_recursively(graph=model, layer=nn.Conv2d)
+    # # print(matching_pairs)
+    # # print(model)
+    # # with torch.no_grad():
+    # #     summary(graph, input_size=(3, 228, 228))
+    # #     summary(model, input_size=(13, 64, 64))
     pass
 
 

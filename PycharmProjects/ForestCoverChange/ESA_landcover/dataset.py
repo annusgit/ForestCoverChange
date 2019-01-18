@@ -490,7 +490,7 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, block_si
 
         def __len__(self):
             # x25 for training images because of augmentation
-            return self.total_images if self.mode == 'train' else self.total_images
+            return 25*self.total_images if self.mode == 'train' else self.total_images
     ######################################################################################
 
 
