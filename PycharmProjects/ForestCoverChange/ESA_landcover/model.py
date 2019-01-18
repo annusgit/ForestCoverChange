@@ -70,7 +70,6 @@ class UNet(nn.Module):
 
     def __init__(self, input_channels, num_classes, model_dir_path=None):
         super(UNet, self).__init__()
-        model_dict = None
         if model_dir_path:
             # start by loading the pretrained weights from model_dict saved earlier
             with open(model_dir_path, 'rb') as handle:
@@ -175,21 +174,38 @@ def check_model_on_dataloader():
     pass
 
 
+def see_children_recursively(graph):
+    further = False
+    children = list(graph.children())
+    for child in children:
+        further = True
+        see_children_recursively(child)
+    if not further and isinstance(graph, nn.Conv2d):
+        print(graph)
+
+
 if __name__ == '__main__':
     # check_model_on_dataloader()
-    graph = models.vgg11(pretrained=True)
-    graph.eval()
-    graph_layers = list(graph.features)
-    for i, layer in enumerate(graph_layers):
-        print('{}.'.format(i), layer)
+    VGG = models.vgg11(pretrained=True)
+    VGG.eval()
+    feature_layers = list(VGG.features)
+    classifier_layers = list(VGG.classifier)
+    # for i, layer in enumerate(feature_layers):
+    #     print('{}.'.format(i), layer)
+    # for i, layer in enumerate(classifier_layers):
+    #     print('{}.'.format(i), layer)
 
     model = UNet(input_channels=13, num_classes=23)
     model.eval()
-    print(model)
+
+    see_children_recursively(graph=VGG)
+    print('\n\n\n')
+    see_children_recursively(graph=model)
+    # print(model)
     # with torch.no_grad():
-    #     summary(graph, input_size=(3, 64, 64))
+    #     summary(graph, input_size=(3, 228, 228))
     #     summary(model, input_size=(13, 64, 64))
-    # pass
+    pass
 
 
 
