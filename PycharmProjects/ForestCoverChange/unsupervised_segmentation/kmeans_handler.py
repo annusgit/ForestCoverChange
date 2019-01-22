@@ -8,7 +8,7 @@
 from __future__ import print_function, division
 import os
 import random
-from scipy import ndimage
+from scipy import ndimage, misc
 from k_means import *
 import matplotlib.pyplot as pl
 import torch
@@ -20,12 +20,93 @@ from model import MODEL
 
 color_mapping = {0: (255,0,0), 1: (0,255,0), 2: (0,0,255), 3: (255,255,0), 4:(0,255,255)}
 
+all_coordinates = {
+    'reduced_region_1': [[35.197641666672425, 71.72240936837943],
+                         [33.85074243704372, 71.71160207097978],
+                         [33.850742431378535, 73.45671012555636],
+                         [35.20666927156783, 73.44590446052473]],
+    'reduced_region_2': [[33.85103422591486, 71.71322076522074],
+                         [32.48625596915296, 71.68572000739414],
+                         [32.490880463032994, 73.48098348625706],
+                         [33.84190120007257, 73.46449281249886]],
+    'reduced_region_3': [[33.814697704520704, 69.92654032072937],
+                         [32.480979689325956, 69.89907450041687],
+                         [32.47171147795466, 71.64590067229187],
+                         [33.80556931756046, 71.64590067229187]],
+    'reduced_region_4': [[33.829815338339664, 73.52583857548143],
+                         [32.491695768256115, 73.51485224735643],
+                         [32.505594640301354, 75.05293818485643],
+                         [33.825252073333274, 75.03096552860643]],
+    'reduced_region_5': [[32.411916100234734, 69.54339120061195],
+                         [30.972378337165992, 69.51043221623695],
+                         [30.972378337166045, 71.29021737248695],
+                         [32.38872602390184, 71.30120370061195]],
+    'reduced_region_6': [[32.38872602390184, 71.36162850529945],
+                         [30.972378337165992, 71.37261483342445],
+                         [30.995925051879148, 73.00408455998695],
+                         [32.407278561516435, 72.98760506779945]],
+    'reduced_region_7': [[32.407278561516435, 73.05352303654945],
+                         [31.010050291052025, 73.06450936467445],
+                         [31.024173437313156, 74.65752694279945],
+                         [32.40727856151646, 74.64104745061195]]
+}
+
+
+def convert_lat_lon_to_xy(ds, coordinates):
+    lon_in, lat_in = coordinates
+    xoffset, px_w, rot1, yoffset, rot2, px_h = ds.GetGeoTransform()
+    x = int((lat_in-xoffset)/px_w)
+    y = int((lon_in-yoffset)/px_h)
+    return x, y
+
+
 def combine_bands(mapped_bands_list, coordinates):
     r, r_, c, c_ = coordinates
     full_array = mapped_bands_list[0][r:r_, c:c_]
     for k in range(1,13):
         full_array = np.dstack((full_array, mapped_bands_list[k][r:r_, c:c_]))
     return full_array
+
+
+def get_combination(example, bands):
+    example_array = np.nan_to_num(example.GetRasterBand(bands[0]).ReadAsArray())
+    example_array = misc.imresize(example_array, (500, 500))
+    for i in bands[1:]:
+        next_band = np.nan_to_num(example.GetRasterBand(i).ReadAsArray())
+        next_band = misc.imresize(next_band, (500, 500))
+        example_array = np.dstack((example_array, next_band))
+    return example_array
+
+
+def simple_clustering(example_path):
+    n_clusters = 23
+    n_iterations = 1 #30
+    example = gdal.Open(example_path)
+    example_array = get_combination(example, bands=range(1,12))
+    samples_vec = example_array.reshape(-1, 11)
+    # print(samples_vec.shape)
+    kmeans = call_kmeans(samples_vec=samples_vec, n_clusters=n_clusters, n_iterations=n_iterations, pickle_file=None)
+    return kmeans
+
+
+def compare_cluster_with_label(example_path, label_path, this_region):
+    kmeans = simple_clustering(example_path=example_path)
+    clustered = kmeans.labels_.reshape(500, 500)
+    label_map = gdal.Open(label_path)
+    channel = label_map.GetRasterBand(1)
+    min_coords, _, max_coords, _ = all_coordinates[this_region]
+    min_x, min_y = convert_lat_lon_to_xy(ds=label_map, coordinates=min_coords)
+    max_x, max_y = convert_lat_lon_to_xy(ds=label_map, coordinates=max_coords)
+    label_image = channel.ReadAsArray(min_x, min_y, abs(max_x - min_x), abs(max_y - min_y))
+    label_image = misc.imresize(label_image, (500, 500))
+
+    pl.subplot(121)
+    pl.imshow(clustered)
+    pl.title('clustered image')
+    pl.subplot(122)
+    pl.imshow(label_image)
+    pl.title('true label')
+    pl.show()
 
 
 def run_clustering(example_path, clusters_save_path, look_at_images=False, normalize=True):
@@ -339,6 +420,16 @@ def cross_clustering_single_image(clusters_save_path, model_path):
 
 
 if __name__ == '__main__':
+    compare_cluster_with_label(example_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+                                            'reduced_landsat_images/reduced_landsat_images/2013/'
+                                            'reduced_regions_landsat_2013_5.tif',
+                               label_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+                                          'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2013-v2.0.7.tif',
+                               this_region='reduced_region_5')
+
+    # simple_clustering(example_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+    #                                'reduced_landsat_images/reduced_landsat_images/2013/reduced_regions_landsat_2013_2.tif')
+
     # run_clustering(example_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
     #                   'full-test-site-pakistan/numpy_sums/2018',
     #      clusters_save_path='/home/annus/Desktop/all_clustering_results/normalized/2018',
@@ -355,9 +446,9 @@ if __name__ == '__main__':
     #                         clusters_save_path='/home/annus/Desktop/all_clustering_results/normalized/2017',
     #                         model_path='/home/annus/Desktop/trained_signature_classifier_normalized_input/model-7.pt')
 
-    cross_clustering_single_image(clusters_save_path='/home/annus/Desktop/all_clustering_results/normalized/2018',
-                                  model_path='/home/annus/Desktop/trained_signature_classifier_normalized_input/'
-                                             'model-7.pt')
+    # cross_clustering_single_image(clusters_save_path='/home/annus/Desktop/all_clustering_results/normalized/2018',
+    #                               model_path='/home/annus/Desktop/trained_signature_classifier_normalized_input/'
+    #                                          'model-7.pt')
 
 
 ############################################################################################################
