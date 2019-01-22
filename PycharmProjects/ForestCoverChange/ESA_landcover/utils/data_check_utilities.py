@@ -19,7 +19,6 @@ import dipy.align.imwarp as imwarp
 from dipy.viz import regtools
 
 
-
 all_coordinates = {
     'reduced_region_1': [[35.197641666672425, 71.72240936837943],
                          [33.85074243704372, 71.71160207097978],
@@ -49,6 +48,17 @@ all_coordinates = {
                          [31.010050291052025, 73.06450936467445],
                          [31.024173437313156, 74.65752694279945],
                          [32.40727856151646, 74.64104745061195]]
+}
+
+
+offset = {
+    'reduced_region_1': [17, 10],
+    'reduced_region_2': [11, 5],
+    'reduced_region_3': [15, 8],
+    'reduced_region_4': [7, 8],
+    'reduced_region_5': [28, 5],
+    'reduced_region_6': [4, 14],
+    'reduced_region_7': [12, 8]
 }
 
 
@@ -112,49 +122,35 @@ def get_rgb_from_landsat8(this_image):
     return example_array
 
 
+def convert_labels(label_im):
+    label_im = np.asarray(label_im/10, dtype=np.uint8)
+    return label_im
+
+
 def check_image_against_label(this_example, full_label_file, this_region):
-    register = False
     show_image = get_rgb_from_landsat8(this_image=this_example) # unnormalized ofcourse
+    # convert to rgb 255 images now
+    show_image = histogram_equalize((255 * show_image).astype(np.uint8))
     label_map = gdal.Open(full_label_file)
     channel = label_map.GetRasterBand(1)
     min_coords, _, max_coords, _ = all_coordinates[this_region]
     min_x, min_y = convert_lat_lon_to_xy(ds=label_map, coordinates=min_coords)
     max_x, max_y = convert_lat_lon_to_xy(ds=label_map, coordinates=max_coords)
-    label_image = channel.ReadAsArray(min_x-18, min_y-9, abs(max_x - min_x), abs(max_y - min_y))
-    # label_image = channel.ReadAsArray(min_x, min_y, abs(max_x - min_x), abs(max_y - min_y))
+    label_image = channel.ReadAsArray(min_x-offset[this_region][0], min_y-offset[this_region][1],
+                                      abs(max_x - min_x), abs(max_y - min_y))
+    # label_image = channel.ReadAsArray(min_x-7, min_y-8, abs(max_x - min_x), abs(max_y - min_y))
     # show_image = show_image[17:, 13:, :]
     # now extract a minimum image
     min_r = min(show_image.shape[0], label_image.shape[0])
     min_c = min(show_image.shape[1], label_image.shape[1])
-    # show_image = show_image[:min_r, :min_c, :]
-    # label_image = label_image[:min_r, :min_c]
+    show_image = show_image[:min_r, :min_c, :]
+    label_image = label_image[:min_r, :min_c]
+    registered = show_image.copy()
+    registered[label_image == 130] = (255, 0, 0)
+    # print(registered[label_image == 210].shape)
 
-    if register:
-        registered = np.zeros((label_image.shape[0], label_image.shape[1], 3))
-        moving = show_image.copy()[:,:,0]
-        static = label_image.copy()
-        dim = static.ndim
-        metric = SSDMetric(dim)
-        level_iters = [200, 100, 50, 25]
-        # level_iters = [5, 5]
-        sdr = SymmetricDiffeomorphicRegistration(metric, level_iters, inv_iter=50)
-        mapping = sdr.optimize(static, moving)
-        registered[:, :, 0] = mapping.transform(show_image[:, :, 0], 'linear')
-        registered[:, :, 1] = mapping.transform(show_image[:, :, 1], 'linear')
-        registered[:, :, 2] = mapping.transform(show_image[:, :, 2], 'linear')
-    else:
-        pass
-
-    # convert to rgb 255 images now
-    show_image = histogram_equalize((255*show_image).astype(np.uint8))
-    if register:
-        registered = histogram_equalize((255*registered).astype(np.uint8))
-        # show_image[label_image == 190] = (255, 0, 0)
-        registered[label_image == 190] = (255, 0, 0)
-    else:
-        # registered
-        registered = show_image
-        pass
+    mng = pl.get_current_fig_manager()
+    mng.resize(*mng.window.maxsize())
     pl.subplot(131)
     pl.title('label image: {}'.format(label_image.shape[:2]))
     pl.imshow(label_image)
@@ -202,16 +198,64 @@ def generate_dataset(year):
     pass
 
 
+def check_temporal_map_difference(label_1, label_2, label_3, this_region):
+    label_map_1 = gdal.Open(label_1)
+    label_map_2 = gdal.Open(label_2)
+    label_map_3 = gdal.Open(label_3)
+    channel_1 = label_map_1.GetRasterBand(1)
+    channel_2 = label_map_2.GetRasterBand(1)
+    channel_3 = label_map_3.GetRasterBand(1)
+    min_coords, _, max_coords, _ = all_coordinates[this_region]
+    # use any one of the three as input
+    min_x, min_y = convert_lat_lon_to_xy(ds=label_map_1, coordinates=min_coords)
+    max_x, max_y = convert_lat_lon_to_xy(ds=label_map_1, coordinates=max_coords)
+    label_image_1 = channel_1.ReadAsArray(min_x - offset[this_region][0], min_y - offset[this_region][1],
+                                          abs(max_x - min_x), abs(max_y - min_y))
+    label_image_2 = channel_2.ReadAsArray(min_x - offset[this_region][0], min_y - offset[this_region][1],
+                                          abs(max_x - min_x), abs(max_y - min_y))
+    label_image_3 = channel_3.ReadAsArray(min_x - offset[this_region][0], min_y - offset[this_region][1],
+                                          abs(max_x - min_x), abs(max_y - min_y))
+    label_image_1 = convert_labels(label_image_1)
+    label_image_2 = convert_labels(label_image_2)
+    label_image_3 = convert_labels(label_image_3)
+    # positive valued differencing by adding an offset of
+    diff_1 = label_image_2 - label_image_1 + 22
+    diff_2 = label_image_3 - label_image_2 + 22
+    ############################################
+    # print(np.unique(label_image_1), np.unique(label_image_2), np.unique(label_image_3))
+    # print(np.unique(diff_1))
+    # print(np.unique(diff_2))
+    # print(label_image_2[diff_1 == 250], label_image_1[diff_1 == 250])
+    # print(label_image_1[diff_1 > 21], label_image_1[diff_1 > 21])
+    ############################################
+    mng = pl.get_current_fig_manager()
+    mng.resize(*mng.window.maxsize())
+    pl.subplot(121)
+    pl.title('difference 2014-2013: {}'.format(diff_1.shape[:2]))
+    pl.imshow(diff_1, cmap='Paired')
+    pl.subplot(122)
+    pl.title('difference 2015-2014: {}'.format(diff_2.shape[:2]))
+    pl.imshow(diff_2, cmap='Paired')
+    pl.show()
+    pass
+
+
 if __name__ == '__main__':
-    check_image_against_label(this_example=sys.argv[1], full_label_file=sys.argv[2], this_region=sys.argv[3])
+    # check_image_against_label(this_example=sys.argv[1], full_label_file=sys.argv[2], this_region=sys.argv[3])
+
     # check_ndvi_clusters_in_image(example_path='/home/annus/PycharmProjects/'
     #                                           'ForestCoverChange_inputs_and_numerical_results/reduced_landsat_images/'
     #                                           'reduced_landsat_images/2013/reduced_regions_landsat_2013_5.tif')
 
     # generate_dataset(year='2015')
 
-
-
+    check_temporal_map_difference(label_1='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+                                          'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2013-v2.0.7.tif',
+                                  label_2='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+                                          'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2014-v2.0.7.tif',
+                                  label_3='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+                                          'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.tif',
+                                  this_region='reduced_region_7')
 
 
 

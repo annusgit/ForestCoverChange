@@ -103,53 +103,6 @@ def get_images_from_large_file(image_path, bands, label_path, site_size, min_coo
     pass
 
 
-# def get_images_from_reduced_data(folder_path, bands, label_path, min_coords, max_coords, destination):
-#     covermap = gdal.Open(label_path, gdal.GA_ReadOnly)
-#     channel = covermap.GetRasterBand(1)
-#     min_x, min_y = convert_lat_lon_to_xy(ds=covermap, coordinates=min_coords)
-#     max_x, max_y = convert_lat_lon_to_xy(ds=covermap, coordinates=max_coords)
-#     label = channel.ReadAsArray(min_x, min_y, abs(max_x - min_x), abs(max_y - min_y))
-#
-#     image_ds = gdal.Open(image_path, gdal.GA_ReadOnly)
-#     x_size, y_size = image_ds.RasterXSize, image_ds.RasterYSize
-#     all_raster_bands = [image_ds.GetRasterBand(x) for x in bands]
-#
-#     count = -1
-#     # stride = 3000  # for testing only
-#     error_pixels = 50  # add this to remove the error pixels at the boundary of the test image
-#     for i in range(y_size//stride):
-#         for j in range(x_size//stride):
-#             count += 1
-#             # read the raster band by band for this subset
-#             example_subset = np.nan_to_num(all_raster_bands[0].ReadAsArray(j*stride+error_pixels,
-#                                                                    i*stride+error_pixels,
-#                                                                    stride, stride))
-#             for band in all_raster_bands[1:]:
-#                 example_subset = np.dstack((example_subset , np.nan_to_num(band.ReadAsArray(j*stride+error_pixels,
-#                                                                            i*stride+error_pixels,
-#                                                                            stride,
-#                                                                            stride))))
-#             show_image = np.asarray(255*(example_subset [:,:,[4,3,2]]/4096.0).clip(0,1), dtype=np.uint8)
-#             label_subset = label[i*stride+error_pixels:(i+1)*stride+error_pixels,
-#                                 j*stride+error_pixels:(j+1)*stride+error_pixels]
-#             # image_subset[:,:,0] = label_subset
-#
-#             # save this example/label pair of numpy arrays as a pickle file with an index
-#             this_example_save_path = os.path.join(destination, '{}.pkl'.format(count))
-#             with open(this_example_save_path, 'wb') as this_pickle:
-#                 pickle.dump((example_subset, label_subset), file=this_pickle, protocol=pickle.HIGHEST_PROTOCOL)
-#                 print('log: Saved {}'.format(this_example_save_path))
-#
-#             # pl.subplot(1,2,1)
-#             # pl.imshow(show_image)
-#             # pl.subplot(1,2,2)
-#             # pl.imshow(label_subset)
-#             # pl.show()
-#             pass
-#     pass
-
-
-
 def check_generated_dataset(path_to_dataset):
 
     for count in range(266):
@@ -166,7 +119,6 @@ def check_generated_dataset(path_to_dataset):
         pl.show()
         pass
     pass
-
 
 
 #####################################################################################################3
