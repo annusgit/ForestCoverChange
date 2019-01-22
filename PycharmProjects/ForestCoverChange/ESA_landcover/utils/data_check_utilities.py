@@ -6,10 +6,18 @@ import sys
 import png
 import cv2
 import gdal
+import pickle
 import numpy as np
 import PIL.Image as Image
 import scipy.misc as misc
 import matplotlib.pyplot as pl
+# for image registration
+from dipy.data import get_fnames
+from dipy.align.imwarp import SymmetricDiffeomorphicRegistration
+from dipy.align.metrics import SSDMetric, CCMetric, EMMetric
+import dipy.align.imwarp as imwarp
+from dipy.viz import regtools
+
 
 
 all_coordinates = {
@@ -54,10 +62,8 @@ def convert_lat_lon_to_xy(ds, coordinates):
 
 def get_combination(example, bands):
     example_array = np.nan_to_num(example.GetRasterBand(bands[0]).ReadAsArray())
-    example_array = misc.imresize(example_array, (500, 500))
     for i in bands[1:]:
         next_band = np.nan_to_num(example.GetRasterBand(i).ReadAsArray())
-        next_band = misc.imresize(next_band, (500, 500))
         example_array = np.dstack((example_array, next_band))
     return example_array
 
@@ -103,49 +109,106 @@ def get_rgb_from_landsat8(this_image):
     example = gdal.Open(this_image)
     example_array = get_combination(example=example, bands=[4,3,2])
     example_array = np.nan_to_num(example_array)
-    example_array = (255*example_array).astype(np.uint8)
-    example_array = histogram_equalize(example_array)
     return example_array
 
 
 def check_image_against_label(this_example, full_label_file, this_region):
-    show_image = get_rgb_from_landsat8(this_image=this_example)
+    register = False
+    show_image = get_rgb_from_landsat8(this_image=this_example) # unnormalized ofcourse
+    label_map = gdal.Open(full_label_file)
+    channel = label_map.GetRasterBand(1)
+    min_coords, _, max_coords, _ = all_coordinates[this_region]
+    min_x, min_y = convert_lat_lon_to_xy(ds=label_map, coordinates=min_coords)
+    max_x, max_y = convert_lat_lon_to_xy(ds=label_map, coordinates=max_coords)
+    label_image = channel.ReadAsArray(min_x-18, min_y-9, abs(max_x - min_x), abs(max_y - min_y))
+    # label_image = channel.ReadAsArray(min_x, min_y, abs(max_x - min_x), abs(max_y - min_y))
+    # show_image = show_image[17:, 13:, :]
+    # now extract a minimum image
+    min_r = min(show_image.shape[0], label_image.shape[0])
+    min_c = min(show_image.shape[1], label_image.shape[1])
+    # show_image = show_image[:min_r, :min_c, :]
+    # label_image = label_image[:min_r, :min_c]
+
+    if register:
+        registered = np.zeros((label_image.shape[0], label_image.shape[1], 3))
+        moving = show_image.copy()[:,:,0]
+        static = label_image.copy()
+        dim = static.ndim
+        metric = SSDMetric(dim)
+        level_iters = [200, 100, 50, 25]
+        # level_iters = [5, 5]
+        sdr = SymmetricDiffeomorphicRegistration(metric, level_iters, inv_iter=50)
+        mapping = sdr.optimize(static, moving)
+        registered[:, :, 0] = mapping.transform(show_image[:, :, 0], 'linear')
+        registered[:, :, 1] = mapping.transform(show_image[:, :, 1], 'linear')
+        registered[:, :, 2] = mapping.transform(show_image[:, :, 2], 'linear')
+    else:
+        pass
+
+    # convert to rgb 255 images now
+    show_image = histogram_equalize((255*show_image).astype(np.uint8))
+    if register:
+        registered = histogram_equalize((255*registered).astype(np.uint8))
+        # show_image[label_image == 190] = (255, 0, 0)
+        registered[label_image == 190] = (255, 0, 0)
+    else:
+        # registered
+        registered = show_image
+        pass
+    pl.subplot(131)
+    pl.title('label image: {}'.format(label_image.shape[:2]))
+    pl.imshow(label_image)
+    pl.subplot(132)
+    pl.title('actual image: {}'.format(show_image.shape[:2]))
+    pl.imshow(show_image)
+    pl.subplot(133)
+    pl.title('registered image: {}'.format(registered.shape[:2]))
+    pl.imshow(registered)
+    pl.show()
+    pass
+
+
+def make_dataset_numpy_from_image(this_example, full_label_file, this_region, pickle_path):
+    this_ds = gdal.Open(this_example)
+    example_array = get_combination(example=this_ds, bands=range(1,12))
     label_map = gdal.Open(full_label_file)
     channel = label_map.GetRasterBand(1)
     min_coords, _, max_coords, _ = all_coordinates[this_region]
     min_x, min_y = convert_lat_lon_to_xy(ds=label_map, coordinates=min_coords)
     max_x, max_y = convert_lat_lon_to_xy(ds=label_map, coordinates=max_coords)
     label_image = channel.ReadAsArray(min_x, min_y, abs(max_x - min_x), abs(max_y - min_y))
-    # resize if needed
-    # show_image = np.resize(show_image, new_shape=(label_image.shape[1], label_image.shape[0], 3))
-    show_image = misc.imresize(show_image, (500, 500, 3))
-    label_image = misc.imresize(label_image, (500, 500))
-    pl.subplot(131)
-    pl.title('actual image: {}'.format(show_image.shape[:2]))
-    pl.imshow(show_image)
-    pl.subplot(132)
-    pl.title('label image: {}'.format(label_image.shape[:2]))
-    pl.imshow(label_image)
+    with open(pickle_path, 'wb') as pickle_file:
+        pickle.dump((example_array, label_image), pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
+    pass
 
-    # background = Image.fromarray(show_image)
-    # foreground = Image.fromarray(label_image)
-    # background.paste(foreground, (0, 0), foreground)
-    # background = Image.blend(background, foreground, alpha=0.5)
-    # background.show()
-    merged = show_image.copy()  # np.asarray(background)
-    merged[label_image == 20] = (255, 0, 0)
-    pl.subplot(133)
-    pl.title('merged image: {}'.format(merged.shape[:2]))
-    pl.imshow(merged)
-    pl.show()
+
+def generate_dataset(year):
+    examples_path = '/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/' \
+                    'reduced_landsat_images/reduced_landsat_images/{}/'.format(year)
+    single_example_name = 'reduced_regions_landsat_{}_'.format(year)
+    full_label_path = '/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/' \
+                      'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-{}-v2.0.7.tif'.format(year)
+    this_region_name = 'reduced_region_'
+    pickle_main_path = '/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/' \
+                       'reduced_landsat_images/reduced_dataset_for_segmentation/'
+    single_pickle_name = 'reduced_regions_landsat_{}_'.format(year)
+
+    for i in range(1,8):
+        make_dataset_numpy_from_image(this_example=os.path.join(examples_path, single_example_name+'{}.tif'.format(i)),
+                                      full_label_file=full_label_path,
+                                      this_region=this_region_name+str(i),
+                                      pickle_path=os.path.join(pickle_main_path, single_pickle_name+'{}.pkl'.format(i)))
+
     pass
 
 
 if __name__ == '__main__':
-    # check_image_against_label(this_example=sys.argv[1], full_label_file=sys.argv[2], this_region=sys.argv[3])
-    check_ndvi_clusters_in_image(example_path='/home/annus/PycharmProjects/'
-                                              'ForestCoverChange_inputs_and_numerical_results/reduced_landsat_images/'
-                                              'reduced_landsat_images/2013/reduced_regions_landsat_2013_5.tif')
+    check_image_against_label(this_example=sys.argv[1], full_label_file=sys.argv[2], this_region=sys.argv[3])
+    # check_ndvi_clusters_in_image(example_path='/home/annus/PycharmProjects/'
+    #                                           'ForestCoverChange_inputs_and_numerical_results/reduced_landsat_images/'
+    #                                           'reduced_landsat_images/2013/reduced_regions_landsat_2013_5.tif')
+
+    # generate_dataset(year='2015')
 
 
 

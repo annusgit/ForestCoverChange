@@ -3,8 +3,9 @@
 from __future__ import print_function, division
 import os
 import sys
-import gdal
 import png
+import cv2
+import gdal
 import numpy as np
 import matplotlib.pyplot as pl
 
@@ -25,15 +26,29 @@ def get_combination(example, bands):
     # print(example_array.shape)
     for i in bands[1:]:
         example_array = np.dstack((example_array,
-                                   example.GetRasterBand(i).ReadAsArray())).astype(np.int16)
+                                   example.GetRasterBand(i).ReadAsArray()))
     return example_array
+
+
+def histogram_equalize(img):
+    b, g, r = cv2.split(img)
+    red = cv2.equalizeHist(r)
+    green = cv2.equalizeHist(g)
+    blue = cv2.equalizeHist(b)
+    return cv2.merge((blue, green, red))
 
 
 def main(this_example):
     example = gdal.Open(this_example)
+    print(example.GetMetadata())
     print(example.RasterCount)
     example_array = get_combination(example=example, bands=[4,3,2])
-    show_image = np.asarray(np.clip(example_array/4096, 0, 1)*255, dtype=np.uint8)
+    example_array = np.nan_to_num(example_array)
+    example_array = (255*example_array/example_array.max()).astype(np.uint8)
+    example_array = histogram_equalize(example_array)
+    print(example_array)
+    show_image = example_array
+    # show_image = np.asarray(np.clip(example_array/4096, 0, 1)*255, dtype=np.uint8)
     print(show_image.shape)
     pl.imshow(show_image)
     pl.show()
@@ -67,11 +82,11 @@ def check_single_bands(r, g, b):
 
 
 if __name__ == '__main__':
-    # main(this_example=sys.argv[1])#, save_as=sys.argv[2])
+    main(this_example=sys.argv[1])#, save_as=sys.argv[2])
     # savesinglebands(this_example=sys.argv[1], dest_path=sys.argv[2])
-    check_single_bands('/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/full-test-site-pakistan/numpy_sums/2015/4.npy',
-                       '/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/full-test-site-pakistan/numpy_sums/2015/3.npy',
-                       '/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/full-test-site-pakistan/numpy_sums/2015/2.npy')
+    # check_single_bands('/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/full-test-site-pakistan/numpy_sums/2015/4.npy',
+    #                    '/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/full-test-site-pakistan/numpy_sums/2015/3.npy',
+    #                    '/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/full-test-site-pakistan/numpy_sums/2015/2.npy')
 
 
 

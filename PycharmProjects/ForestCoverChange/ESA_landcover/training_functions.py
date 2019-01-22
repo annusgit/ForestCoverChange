@@ -127,8 +127,8 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
 
         # validate model
         print('log: Evaluating now...')
-        eval_net(model=model, criterion=criterion, val_loader=val_dataloader, denominator=batch_size*dimension**2,
-                 cuda=cuda, device=device, writer=None, batch_size=batch_size, step=k)
+        eval_net(model=model, criterion=criterion, val_loader=val_dataloader, cuda=cuda, device=device,
+                 writer=None, batch_size=batch_size, step=k)
     pass
 
 
@@ -149,12 +149,17 @@ def eval_net(**kwargs):
             test_x, label = data['input'], data['label']
             test_x = test_x.cuda() if cuda else test_x
             label = label.cuda() if cuda else label
+            dimension = test_x.size(-1)
             out_x, softmaxed = model.forward(test_x)
             pred = torch.argmax(softmaxed, dim=1)
             # pred = pred.cpu()
             loss = criterion(out_x, label)
-            accuracy = (pred == label).sum()
-            accuracy = accuracy * 100 / (test_x.size(0)*64**2)
+            accurate = (pred == label).sum()
+
+            numerator = accurate
+            denominator = float(test_x.size(0) * dimension ** 2)
+            accuracy = float(numerator) * 100 / denominator
+
             net_accuracy.append(accuracy)
             net_loss.append(loss.item())
             #################################

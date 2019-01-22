@@ -19,7 +19,7 @@ def call_kmeans(samples_vec, n_clusters=10, n_iterations=30, pickle_file='kmeans
                     max_iter=n_iterations,
                     tol=1e-4,
                     precompute_distances='auto',
-                    verbose=False,
+                    verbose=True,
                     random_state=int(time.time()),
                     algorithm='auto').fit(samples_vec)
     if pickle_file is not None:

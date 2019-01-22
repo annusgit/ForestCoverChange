@@ -103,6 +103,53 @@ def get_images_from_large_file(image_path, bands, label_path, site_size, min_coo
     pass
 
 
+# def get_images_from_reduced_data(folder_path, bands, label_path, min_coords, max_coords, destination):
+#     covermap = gdal.Open(label_path, gdal.GA_ReadOnly)
+#     channel = covermap.GetRasterBand(1)
+#     min_x, min_y = convert_lat_lon_to_xy(ds=covermap, coordinates=min_coords)
+#     max_x, max_y = convert_lat_lon_to_xy(ds=covermap, coordinates=max_coords)
+#     label = channel.ReadAsArray(min_x, min_y, abs(max_x - min_x), abs(max_y - min_y))
+#
+#     image_ds = gdal.Open(image_path, gdal.GA_ReadOnly)
+#     x_size, y_size = image_ds.RasterXSize, image_ds.RasterYSize
+#     all_raster_bands = [image_ds.GetRasterBand(x) for x in bands]
+#
+#     count = -1
+#     # stride = 3000  # for testing only
+#     error_pixels = 50  # add this to remove the error pixels at the boundary of the test image
+#     for i in range(y_size//stride):
+#         for j in range(x_size//stride):
+#             count += 1
+#             # read the raster band by band for this subset
+#             example_subset = np.nan_to_num(all_raster_bands[0].ReadAsArray(j*stride+error_pixels,
+#                                                                    i*stride+error_pixels,
+#                                                                    stride, stride))
+#             for band in all_raster_bands[1:]:
+#                 example_subset = np.dstack((example_subset , np.nan_to_num(band.ReadAsArray(j*stride+error_pixels,
+#                                                                            i*stride+error_pixels,
+#                                                                            stride,
+#                                                                            stride))))
+#             show_image = np.asarray(255*(example_subset [:,:,[4,3,2]]/4096.0).clip(0,1), dtype=np.uint8)
+#             label_subset = label[i*stride+error_pixels:(i+1)*stride+error_pixels,
+#                                 j*stride+error_pixels:(j+1)*stride+error_pixels]
+#             # image_subset[:,:,0] = label_subset
+#
+#             # save this example/label pair of numpy arrays as a pickle file with an index
+#             this_example_save_path = os.path.join(destination, '{}.pkl'.format(count))
+#             with open(this_example_save_path, 'wb') as this_pickle:
+#                 pickle.dump((example_subset, label_subset), file=this_pickle, protocol=pickle.HIGHEST_PROTOCOL)
+#                 print('log: Saved {}'.format(this_example_save_path))
+#
+#             # pl.subplot(1,2,1)
+#             # pl.imshow(show_image)
+#             # pl.subplot(1,2,2)
+#             # pl.imshow(label_subset)
+#             # pl.show()
+#             pass
+#     pass
+
+
+
 def check_generated_dataset(path_to_dataset):
 
     for count in range(266):
@@ -423,28 +470,43 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, block_si
             self.model_input_size = model_input_size
             # this is just a rough estimate, actual augmentation will result in many more images
             self.images_per_dimension = self.block_size//model_input_size
-            self.total_images = self.images_per_dimension * self.images_per_dimension * len(self.data_list)
+            self.per_row = 500//model_input_size
+            self.per_col = 450//model_input_size
+            self.total_images = self.per_col*self.per_row*len(self.data_list)
             self.mode = mode
             # print(len(self), len(data_list))
             pass
 
         def __getitem__(self, k):
-            if self.mode == 'test':
+            if self.mode == 'train' or self.mode == 'test':
                 # 1. find out which image subset is it and then crop out that area first
                 # no augmentation here, just stride-wise cropping out subset images
                 # we need, first which block image, next which row and column
-                this_block = int(k/self.images_per_dimension**2)
-                this_subblock = k % self.images_per_dimension**2
+                this_block = int(k/(self.per_row*self.per_col))
+                this_subblock = int(k%(self.per_row*self.per_col))
 
                 # 2. next find out which sub-subset is it and crop it out
-                this_row = this_subblock // self.images_per_dimension
-                this_col = this_subblock % self.images_per_dimension
+                this_row = int(this_subblock/self.per_row)
+                this_col = int(this_subblock % self.per_row)
                 example_path = self.data_list[this_block]
-
+                # print(this_block, this_subblock, this_row, this_col)
                 with open(example_path, 'rb') as this_pickle:
                     # print('log: Reading {}'.format(example_path))
                     (example_subset, label_subset) = pickle.load(this_pickle)
+                    example_subset = np.nan_to_num(example_subset)
+                    # print(example_subset.shape, label_subset.shape)
+                    example_subset = example_subset[:450, :500, :]
+                    label_subset = label_subset[:450, :500]
 
+                show_image = np.asarray(255*(example_subset[:,:,[4,3,2]]), dtype=np.uint8)
+                pl.subplot(121)
+                pl.imshow(show_image)
+                pl.subplot(122)
+                pl.imshow(label_subset)
+                pl.show()
+
+                # print(this_row*self.model_input_size,(this_row+1)*self.model_input_size,
+                #                                     this_col*self.model_input_size,(this_col+1)*self.model_input_size)
                 this_example_subset = example_subset[this_row*self.model_input_size:(this_row+1)*self.model_input_size,
                                                     this_col*self.model_input_size:(this_col+1)*self.model_input_size,:]
                 this_label_subset = label_subset[this_row*self.model_input_size:(this_row+1)*self.model_input_size,
@@ -460,7 +522,7 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, block_si
                 this_example_subset, this_label_subset = toTensor(image=this_example_subset, label=this_label_subset)
                 return {'input': this_example_subset, 'label': this_label_subset}
 
-            elif self.mode == 'train':
+            elif self.mode == 'gift':
                 # get block image index first
                 this_block = k % len(self.data_list)
                 example_path = self.data_list[this_block]
@@ -490,7 +552,7 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, block_si
 
         def __len__(self):
             # x25 for training images because of augmentation
-            return 25*self.total_images if self.mode == 'train' else self.total_images
+            return self.total_images if self.mode == 'train' else self.total_images
     ######################################################################################
 
 
@@ -559,35 +621,33 @@ def main():
     #                               save_data_path='dataset/pickled_data.pkl',
     #                               block_size=256, model_input_size=64, batch_size=16, num_workers=6)
 
-    # loaders = get_dataloaders_generated_data(generated_data_path='/home/annus/PycharmProjects/'
-    #                                                              'ForestCoverChange_inputs_and_numerical_results/'
-    #                                                              'ESA_landcover_dataset/divided',
-    #                                          save_data_path='/home/annus/PycharmProjects/'
-    #                                                         'ForestCoverChange_inputs_and_numerical_results/'
-    #                                                         'ESA_landcover_dataset/pickled_data.pkl',
-    #                                          block_size=256, model_input_size=64, batch_size=64,
-    #                                          train_split=0.8, num_workers=4, max_label=22)
+    loaders = get_dataloaders_generated_data(generated_data_path='/home/annus/PycharmProjects/'
+                                                                 'ForestCoverChange_inputs_and_numerical_results/'
+                                                                 'reduced_landsat_images/'
+                                                                 'reduced_dataset_for_segmentation/2013/',
+                                             save_data_path='pickled_data.pkl',
+                                             block_size=400, model_input_size=64, batch_size=64,
+                                             train_split=0.8, num_workers=4, max_label=22)
 
-    loaders = get_dataloaders_generated_data(generated_data_path='generated_dataset',
-                                             save_data_path='pickled_generated_datalist.pkl',
-                                             block_size=256, model_input_size=64, batch_size=128,
-                                             train_split=0.8, num_workers=6, max_label=22)
+    # loaders = get_dataloaders_generated_data(generated_data_path='generated_dataset',
+    #                                          save_data_path='pickled_generated_datalist.pkl',
+    #                                          block_size=256, model_input_size=64, batch_size=128,
+    #                                          train_split=0.8, num_workers=6, max_label=22)
 
     train_dataloader, val_dataloader, test_dataloader = loaders
     for idx, data in enumerate(train_dataloader):
         examples, labels = data['input'], data['label']
         print('-> on batch {}/{}, {}'.format(idx+1, len(train_dataloader), examples.size()))
-        if True:
-            this_example_subset = (examples[0].numpy()).transpose(1,2,0)
-            this = np.asarray(255*(this_example_subset[:,:,[4,3,2]]/4096.0).clip(0,1), dtype=np.uint8)
-            that = labels[0].numpy().astype(np.uint8)
-            # print()
-            print(this.shape, that.shape, np.unique(that))
-            # pl.subplot(121)
-            # pl.imshow(this)
-            # pl.subplot(122)
-            # pl.imshow(that)
-            # pl.show()
+        this_example_subset = (examples[0].numpy()).transpose(1,2,0)
+        this = np.asarray(255*(this_example_subset[:,:,[4,3,2]]), dtype=np.uint8)
+        that = labels[0].numpy().astype(np.uint8)
+        # print()
+        print(this.shape, that.shape, np.unique(that))
+        pl.subplot(121)
+        pl.imshow(this)
+        pl.subplot(122)
+        pl.imshow(that)
+        pl.show()
 
 
 if __name__ == '__main__':
