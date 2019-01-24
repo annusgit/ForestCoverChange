@@ -54,17 +54,73 @@ all_coordinates = {
 offset = {
     'reduced_region_1': [17, 10],
     'reduced_region_2': [11, 5],
-    'reduced_region_3': [15, 8],
+    'reduced_region_3': [5, 8],
     'reduced_region_4': [7, 8],
     'reduced_region_5': [28, 5],
     'reduced_region_6': [4, 14],
-    'reduced_region_7': [12, 8]
+    'reduced_region_7': [15, 9]
+}
+
+
+homography_matrices = {
+    'reduced_region_7': [[9.44992008e-01, -6.67993218e-03, 1.82962384e+01],
+                         [-1.05305680e-02, 9.58651416e-01, 9.69074852e+00],
+                         [-3.96235575e-05, -1.11081603e-05, 1.00000000e+00]],
+    'reduced_region_6': [[9.74339147e-01, -1.21107019e-02, 5.02780567e+00],
+                         [-2.96768712e-03, 9.61484910e-01, 8.45501196e+00],
+                         [1.33400519e-05, -2.75922200e-05, 1.00000000e+00]],
+    # 'reduced_region_5': [[1.00000000e+00, -3.06683539e-16, 9.84556895e-14],
+    #                      [-1.99543640e-16, 1.00000000e+00, 7.38417672e-14],
+    #                      [-9.30764774e-19, -6.44616120e-19, 1.00000000e+00]],
+    'reduced_region_4': [[9.62296206e-01, -3.49573968e-03, 4.52386190e+00],
+                         [-1.05782159e-02, 9.77340640e-01, 7.61574557e+00],
+                         [-2.48444321e-05, 2.17193338e-05, 1.00000000e+00]],
+    'reduced_region_3': [[1.00000000e+00, -3.06683539e-16, 9.84556895e-14],
+                         [-1.99543640e-16, 1.00000000e+00, 7.38417672e-14],
+                         [-9.30764774e-19, -6.44616120e-19, 1.00000000e+00]],
+    'reduced_region_2': [[9.57686454e-01, -9.59738783e-03, 4.45568094e+00],
+                         [-3.47093771e-03, 9.58133199e-01, 7.35584353e+00],
+                         [-1.55444703e-05, -1.52156507e-05, 1.00000000e+00]],
+    'reduced_region_1': [[9.78661750e-01, 5.03822813e-03, 1.00863737e+01],
+                         [-1.41885904e-03, 9.90638796e-01, 4.10874813e+00],
+                         [-8.50612875e-06, 3.66387912e-05, 1.00000000e+00]]
+}
+
+
+# pts_src -> pts_dest
+homography_similarity_coordinates = {
+    'reduced_region_7': ([[421, 98], [456, 293], [18, 369], [20, 195]],
+                         [[423, 101], [457, 292], [33, 365], [36, 197]]),
+    'reduced_region_6': ([[421, 98], [456, 293], [18, 369], [20, 195]],
+                         [[423, 101], [457, 292], [33, 365], [36, 197]]),
+    'reduced_region_5': ([[486, 116], [499, 280], [106, 252], [178, 123]],
+                         [[486, 116], [499, 280], [106, 252], [178, 123]]),
+    'reduced_region_4': ([[91, 235], [361, 436], [486, 401], [474, 283], [77, 442], [276, 464]],
+                         [[91, 235], [348, 426], [474, 396], [462, 282], [77, 436], [268, 459]]),
+    'reduced_region_3': ([[486, 116], [499, 280], [106, 252], [178, 123]],
+                         [[486, 116], [499, 280], [106, 252], [178, 123]]),
+    'reduced_region_2': ([[15, 305], [10, 188], [434, 340], [556, 41], [384, 23]],
+                         [[16, 300], [12, 189], [422, 336], [541, 45], [375, 28]]),
+    'reduced_region_1': ([[392, 253], [367, 411], [247, 163], [113, 363], [558, 334]],
+                         [[392, 254], [367, 406], [252, 164], [121, 359], [554, 331]])
+}
+
+
+cropping_regions_after_homography = {
+    'reduced_region_1': ([17, 15], [611, 474]),
+    'reduced_region_2': ([16, 11], [618, 480]),
+    'reduced_region_3': ([13, 4], [616, 480]),
+    'reduced_region_4': ([12, 12], [531, 465]),
+    'reduced_region_5': ([], []),
+    'reduced_region_6': ([], []),
+    'reduced_region_7': ([], []),
 }
 
 
 def convert_lat_lon_to_xy(ds, coordinates):
     lon_in, lat_in = coordinates
     xoffset, px_w, rot1, yoffset, rot2, px_h = ds.GetGeoTransform()
+    # print(1/px_w, 1/px_h)
     x = int((lat_in-xoffset)/px_w)
     y = int((lon_in-yoffset)/px_h)
     return x, y
@@ -75,6 +131,13 @@ def get_combination(example, bands):
     for i in bands[1:]:
         next_band = np.nan_to_num(example.GetRasterBand(i).ReadAsArray())
         example_array = np.dstack((example_array, next_band))
+    return example_array
+
+
+def get_rgb_from_landsat8(this_image):
+    example = gdal.Open(this_image)
+    example_array = get_combination(example=example, bands=[4,3,2])
+    example_array = np.nan_to_num(example_array)
     return example_array
 
 
@@ -115,13 +178,6 @@ def histogram_equalize(img):
     return cv2.merge((blue, green, red))
 
 
-def get_rgb_from_landsat8(this_image):
-    example = gdal.Open(this_image)
-    example_array = get_combination(example=example, bands=[4,3,2])
-    example_array = np.nan_to_num(example_array)
-    return example_array
-
-
 def convert_labels(label_im):
     label_im = np.asarray(label_im/10, dtype=np.uint8)
     return label_im
@@ -138,7 +194,7 @@ def check_image_against_label(this_example, full_label_file, this_region):
     max_x, max_y = convert_lat_lon_to_xy(ds=label_map, coordinates=max_coords)
     label_image = channel.ReadAsArray(min_x-offset[this_region][0], min_y-offset[this_region][1],
                                       abs(max_x - min_x), abs(max_y - min_y))
-    # label_image = channel.ReadAsArray(min_x-7, min_y-8, abs(max_x - min_x), abs(max_y - min_y))
+    # label_image = channel.ReadAsArray(min_x, min_y, abs(max_x - min_x), abs(max_y - min_y))
     # show_image = show_image[17:, 13:, :]
     # now extract a minimum image
     min_r = min(show_image.shape[0], label_image.shape[0])
@@ -146,7 +202,9 @@ def check_image_against_label(this_example, full_label_file, this_region):
     show_image = show_image[:min_r, :min_c, :]
     label_image = label_image[:min_r, :min_c]
     registered = show_image.copy()
-    registered[label_image == 130] = (255, 0, 0)
+    registered[label_image == 130] = (255, 0, 0) #(0, 255, 150)
+    registered[label_image == 190] = (255, 0, 0)
+    registered[label_image == 210] = (255, 0, 0) #(150, 255, 0)
     # print(registered[label_image == 210].shape)
 
     mng = pl.get_current_fig_manager()
@@ -172,7 +230,12 @@ def make_dataset_numpy_from_image(this_example, full_label_file, this_region, pi
     min_coords, _, max_coords, _ = all_coordinates[this_region]
     min_x, min_y = convert_lat_lon_to_xy(ds=label_map, coordinates=min_coords)
     max_x, max_y = convert_lat_lon_to_xy(ds=label_map, coordinates=max_coords)
-    label_image = channel.ReadAsArray(min_x, min_y, abs(max_x - min_x), abs(max_y - min_y))
+    label_image = channel.ReadAsArray(min_x - offset[this_region][0], min_y - offset[this_region][1],
+                                      abs(max_x - min_x), abs(max_y - min_y))
+    min_r = min(example_array.shape[0], label_image.shape[0])
+    min_c = min(example_array.shape[1], label_image.shape[1])
+    example_array = example_array[:min_r, :min_c, :]
+    label_image = label_image[:min_r, :min_c]
     with open(pickle_path, 'wb') as pickle_file:
         pickle.dump((example_array, label_image), pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
     pass
@@ -240,6 +303,168 @@ def check_temporal_map_difference(label_1, label_2, label_3, this_region):
     pass
 
 
+def check_generated_numpy(pathtonumpy):
+    with open(pathtonumpy, 'rb') as dataset:
+        example_array, label_array = pickle.load(dataset)
+    this = histogram_equalize(np.asarray(255*(example_array[:,:,[4,3,2]]), dtype=np.uint8))
+
+    print(this.shape, label_array.shape)
+    registered = this.copy()
+    registered[label_array == 130] = (255, 0, 0) #(0, 255, 150)
+    registered[label_array == 190] = (255, 0, 0)
+    registered[label_array == 210] = (255, 0, 0) #(150, 255, 0)
+
+    pl.subplot(131)
+    pl.imshow(this)
+    pl.subplot(132)
+    pl.imshow(label_array)
+    pl.subplot(133)
+    pl.imshow(registered)
+    pl.show()
+    pass
+
+
+def register_label_on_image(pathtonumpy):
+    with open(pathtonumpy, 'rb') as dataset:
+        moving, static = pickle.load(dataset)
+    moving_single = moving[:,:,4]
+    moving = histogram_equalize(np.asarray(255*(moving[:,:,[4,3,2]]), dtype=np.uint8))
+    overlaid = moving.copy()
+    overlaid[static == 130] = (255, 0, 0)  # (0, 255, 150)
+    overlaid[static == 190] = (255, 0, 0)
+    overlaid[static == 210] = (255, 0, 0)  # (150, 255, 0)
+
+    # pl.imshow(moving_single)
+    # pl.show()
+    regtools.overlay_images(static, moving_single, 'Static', 'Overlay', 'Moving')
+    dim = static.ndim
+    metric = SSDMetric(dim)
+    level_iters = [200, 100, 50, 25]
+    # level_iters = [1, 1]
+    sdr = SymmetricDiffeomorphicRegistration(metric, level_iters, inv_iter=50)
+    mapping = sdr.optimize(static, moving_single)
+    warped_moving_0 = mapping.transform(moving[:,:,0], 'linear')
+    warped_moving_1 = mapping.transform(moving[:,:,1], 'linear')
+    warped_moving_2 = mapping.transform(moving[:,:,2], 'linear')
+    warped_moving = np.dstack((warped_moving_0, warped_moving_1, warped_moving_2))
+    # print(warped_moving)
+    warped_moving = np.asarray(warped_moving, dtype=np.uint8)
+    overlaid_again = warped_moving.copy()
+    overlaid_again[static == 130] = (255, 0, 0)  # (0, 255, 150)
+    overlaid_again[static == 190] = (255, 0, 0)
+    overlaid_again[static == 210] = (255, 0, 0)  # (150, 255, 0)
+
+    pl.subplot(131)
+    pl.imshow(static)
+    pl.subplot(132)
+    pl.imshow(overlaid)
+    pl.subplot(133)
+    pl.imshow(overlaid_again)
+    pl.show()
+    pass
+
+
+def label_image_homography(pathtonumpy, this_region):
+    with open(pathtonumpy, 'rb') as dataset:
+        all_bands, static = pickle.load(dataset)
+    moving_single = all_bands[:,:,4]
+    # print(all_bands)
+    moving = histogram_equalize(np.asarray(255*(all_bands[:,:,[3,2,1]]), dtype=np.uint8))
+    overlaid = moving.copy()
+    # overlaid[static == 130] = (255, 0, 0)  # (0, 255, 150)
+    overlaid[static == 190] = (255, 0, 0)
+    overlaid[static == 210] = (255, 0, 0)  # (150, 255, 0)
+    overlaid[static == 200] = (255, 0, 0)  # (150, 255, 0)
+    # overlaid[static == 20] = (255, 0, 0)  # (0, 255, 150)
+
+    # Four corners in source image
+    pts_src = np.array([[553, 75], [496, 329], [614, 189], [55, 226]])
+
+    # Four corners in destination image.
+    pts_dst = np.array([[551, 91], [494, 317], [614, 189], [68, 224]])
+
+    # Calculate Homography
+    if this_region in homography_matrices.keys():
+        h = np.asarray(homography_matrices[this_region])
+        print('using previously saved homography matrix')
+    else:
+        h, status = cv2.findHomography(pts_src, pts_dst)
+        print('finding new homography matrix')
+        print(h, status)
+
+    # Warp source image to destination based on homography
+    original = all_bands[:,:,[3,2,1]]
+    im_out = cv2.warpPerspective(original, h, (static.shape[1], static.shape[0]))
+    im_out = histogram_equalize(np.asarray(255*im_out, dtype=np.uint8))
+
+    overlaid_reg = im_out.copy()
+    # overlaid_reg[static == 130] = (255, 0, 0)  # (0, 255, 150)
+    overlaid_reg[static == 190] = (255, 0, 0)
+    overlaid_reg[static == 210] = (255, 0, 0)  # (150, 255, 0)
+    overlaid_reg[static == 200] = (255, 0, 0)  # (150, 255, 0)
+    # overlaid_reg[static == 20] = (150, 100, 200)  # (0, 255, 150)
+
+    mng = pl.get_current_fig_manager()
+    mng.resize(*mng.window.maxsize())
+    pl.subplot(131)
+    pl.imshow(moving)
+    pl.subplot(132)
+    pl.imshow(static)
+    pl.subplot(133)
+    pl.imshow(overlaid)
+    pl.figure()
+    mng = pl.get_current_fig_manager()
+    mng.resize(*mng.window.maxsize())
+    pl.imshow(overlaid_reg)
+    pl.show()
+
+    # Display images
+    # cv2.imshow("Source Image", im_src)
+    # cv2.imshow("Destination Image", im_dst)
+    # cv2.imshow("Warped Source Image", im_out)
+    #
+    # cv2.waitKey(0)
+    pass
+
+
+def check_new_earth_engine_label(this_example, full_label_file):
+    # gdal_ds = gdal.Open(this_example)
+    show_image = get_rgb_from_landsat8(this_image=this_example)
+    # convert to rgb 255 images now
+    show_image = histogram_equalize((255 * show_image).astype(np.uint8))
+    label_map = gdal.Open(full_label_file)
+    channel = label_map.GetRasterBand(1)
+    label_image = channel.ReadAsArray()
+    label_image[np.isnan(label_image)] = -1
+    min_r = min(show_image.shape[0], label_image.shape[0])
+    min_c = min(show_image.shape[1], label_image.shape[1])
+    safe_pixels = 20
+    show_image = show_image[safe_pixels:min_r-safe_pixels, safe_pixels:min_c-safe_pixels, :]
+    label_image = label_image[safe_pixels:min_r-safe_pixels, safe_pixels:min_c-safe_pixels]
+    print(np.unique(label_image, return_counts=True))
+    registered = show_image.copy()
+    registered[label_image == 0] = (255, 0, 0)  # (0, 255, 150)
+    # registered[label_image == 12] = (255, 0, 0)
+    registered[label_image == 13] = (255, 0, 0)
+    registered[label_image == 15] = (255, 0, 0)  # (150, 255, 0)
+    # print(registered[label_image == 210].shape)
+
+    # print(label_image[label_image==-1].shape)
+    mng = pl.get_current_fig_manager()
+    mng.resize(*mng.window.maxsize())
+    pl.subplot(131)
+    pl.title('actual image: {}'.format(show_image.shape[:2]))
+    pl.imshow(show_image)
+    pl.subplot(132)
+    pl.title('label image: {}'.format(label_image.shape[:2]))
+    pl.imshow(label_image)
+    pl.subplot(133)
+    pl.title('registered image: {}'.format(registered.shape[:2]))
+    pl.imshow(registered)
+    pl.show()
+    pass
+
+
 if __name__ == '__main__':
     # check_image_against_label(this_example=sys.argv[1], full_label_file=sys.argv[2], this_region=sys.argv[3])
 
@@ -249,13 +474,37 @@ if __name__ == '__main__':
 
     # generate_dataset(year='2015')
 
-    check_temporal_map_difference(label_1='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-                                          'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2013-v2.0.7.tif',
-                                  label_2='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-                                          'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2014-v2.0.7.tif',
-                                  label_3='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-                                          'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.tif',
-                                  this_region='reduced_region_7')
+    # label_image_homography(pathtonumpy='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+    #                                   'reduced_landsat_images/reduced_dataset_for_segmentation/2015/'
+    #                                   'reduced_regions_landsat_2015_{}.pkl'.format(sys.argv[1]),
+    #                        this_region='reduced_region_{}'.format(sys.argv[1]))
+
+    # check_generated_numpy(pathtonumpy='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+    #                                   'reduced_landsat_images/reduced_dataset_for_segmentation/2015/'
+    #                                   'reduced_regions_landsat_2015_7.pkl')
+
+    # register_label_on_image(pathtonumpy='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+    #                                     'reduced_landsat_images/reduced_dataset_for_segmentation/2015/'
+    #                                     'reduced_regions_landsat_2015_7.pkl')
+
+    # check_temporal_map_difference(label_1='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+    #                                       'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2013-v2.0.7.tif',
+    #                               label_2='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+    #                                       'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2014-v2.0.7.tif',
+    #                               label_3='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+    #                                       'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.tif',
+    #                               this_region='reduced_region_7')
+
+    check_new_earth_engine_label(this_example='/home/annus/PycharmProjects/'
+                                              'ForestCoverChange_inputs_and_numerical_results/reduced_landsat_images/'
+                                              'reduced_landsat_images/{}/reduced_regions_landsat_{}_{}.tif'
+                                 .format(sys.argv[1], sys.argv[1], sys.argv[2]),
+                                 full_label_file='/home/annus/PycharmProjects/'
+                                                 'ForestCoverChange_inputs_and_numerical_results/'
+                                                 'modis_land_covermaps/covermap_{}_reduced_region_{}.tif'
+                                 .format(sys.argv[1], sys.argv[2]))
+
+
 
 
 
