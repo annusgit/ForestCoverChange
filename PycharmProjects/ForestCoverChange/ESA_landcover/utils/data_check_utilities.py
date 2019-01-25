@@ -3,7 +3,7 @@
 from __future__ import print_function, division
 import os
 import sys
-import png
+# import png
 import cv2
 import gdal
 import pickle
@@ -11,12 +11,13 @@ import numpy as np
 import PIL.Image as Image
 import scipy.misc as misc
 import matplotlib.pyplot as pl
+
 # for image registration
-from dipy.data import get_fnames
-from dipy.align.imwarp import SymmetricDiffeomorphicRegistration
-from dipy.align.metrics import SSDMetric, CCMetric, EMMetric
-import dipy.align.imwarp as imwarp
-from dipy.viz import regtools
+# from dipy.data import get_fnames
+# from dipy.align.imwarp import SymmetricDiffeomorphicRegistration
+# from dipy.align.metrics import SSDMetric, CCMetric, EMMetric
+# import dipy.align.imwarp as imwarp
+# from dipy.viz import regtools
 
 
 all_coordinates = {
@@ -222,7 +223,7 @@ def check_image_against_label(this_example, full_label_file, this_region):
     pass
 
 
-def make_dataset_numpy_from_image(this_example, full_label_file, this_region, pickle_path):
+def make_CCI_dataset_numpy_from_image(this_example, full_label_file, this_region, pickle_path):
     this_ds = gdal.Open(this_example)
     example_array = get_combination(example=this_ds, bands=range(1,12))
     label_map = gdal.Open(full_label_file)
@@ -241,7 +242,22 @@ def make_dataset_numpy_from_image(this_example, full_label_file, this_region, pi
     pass
 
 
-def generate_dataset(year):
+def make_MODIS_dataset_numpy_from_image(this_example, this_label, this_region, pickle_path):
+    this_ds = gdal.Open(this_example)
+    example_array = get_combination(example=this_ds, bands=range(1, 12))
+    label_map = gdal.Open(this_label)
+    label_image = label_map.GetRasterBand(1).ReadAsArray()
+    min_r = min(example_array.shape[0], label_image.shape[0])
+    min_c = min(example_array.shape[1], label_image.shape[1])
+    example_array = example_array[:min_r, :min_c, :]
+    label_image = label_image[:min_r, :min_c]
+    with open(pickle_path, 'wb') as pickle_file:
+        pickle.dump((example_array, label_image), pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
+        print('Saved {}'.format(pickle_path))
+    pass
+
+
+def generate_dataset_CCI(year):
     examples_path = '/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/' \
                     'reduced_landsat_images/reduced_landsat_images/{}/'.format(year)
     single_example_name = 'reduced_regions_landsat_{}_'.format(year)
@@ -253,12 +269,40 @@ def generate_dataset(year):
     single_pickle_name = 'reduced_regions_landsat_{}_'.format(year)
 
     for i in range(1,8):
-        make_dataset_numpy_from_image(this_example=os.path.join(examples_path, single_example_name+'{}.tif'.format(i)),
+        make_CCI_dataset_numpy_from_image(this_example=os.path.join(examples_path, single_example_name+'{}.tif'.format(i)),
                                       full_label_file=full_label_path,
                                       this_region=this_region_name+str(i),
                                       pickle_path=os.path.join(pickle_main_path, single_pickle_name+'{}.pkl'.format(i)))
 
     pass
+
+
+def generate_dataset_MODIS(year):
+    # examples_path = '/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/' \
+    #                 'reduced_landsat_images/reduced_landsat_images/{}/'.format(year)
+    examples_path = '/home/annuszulfiqar/forest_cover/forestcoverUnet/ESA_landcover/reduced_regions_landsat/{}/'\
+                    .format(year)
+    single_example_name = 'reduced_regions_landsat_{}_'.format(year)
+    # labels_path = '/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/' \
+    #               'modis_land_covermaps/{}'.format(year)
+    labels_path = '/home/annuszulfiqar/forest_cover/forestcoverUnet/ESA_landcover/reduced_regions_landsat/' \
+                  'modis_land_covermaps/{}'.format(year)
+    single_label_name = 'covermap_{}_reduced_region_'.format(year)
+    this_region_name = 'reduced_region_'
+    # pickle_main_path = '/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/' \
+    #                    'reduced_landsat_images/reduced_dataset_for_segmentation_MODIS/'
+    pickle_main_path = '/home/annuszulfiqar/forest_cover/forestcoverUnet/ESA_landcover/reduced_regions_landsat/dataset'
+    single_pickle_name = 'reduced_regions_landsat_{}_'.format(year)
+
+    for region in range(1,8):
+        make_MODIS_dataset_numpy_from_image(this_example=os.path.join(examples_path, single_example_name+'{}.tif'
+                                                                      .format(region)),
+                                      this_label=os.path.join(labels_path, single_label_name+'{}.tif'.format(region)),
+                                      this_region=this_region_name+str(region),
+                                      pickle_path=os.path.join(pickle_main_path, single_pickle_name+'{}.pkl'
+                                                               .format(region)))
+    pass
+
 
 
 def check_temporal_map_difference(label_1, label_2, label_3, this_region):
@@ -310,9 +354,9 @@ def check_generated_numpy(pathtonumpy):
 
     print(this.shape, label_array.shape)
     registered = this.copy()
-    registered[label_array == 130] = (255, 0, 0) #(0, 255, 150)
-    registered[label_array == 190] = (255, 0, 0)
-    registered[label_array == 210] = (255, 0, 0) #(150, 255, 0)
+    registered[label_array == 0] = (255, 0, 0) #(0, 255, 150)
+    registered[label_array == 13] = (255, 0, 0) #(0, 255, 150)
+    registered[label_array == 15] = (255, 0, 0)
 
     pl.subplot(131)
     pl.imshow(this)
@@ -324,44 +368,44 @@ def check_generated_numpy(pathtonumpy):
     pass
 
 
-def register_label_on_image(pathtonumpy):
-    with open(pathtonumpy, 'rb') as dataset:
-        moving, static = pickle.load(dataset)
-    moving_single = moving[:,:,4]
-    moving = histogram_equalize(np.asarray(255*(moving[:,:,[4,3,2]]), dtype=np.uint8))
-    overlaid = moving.copy()
-    overlaid[static == 130] = (255, 0, 0)  # (0, 255, 150)
-    overlaid[static == 190] = (255, 0, 0)
-    overlaid[static == 210] = (255, 0, 0)  # (150, 255, 0)
-
-    # pl.imshow(moving_single)
-    # pl.show()
-    regtools.overlay_images(static, moving_single, 'Static', 'Overlay', 'Moving')
-    dim = static.ndim
-    metric = SSDMetric(dim)
-    level_iters = [200, 100, 50, 25]
-    # level_iters = [1, 1]
-    sdr = SymmetricDiffeomorphicRegistration(metric, level_iters, inv_iter=50)
-    mapping = sdr.optimize(static, moving_single)
-    warped_moving_0 = mapping.transform(moving[:,:,0], 'linear')
-    warped_moving_1 = mapping.transform(moving[:,:,1], 'linear')
-    warped_moving_2 = mapping.transform(moving[:,:,2], 'linear')
-    warped_moving = np.dstack((warped_moving_0, warped_moving_1, warped_moving_2))
-    # print(warped_moving)
-    warped_moving = np.asarray(warped_moving, dtype=np.uint8)
-    overlaid_again = warped_moving.copy()
-    overlaid_again[static == 130] = (255, 0, 0)  # (0, 255, 150)
-    overlaid_again[static == 190] = (255, 0, 0)
-    overlaid_again[static == 210] = (255, 0, 0)  # (150, 255, 0)
-
-    pl.subplot(131)
-    pl.imshow(static)
-    pl.subplot(132)
-    pl.imshow(overlaid)
-    pl.subplot(133)
-    pl.imshow(overlaid_again)
-    pl.show()
-    pass
+# def register_label_on_image(pathtonumpy):
+#     with open(pathtonumpy, 'rb') as dataset:
+#         moving, static = pickle.load(dataset)
+#     moving_single = moving[:,:,4]
+#     moving = histogram_equalize(np.asarray(255*(moving[:,:,[4,3,2]]), dtype=np.uint8))
+#     overlaid = moving.copy()
+#     overlaid[static == 130] = (255, 0, 0)  # (0, 255, 150)
+#     overlaid[static == 190] = (255, 0, 0)
+#     overlaid[static == 210] = (255, 0, 0)  # (150, 255, 0)
+#
+#     # pl.imshow(moving_single)
+#     # pl.show()
+#     regtools.overlay_images(static, moving_single, 'Static', 'Overlay', 'Moving')
+#     dim = static.ndim
+#     metric = SSDMetric(dim)
+#     level_iters = [200, 100, 50, 25]
+#     # level_iters = [1, 1]
+#     sdr = SymmetricDiffeomorphicRegistration(metric, level_iters, inv_iter=50)
+#     mapping = sdr.optimize(static, moving_single)
+#     warped_moving_0 = mapping.transform(moving[:,:,0], 'linear')
+#     warped_moving_1 = mapping.transform(moving[:,:,1], 'linear')
+#     warped_moving_2 = mapping.transform(moving[:,:,2], 'linear')
+#     warped_moving = np.dstack((warped_moving_0, warped_moving_1, warped_moving_2))
+#     # print(warped_moving)
+#     warped_moving = np.asarray(warped_moving, dtype=np.uint8)
+#     overlaid_again = warped_moving.copy()
+#     overlaid_again[static == 130] = (255, 0, 0)  # (0, 255, 150)
+#     overlaid_again[static == 190] = (255, 0, 0)
+#     overlaid_again[static == 210] = (255, 0, 0)  # (150, 255, 0)
+#
+#     pl.subplot(131)
+#     pl.imshow(static)
+#     pl.subplot(132)
+#     pl.imshow(overlaid)
+#     pl.subplot(133)
+#     pl.imshow(overlaid_again)
+#     pl.show()
+#     pass
 
 
 def label_image_homography(pathtonumpy, this_region):
@@ -474,14 +518,16 @@ if __name__ == '__main__':
 
     # generate_dataset(year='2015')
 
+    generate_dataset_MODIS(year=sys.argv[1])
+
     # label_image_homography(pathtonumpy='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
     #                                   'reduced_landsat_images/reduced_dataset_for_segmentation/2015/'
     #                                   'reduced_regions_landsat_2015_{}.pkl'.format(sys.argv[1]),
     #                        this_region='reduced_region_{}'.format(sys.argv[1]))
 
     # check_generated_numpy(pathtonumpy='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-    #                                   'reduced_landsat_images/reduced_dataset_for_segmentation/2015/'
-    #                                   'reduced_regions_landsat_2015_7.pkl')
+    #                                   'reduced_landsat_images/reduced_dataset_for_segmentation_MODIS/'
+    #                                   'reduced_regions_landsat_2016_1.pkl')
 
     # register_label_on_image(pathtonumpy='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
     #                                     'reduced_landsat_images/reduced_dataset_for_segmentation/2015/'
@@ -495,14 +541,14 @@ if __name__ == '__main__':
     #                                       'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.tif',
     #                               this_region='reduced_region_7')
 
-    check_new_earth_engine_label(this_example='/home/annus/PycharmProjects/'
-                                              'ForestCoverChange_inputs_and_numerical_results/reduced_landsat_images/'
-                                              'reduced_landsat_images/{}/reduced_regions_landsat_{}_{}.tif'
-                                 .format(sys.argv[1], sys.argv[1], sys.argv[2]),
-                                 full_label_file='/home/annus/PycharmProjects/'
-                                                 'ForestCoverChange_inputs_and_numerical_results/'
-                                                 'modis_land_covermaps/covermap_{}_reduced_region_{}.tif'
-                                 .format(sys.argv[1], sys.argv[2]))
+    # check_new_earth_engine_label(this_example='/home/annus/PycharmProjects/'
+    #                                           'ForestCoverChange_inputs_and_numerical_results/reduced_landsat_images/'
+    #                                           'reduced_landsat_images/{}/reduced_regions_landsat_{}_{}.tif'
+    #                              .format(sys.argv[1], sys.argv[1], sys.argv[2]),
+    #                              full_label_file='/home/annus/PycharmProjects/'
+    #                                              'ForestCoverChange_inputs_and_numerical_results/'
+    #                                              'modis_land_covermaps/covermap_{}_reduced_region_{}.tif'
+    #                              .format(sys.argv[1], sys.argv[2]))
 
 
 
