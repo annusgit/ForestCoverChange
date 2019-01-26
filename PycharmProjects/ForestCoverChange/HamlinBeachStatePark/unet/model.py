@@ -219,10 +219,10 @@ class UNet(nn.Module):
                                                          model_dict['d4c1'], model_dict['d4c1_b'],
                                                          model_dict['d4c2'], model_dict['d4c2_b']])
         else:
-            self.decoder_1 = UNet_up_block(512, 1024, 512, None)
-            self.decoder_2 = UNet_up_block(256, 512, 256, None)
-            self.decoder_3 = UNet_up_block(128, 256, 128, None)
-            self.decoder_4 = UNet_up_block(64, 128, 64, None)
+            self.decoder_1 = UNet_up_block(-1, 1024, 512, None)
+            self.decoder_2 = UNet_up_block(-1, 512, 256, None)
+            self.decoder_3 = UNet_up_block(-1, 256, 128, None)
+            self.decoder_4 = UNet_up_block(-1, 128, 64, None)
 
         self.last_conv = nn.Conv2d(64, num_classes, kernel_size=1)
         self.softmax = nn.Softmax(dim=1)
@@ -250,12 +250,17 @@ class UNet(nn.Module):
         self.x_mid = self.mid_conv2(self.x_mid)
         self.x_mid = self.relu(self.x_mid)
         self.x_mid = self.dropout(self.x_mid)
+
+        print(self.x4_cat_1.shape, self.x_mid.shape, self.decoder_1.tr_conv_1.weight.shape, self.decoder_1.conv_1.weight.shape, self.decoder_1.conv_2.weight.shape)
         x = self.decoder_1(self.x4_cat_1, self.x_mid)
+        print(self.x3_cat.shape, x.shape, self.decoder_2.tr_conv_1.weight.shape, self.decoder_2.conv_1.weight.shape, self.decoder_2.conv_2.weight.shape)
         x = self.decoder_2(self.x3_cat, x)
+        print(self.x2_cat.shape, x.shape, self.decoder_3.tr_conv_1.weight.shape, self.decoder_3.conv_1.weight.shape, self.decoder_3.conv_2.weight.shape)
         x = self.decoder_3(self.x2_cat, x)
+        print(self.x1_cat.shape, x.shape, self.decoder_4.tr_conv_1.weight.shape, self.decoder_4.conv_1.weight.shape, self.decoder_4.conv_2.weight.shape)
         x = self.decoder_4(self.x1_cat, x)
         x = self.last_conv(x)
-        return x, self.softmax(x) # the final vector and the corresponding softmaxed prediction
+        return x, self.softmax(x)  # the final vector and the corresponding softmaxed prediction
 
 
 @torch.no_grad()

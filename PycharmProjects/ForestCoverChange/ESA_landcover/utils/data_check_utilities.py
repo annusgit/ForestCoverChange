@@ -294,7 +294,7 @@ def generate_dataset_MODIS(year):
     pickle_main_path = '/home/annuszulfiqar/forest_cover/forestcoverUnet/ESA_landcover/reduced_regions_landsat/dataset'
     single_pickle_name = 'reduced_regions_landsat_{}_'.format(year)
 
-    for region in range(1,8):
+    for region in range(8,13):
         make_MODIS_dataset_numpy_from_image(this_example=os.path.join(examples_path, single_example_name+'{}.tif'
                                                                       .format(region)),
                                       this_label=os.path.join(labels_path, single_label_name+'{}.tif'.format(region)),
@@ -302,7 +302,6 @@ def generate_dataset_MODIS(year):
                                       pickle_path=os.path.join(pickle_main_path, single_pickle_name+'{}.pkl'
                                                                .format(region)))
     pass
-
 
 
 def check_temporal_map_difference(label_1, label_2, label_3, this_region):
@@ -471,12 +470,13 @@ def label_image_homography(pathtonumpy, this_region):
     pass
 
 
-def check_new_earth_engine_label(this_example, full_label_file):
+def check_MODIS_earth_engine_label(this_example, full_label_file):
     # gdal_ds = gdal.Open(this_example)
     show_image = get_rgb_from_landsat8(this_image=this_example)
     # convert to rgb 255 images now
     show_image = histogram_equalize((255 * show_image).astype(np.uint8))
     label_map = gdal.Open(full_label_file)
+    print(full_label_file)
     channel = label_map.GetRasterBand(1)
     label_image = channel.ReadAsArray()
     label_image[np.isnan(label_image)] = -1
@@ -491,6 +491,8 @@ def check_new_earth_engine_label(this_example, full_label_file):
     # registered[label_image == 12] = (255, 0, 0)
     registered[label_image == 13] = (255, 0, 0)
     registered[label_image == 15] = (255, 0, 0)  # (150, 255, 0)
+    registered[np.where(np.logical_and(label_image >= 1, label_image <= 5))] = (0, 255, 0)  # (150, 255, 0)
+
     # print(registered[label_image == 210].shape)
 
     # print(label_image[label_image==-1].shape)
@@ -541,15 +543,25 @@ if __name__ == '__main__':
     #                                       'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.tif',
     #                               this_region='reduced_region_7')
 
-    # check_new_earth_engine_label(this_example='/home/annus/PycharmProjects/'
-    #                                           'ForestCoverChange_inputs_and_numerical_results/reduced_landsat_images/'
-    #                                           'reduced_landsat_images/{}/reduced_regions_landsat_{}_{}.tif'
-    #                              .format(sys.argv[1], sys.argv[1], sys.argv[2]),
-    #                              full_label_file='/home/annus/PycharmProjects/'
-    #                                              'ForestCoverChange_inputs_and_numerical_results/'
-    #                                              'modis_land_covermaps/covermap_{}_reduced_region_{}.tif'
-    #                              .format(sys.argv[1], sys.argv[2]))
+    # check_MODIS_earth_engine_label(this_example='/home/annus/PycharmProjects/'
+    #                                             'ForestCoverChange_inputs_and_numerical_results/reduced_landsat_images/'
+    #                                             'reduced_landsat_images/{}/reduced_regions_landsat_{}_{}.tif'
+    #                                .format(sys.argv[1], sys.argv[1], sys.argv[2]),
+    #                                full_label_file='/home/annus/PycharmProjects/'
+    #                                                'ForestCoverChange_inputs_and_numerical_results/'
+    #                                                'modis_land_covermaps/{}/covermap_{}_reduced_region_{}.tif'
+    #                                .format(sys.argv[1], sys.argv[1], sys.argv[2]))
 
+    # check_MODIS_earth_engine_label(this_example='/home/annus/Desktop/new_regions_images/'
+    #                                             'reduced_regions_landsat_{}_{}.tif'
+    #                                .format(sys.argv[1], sys.argv[2]),
+    #                                full_label_file='/home/annus/Desktop/new_regions_labels/'
+    #                                                'covermap_{}_reduced_region_{}.tif'
+    #                                .format(sys.argv[1], sys.argv[2]))
+
+
+    # watch -n2 rsync -avh /home/annus/PycharmProjects/ForestCoverChange/ESA_landcover/  -a annuszulfiqar@111.68.101.28:forest_cover/forestcoverUnet/ESA_landcover/
+    # watch -n2 rsync -avh /home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/modis_land_covermaps/   -a annuszulfiqar@111.68.101.28:forest_cover/forestcoverUnet/ESA_landcover/reduced_regions_landsat/modis_land_covermaps
 
 
 

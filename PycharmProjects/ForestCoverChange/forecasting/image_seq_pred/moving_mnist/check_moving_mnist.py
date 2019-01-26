@@ -30,7 +30,7 @@ def gen_sequence(path):
     ims = []
     fig = plt.figure()
     # print('all_seqs.shape, check.shape = ', all_seqs.shape, check.shape)
-    # print(check[0].shape)
+    print(check.shape[0])
     for i in range(check.shape[0]):
         im = plt.imshow(check[i], animated=True)
         # plt.title('frame:{}'.format(i+1))

@@ -32,24 +32,8 @@ if __name__ == '__main__':
     parser.add_argument('--device', dest='device', type=int, default=0)
     args = parser.parse_args()
 
-    # function = args.function
-    # images = args.images
-    # labels = args.labels
-    # block_size = args.block_size
-    # input_dim = args.input_dim
-    # workers = args.workers
-    # pre_model = args.pre_model
-    # save_data = args.save_data
-    # save_dir = args.save_dir
-    # sum_dir = args.summary_dir
-    # batch_size = args.batch_size
-    # lr = args.lr
-    # log_after = args.log_after
-    # cuda = args.cuda
-    # device = args.device
-
     function_to_call = eval(args.function)
-    net = UNet(input_channels=13, num_classes=23)
+    net = UNet(input_channels=11, num_classes=16)
 
     # model, images, labels, block_size, input_dim, workers, pre_model,save_dir,
     #       sum_dir, batch_size, lr, log_after, cuda, device

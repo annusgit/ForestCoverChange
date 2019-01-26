@@ -5,6 +5,7 @@ from __future__ import division
 import torch
 import torch.nn as nn
 from torch.optim import *
+from loss import *
 import torch.nn.functional as F
 from torch.nn.utils import clip_grad_norm_
 import torch.utils.model_zoo as model_zoo
@@ -27,7 +28,16 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
         model.cuda(device=device)
     # define loss and optimizer
     optimizer = RMSprop(model.parameters(), lr=lr)
-    criterion = nn.CrossEntropyLoss()
+    weights = torch.Tensor([7, 2, 241, 500, 106, 5, 319, 0.06, 0.58, 0.125, 0.045, 0.18, 0.026, 0.506, 0.99, 0.321])
+    # weights = weights.cuda(device=device) if cuda else weights
+    # criterion = nn.CrossEntropyLoss(weight=weights)
+    # choose a better loss for this problem
+    # if cuda:
+    #     criterion = DiceLoss(weights=weights, device='cpu')
+    # else:
+    #     criterion = DiceLoss(weights=weights, device='cuda:{}'.format(device))
+    # criterion = tversky_loss(num_c=16)
+    criterion = FocalLoss2d()
     #### scheduler addition
     lr_final = 0.0000003
     LR_decay = (lr_final / lr) ** (1. / epochs)
@@ -44,10 +54,8 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
 
     loaders = get_dataloaders_generated_data(generated_data_path=generated_data_path,
                                              save_data_path=save_data,
-                                             block_size=block_size,
-                                             model_input_size=input_dim,
-                                             batch_size=batch_size,
-                                             num_workers=workers)
+                                             model_input_size=input_dim, batch_size=batch_size, train_split=0.8,
+                                             num_workers=workers, max_label=16)
 
     train_loader, val_dataloader, test_loader = loaders
 
@@ -86,10 +94,15 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
             test_x = test_x.cuda(device=device) if cuda else test_x
             label = label.cuda(device=device) if cuda else label
             dimension = test_x.size(-1)
-            out_x, softmaxed = model.forward(test_x)
-            pred = torch.argmax(softmaxed, dim=1)
-            # pred = pred.cpu()
-            # out_x = out_x.cpu()
+            out_x, logits = model.forward(test_x)
+            pred = torch.argmax(logits, dim=1)
+
+            # label = label.unsqueeze(1)
+            # print(logits.shape, label.shape)
+            # print(label[label > 15])
+
+            # out_x, crit_label = out_x.cpu(), label.cpu().unsqueeze(1).float()
+            # print(out_x.shape, crit_label.shape)
             loss = criterion(out_x, label)
             accurate = (pred == label).sum()
 
@@ -147,8 +160,8 @@ def eval_net(**kwargs):
         net_accuracy, net_loss = [], []
         for idx, data in enumerate(val_loader):
             test_x, label = data['input'], data['label']
-            test_x = test_x.cuda() if cuda else test_x
-            label = label.cuda() if cuda else label
+            test_x = test_x.cuda(device=device) if cuda else test_x
+            label = label.cuda(device=device) if cuda else label
             dimension = test_x.size(-1)
             out_x, softmaxed = model.forward(test_x)
             pred = torch.argmax(softmaxed, dim=1)
@@ -205,7 +218,7 @@ def eval_net(**kwargs):
             test_x, label = data['input'], data['label']
             # print(test_x.shape)
             if cuda:
-                test_x = test_x.cuda()
+                test_x = test_x.cuda(device=device)
             # forward
             out_x, pred = model.forward(test_x)
             pred = pred.cpu()

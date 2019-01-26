@@ -36,18 +36,18 @@ class UNet_down_block(nn.Module):
     def __init__(self, input_channel, output_channel, conv_1=None, conv_2=None):
         super(UNet_down_block, self).__init__()
         if conv_1:
-            print('pretrained', conv_1)
+            print('LOG: Using pretrained convolutional layer', conv_1)
         if conv_2:
-            print('pretrained', conv_2)
+            print('LOG: Using pretrained convolutional layer', conv_2)
         self.conv1 = conv_1 if conv_1 else nn.Conv2d(input_channel, output_channel, kernel_size=3, padding=1)
         self.conv2 = conv_2 if conv_2 else nn.Conv2d(output_channel, output_channel, kernel_size=3, padding=1)
         self.bn1 = nn.BatchNorm2d(num_features=output_channel)
         self.bn2 = nn.BatchNorm2d(num_features=output_channel)
-        self.relu = nn.ReLU()
+        self.activate = nn.LeakyReLU()
 
     def forward(self, x):
-        x = self.relu(self.bn1(self.conv1(x)))
-        x = self.relu(self.bn2(self.conv2(x)))
+        x = self.activate(self.bn1(self.conv1(x)))
+        x = self.activate(self.bn2(self.conv2(x)))
         return x
 
 
@@ -62,14 +62,14 @@ class UNet_up_block(nn.Module):
         self.conv_2 = nn.Conv2d(output_channel, output_channel, kernel_size=3, stride=1, padding=1)
         self.bn1 = nn.BatchNorm2d(num_features=output_channel)
         self.bn2 = nn.BatchNorm2d(num_features=output_channel)
-        self.relu = nn.ReLU()
+        self.activate = nn.LeakyReLU()
 
     def forward(self, prev_feature_map, x):
         x = self.tr_conv_1(x)
-        x = self.relu(x)
+        x = self.activate(x)
         x = torch.cat((x, prev_feature_map), dim=1)
-        x = self.relu(self.bn1(self.conv_1(x)))
-        x = self.relu(self.bn2(self.conv_2(x)))
+        x = self.activate(self.bn1(self.conv_1(x)))
+        x = self.activate(self.bn2(self.conv_2(x)))
         return x
 
 
@@ -84,18 +84,31 @@ class UNet(nn.Module):
         self.encoder_2 = UNet_down_block(64, 128, conv_1=pretrained_layers[3])
         self.encoder_3 = UNet_down_block(128, 256, conv_1=pretrained_layers[6], conv_2=pretrained_layers[8])
         self.encoder_4 = UNet_down_block(256, 512, conv_1=pretrained_layers[11], conv_2=pretrained_layers[13])
+        # self.encoder_5 = UNet_down_block(512, 1024)
         self.max_pool = nn.MaxPool2d(2, 2)
         self.dropout = nn.Dropout2d(0.5)
         self.mid_conv1 = nn.Conv2d(512, 1024, 3, padding=1)
         self.mid_conv2 = nn.Conv2d(1024, 1024, 3, padding=1)
-        self.relu = nn.ReLU()
+        self.activate = nn.LeakyReLU()
         self.dropout = nn.Dropout2d(0.5)
-        self.decoder_1 = UNet_up_block(512, 1024, 512)
-        self.decoder_2 = UNet_up_block(256, 512, 256)
-        self.decoder_3 = UNet_up_block(128, 256, 128)
-        self.decoder_4 = UNet_up_block(64, 128, 64)
+        # self.decoder_1 = UNet_up_block(-1, 2048, 1024)
+        self.decoder_1 = UNet_up_block(-1, 1024, 512)
+        self.decoder_2 = UNet_up_block(-1, 512, 256)
+        self.decoder_3 = UNet_up_block(-1, 256, 128)
+        self.decoder_4 = UNet_up_block(-1, 128, 64)
         self.last_conv = nn.Conv2d(64, num_classes, kernel_size=1)
         self.softmax = nn.Softmax(dim=1)
+
+        # print(self.decoder_1.tr_conv_1.weight.shape, self.decoder_1.conv_1.weight.shape,
+        #       self.decoder_1.conv_2.weight.shape)
+        # print(self.decoder_2.tr_conv_1.weight.shape, self.decoder_2.conv_1.weight.shape,
+        #       self.decoder_2.conv_2.weight.shape)
+        # print(self.decoder_3.tr_conv_1.weight.shape, self.decoder_3.conv_1.weight.shape,
+        #       self.decoder_3.conv_2.weight.shape)
+        # print(self.decoder_4.tr_conv_1.weight.shape, self.decoder_4.conv_1.weight.shape,
+        #       self.decoder_4.conv_2.weight.shape)
+        # print(self.decoder_5.tr_conv_1.weight.shape, self.decoder_5.conv_1.weight.shape,
+        #       self.decoder_5.conv_2.weight.shape)
         pass
 
     def forward(self, x):
@@ -110,24 +123,37 @@ class UNet(nn.Module):
         self.x4_cat = self.encoder_4(self.x3)
         self.x4_cat_1 = self.dropout(self.x4_cat)
         self.x4 = self.max_pool(self.x4_cat_1)
+
+        # self.x5_cat = self.encoder_5(self.x4)
+        # self.x5_cat_1 = self.dropout(self.x5_cat)
+        # self.x5 = self.max_pool(self.x5_cat_1)
+
+        # print(self.x5.shape)
         self.x_mid = self.mid_conv1(self.x4)
-        self.x_mid = self.relu(self.x_mid)
+        self.x_mid = self.activate(self.x_mid)
         self.x_mid = self.mid_conv2(self.x_mid)
-        self.x_mid = self.relu(self.x_mid)
+        self.x_mid = self.activate(self.x_mid)
         self.x_mid = self.dropout(self.x_mid)
+
+        # print(self.x5_cat_1.shape, self.x_mid.shape)
         x = self.decoder_1(self.x4_cat_1, self.x_mid)
+        # print(self.x4_cat.shape, x.shape)
         x = self.decoder_2(self.x3_cat, x)
+        # print(self.x3_cat.shape, x.shape)
         x = self.decoder_3(self.x2_cat, x)
+        # print(self.x2_cat.shape, x.shape)
         x = self.decoder_4(self.x1_cat, x)
+        # print(self.x1_cat.shape, x.shape)
+        # x = self.decoder_5(self.x1_cat, x)
         x = self.last_conv(x)
         return x, self.softmax(x)  # the final vector and the corresponding softmaxed prediction
 
 
 # @torch.no_grad()
 def check_model():
-    model = UNet(input_channels=13, num_classes=22)
+    model = UNet(input_channels=11, num_classes=16)
     model.eval()
-    in_tensor = torch.Tensor(16, 13, 64, 64)
+    in_tensor = torch.Tensor(16, 11, 64, 64)
     with torch.no_grad():
         out_tensor, softmaxed = model(in_tensor)
         print(out_tensor.shape, softmaxed.shape)
@@ -137,7 +163,7 @@ def check_model():
 
 # @torch.no_grad()
 def check_model_on_dataloader():
-    model = UNet(input_channels=13, num_classes=22)
+    model = UNet(input_channels=11, num_classes=16)
     model.eval()
     model.cuda(device=0)
 
@@ -195,15 +221,17 @@ def see_children_recursively(graph, layer=None):
 
 
 if __name__ == '__main__':
-    check_model_on_dataloader()
+    # # check_model_on_dataloader()
     # VGG = models.vgg11(pretrained=True)
     # VGG.eval()
     # feature_layers = list(VGG.features)
     # classifier_layers = list(VGG.classifier)
-    # # for i, layer in enumerate(feature_layers):
-    # #     print('{}.'.format(i), layer)
-    # # for i, layer in enumerate(classifier_layers):
-    # #     print('{}.'.format(i), layer)
+    # for i, layer in enumerate(feature_layers):
+    #     print('{}.'.format(i), layer)
+    # for i, layer in enumerate(classifier_layers):
+    #     print('{}.'.format(i), layer)
+
+    check_model()
     #
     # model = UNet(input_channels=13, num_classes=23)
     # model.eval()

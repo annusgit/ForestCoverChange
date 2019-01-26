@@ -103,6 +103,7 @@ def main(dest, filetype='npz', frame_size=64, seq_len=30, seqs=100, num_sz=28, n
     elif filetype == 'npy':
         np.save(dest, dat)
 
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Command line options')

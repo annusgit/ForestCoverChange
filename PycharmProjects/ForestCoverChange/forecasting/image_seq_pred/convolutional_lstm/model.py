@@ -172,7 +172,7 @@ class ConvLSTM(nn.Module):
         return param
 
 
-def test_model():
+def check_model():
     height, width, channels = 50, 50, 1
     model = ConvLSTM(input_size=(height, width),
                      input_dim=channels,
@@ -199,7 +199,8 @@ def get_shapes(structure):
             return
         get_shapes(struct)
 
-def test_model_on_moving_mnist():
+
+def check_model_on_moving_mnist():
     height, width, channels = 32, 32, 1
     model = ConvLSTM(input_size=(height, width),
                      input_dim=channels,
@@ -220,17 +221,12 @@ def test_model_on_moving_mnist():
     print('len(output_list), len(hidden_list) = ', len(output_list), len(hidden_list))
     get_shapes(hidden_list)
 
-    # test_input = torch.Tensor(16, 4, channels, height, width)
-    # print('test_input.shape = ', test_input.shape)
-    # hidden_list, output_list = model(test_input)
-    # print('len(output_list), len(hidden_list) = ', len(output_list), len(hidden_list))
-    # get_shapes(hidden_list)
-    # get_shapes(output_list)
     pass
+
 
 if __name__ == '__main__':
     # let's fix this thing
-    test_model_on_moving_mnist()
+    check_model_on_moving_mnist()
 
 
 
