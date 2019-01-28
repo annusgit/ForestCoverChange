@@ -69,16 +69,12 @@ class DiceLoss(nn.Module):
 
     def forward(self, output, target):
         # output : NxCxHxW Variable of float tensor
-        # target :  NxHxW long tensor
+        # target :  NxCxHxW one hot encoded target
         # weights : C float tensor
         # ignore_index : int value to ignore from loss
         smooth = 1.
-        loss = 0.
-
         output = output.exp()  # computes the exponential of each element ie. for 0 it finds 10
-        encoded_target = output.data.clone().zero_()  # make output size array and initialize with zeros
-        # ignore_index=1
-
+        encoded_target = target # supposed to be a one-hot array
         if self.ignore_index is not None:
             mask = target == self.ignore_index
             target = target.clone()
@@ -86,39 +82,53 @@ class DiceLoss(nn.Module):
             encoded_target.scatter_(1, target.unsqueeze(1), 1)
             mask = mask.unsqueeze(1).expand_as(encoded_target)
             encoded_target[mask] = 0
-        else:
-            unseq = target.long()  # here
-            unseq = unseq.data  # here
-            encoded_target.scatter_(1, unseq, 1)
-
-        # encoded_target = Variable(encoded_target).device(self.device)
-
-        if self.weights is None:
-            self.weights = Variable(torch.ones(output.size(1)).type_as(output.data))
-
+        # if self.weights is None:
+            # self.weights = Variable(torch.ones(output.size(1)).type_as(output.data))
         intersection = output * encoded_target
         numerator = (2*intersection.sum(3).sum(2).sum(0) + smooth)
         denominator = ((output+encoded_target).sum(3).sum(2).sum(0) + smooth)
-        loss_per_channel = self.weights*(1 -(numerator/denominator))  # weights may be directly multiplied
-
+        if self.weights is None:
+            loss_per_channel = 1 -(numerator/denominator)  # weights may be directly multiplied
+        else:
+            loss_per_channel = self.weights*(1 -(numerator/denominator))  # weights may be directly multiplied
         return loss_per_channel.sum() / output.size(1)
 
 
-# class DiceLoss(nn.Module):
-#     def __init__(self, weights):
-#         super(DiceLoss, self).__init__()
-#         self.weights = weights
-#
-#     def forward(self, input, target):
-#         smooth = 1.
-#         iflat = input.view(-1)
-#         tflat = target.view(-1)
-#         intersection = (iflat * tflat).sum()
-#         # return 1-((2.*intersection+smooth)/(iflat.sum()+tflat.sum()+smooth))
-#         loss = 1-((2.*intersection+smooth)/(iflat.sum()+tflat.sum()+smooth))
-#         # weighted from here onwards
-#         loss_per_channel = self.weights * loss
-#         return loss_per_channel / input.size(1)
+class dice_loss(nn.Module):
+    def __init__(self, num_classes):
+        super(dice_loss, self).__init__()
+        self.num_c = num_classes
+        pass
+
+    def make_one_hot(self, labels):
+        '''
+        Converts an integer label torch.autograd.Variable to a one-hot Variable.
+        Parameters
+        ----------
+        labels : torch.autograd.Variable of torch.cuda.LongTensor
+            N x 1 x H x W, where N is batch size.
+            Each value is an integer representing correct classification.
+        C : integer.
+            number of classes in labels.
+        Returns
+        -------
+        target : torch.autograd.Variable of torch.cuda.FloatTensor
+            N x C x H x W, where C is class number. One-hot encoded.
+        '''
+
+        one_hot = torch.FloatTensor(labels.size(0), self.num_c, labels.size(2), labels.size(3)).zero_()
+        target = one_hot.scatter_(1, labels.cpu().data, 1)
+        target = Variable(target)
+        return target
+
+    def forward(self, input, target):
+        smooth = 1.
+        iflat = input.view(-1)
+        target = self.make_one_hot(labels=target)
+        tflat = target.view(-1)
+        intersection = (iflat * tflat).sum()
+        return 1 - ((2. * intersection + smooth) /
+                    (iflat.sum() + tflat.sum() + smooth))
 
 
 class tversky_loss(nn.Module):
@@ -172,11 +182,11 @@ def check_dice_loss():
     num_c = 16
     weights = torch.Tensor([7, 2, 241, 500, 106, 5, 319, 0.06, 0.58, 0.125, 0.045, 0.18, 0.026, 0.506, 0.99, 0.321])
     weights.to('cpu')
-    logits_np = np.random.randint(0, 16, size=(64*64*16*num_c)).reshape((16, num_c, 64, 64))
-    target_np = np.random.randint(0, 16, size=(64*64*16*1)).reshape((16, 1, 64, 64))
+    logits_np = np.random.randint(0, 2, size=(64*64*16*num_c)).reshape((16, num_c, 64, 64))
+    target_np = np.random.randint(0, 2, size=(64*64*16*num_c)).reshape((16, num_c, 64, 64))
 
     logits = torch.Tensor(logits_np)
-    target = torch.LongTensor(target_np)
+    target = torch.Tensor(target_np)
     weighted_loss = DiceLoss(weights=weights)
     loss_val = weighted_loss(output=logits, target=target)
     print("Diceloss: ", loss_val.item())
@@ -192,6 +202,18 @@ def check_tversky_loss():
     criterion = tversky_loss(num_c=num_c)
     loss_val = criterion(logits, target.float())
     print("Tversky: ", loss_val.item())
+
+
+def check_dice_loss_new():
+    num_c = 16
+    weights = torch.Tensor([7, 2, 241, 500, 106, 5, 319, 0.06, 0.58, 0.125, 0.045, 0.18, 0.026, 0.506, 0.99, 0.321])
+    logits_np = np.random.randint(0, 16, size=(64 * 64 * 16 * num_c)).reshape((16, num_c, 64, 64))
+    target_np = np.random.randint(0, 16, size=(64 * 64 * 16 * 1)).reshape((16, 1, 64, 64))
+    logits = torch.Tensor(logits_np)
+    target = torch.LongTensor(target_np)
+    weighted_loss = dice_loss(num_classes=num_c)
+    loss_val = weighted_loss(input=logits, target=target)
+    print("Diceloss: ", loss_val.item())
 
 
 if __name__ == '__main__':

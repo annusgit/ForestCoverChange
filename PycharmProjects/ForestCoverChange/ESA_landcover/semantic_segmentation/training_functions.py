@@ -27,8 +27,8 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
         print('log: Using GPU')
         model.cuda(device=device)
     # define loss and optimizer
-    optimizer = RMSprop(model.parameters(), lr=lr)
-    weights = torch.Tensor([7, 2, 241, 500, 106, 5, 319, 0.06, 0.58, 0.125, 0.045, 0.18, 0.026, 0.506, 0.99, 0.321])
+    optimizer = Adam(model.parameters(), lr=lr)
+    # weights = torch.Tensor([7, 2, 241, 500, 106, 5, 319, 0.06, 0.58, 0.125, 0.045, 0.18, 0.026, 0.506, 0.99, 0.321])
     # weights = weights.cuda(device=device) if cuda else weights
     # criterion = nn.CrossEntropyLoss(weight=weights)
     # choose a better loss for this problem
@@ -37,7 +37,10 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
     # else:
     #     criterion = DiceLoss(weights=weights, device='cuda:{}'.format(device))
     # criterion = tversky_loss(num_c=16)
-    criterion = FocalLoss2d()
+    # criterion = FocalLoss2d()
+    criterion = DiceLoss()
+    # criterion = dice_loss(num_classes=16)
+
     #### scheduler addition
     lr_final = 0.0000003
     LR_decay = (lr_final / lr) ** (1. / epochs)
@@ -52,10 +55,9 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
     #                           batch_size=batch_size,
     #                           num_workers=workers)
 
-    loaders = get_dataloaders_generated_data(generated_data_path=generated_data_path,
-                                             save_data_path=save_data,
+    loaders = get_dataloaders_generated_data(generated_data_path=generated_data_path, save_data_path=save_data,
                                              model_input_size=input_dim, batch_size=batch_size, train_split=0.8,
-                                             num_workers=workers, max_label=16)
+                                             one_hot=True, num_workers=workers, max_label=16)
 
     train_loader, val_dataloader, test_loader = loaders
 
@@ -71,7 +73,7 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
     else:
         model_number = pre_model
         model_path = os.path.join(save_dir, 'model-{}.pt'.format(pre_model))
-        model.load_state_dict(torch.load(model_path))
+        model.load_state_dict(torch.load(model_path), strict=False)
         print('log: Resuming from model {} ...'.format(model_path))
     ###############################################################################
     # training loop
@@ -103,8 +105,8 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
 
             # out_x, crit_label = out_x.cpu(), label.cpu().unsqueeze(1).float()
             # print(out_x.shape, crit_label.shape)
-            loss = criterion(out_x, label)
-            accurate = (pred == label).sum()
+            loss = criterion(logits, label)
+            accurate = (pred == torch.argmax(label, dim=1)).sum()
 
             numerator = accurate
             denominator = float(test_x.size(0)*dimension**2)
@@ -140,8 +142,9 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
 
         # validate model
         print('log: Evaluating now...')
-        eval_net(model=model, criterion=criterion, val_loader=val_dataloader, cuda=cuda, device=device,
-                 writer=None, batch_size=batch_size, step=k)
+        with torch.no_grad():
+            eval_net(model=model, criterion=criterion, val_loader=val_dataloader, cuda=cuda, device=device,
+                     writer=None, batch_size=batch_size, step=k)
     pass
 
 
@@ -166,8 +169,9 @@ def eval_net(**kwargs):
             out_x, softmaxed = model.forward(test_x)
             pred = torch.argmax(softmaxed, dim=1)
             # pred = pred.cpu()
-            loss = criterion(out_x, label)
-            accurate = (pred == label).sum()
+            loss = criterion(softmaxed, label)
+            # accurate = (pred == label).sum()
+            accurate = (pred == torch.argmax(label, dim=1)).sum()
 
             numerator = accurate
             denominator = float(test_x.size(0) * dimension ** 2)

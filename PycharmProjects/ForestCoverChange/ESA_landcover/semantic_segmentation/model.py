@@ -43,7 +43,7 @@ class UNet_down_block(nn.Module):
         self.conv2 = conv_2 if conv_2 else nn.Conv2d(output_channel, output_channel, kernel_size=3, padding=1)
         self.bn1 = nn.BatchNorm2d(num_features=output_channel)
         self.bn2 = nn.BatchNorm2d(num_features=output_channel)
-        self.activate = nn.LeakyReLU()
+        self.activate = nn.ReLU()
 
     def forward(self, x):
         x = self.activate(self.bn1(self.conv1(x)))
@@ -62,7 +62,7 @@ class UNet_up_block(nn.Module):
         self.conv_2 = nn.Conv2d(output_channel, output_channel, kernel_size=3, stride=1, padding=1)
         self.bn1 = nn.BatchNorm2d(num_features=output_channel)
         self.bn2 = nn.BatchNorm2d(num_features=output_channel)
-        self.activate = nn.LeakyReLU()
+        self.activate = nn.ReLU()
 
     def forward(self, prev_feature_map, x):
         x = self.tr_conv_1(x)
@@ -84,14 +84,15 @@ class UNet(nn.Module):
         self.encoder_2 = UNet_down_block(64, 128, conv_1=pretrained_layers[3])
         self.encoder_3 = UNet_down_block(128, 256, conv_1=pretrained_layers[6], conv_2=pretrained_layers[8])
         self.encoder_4 = UNet_down_block(256, 512, conv_1=pretrained_layers[11], conv_2=pretrained_layers[13])
-        # self.encoder_5 = UNet_down_block(512, 1024)
+        self.encoder_ex = UNet_down_block(512, 1024)
         self.max_pool = nn.MaxPool2d(2, 2)
         self.dropout = nn.Dropout2d(0.5)
-        self.mid_conv1 = nn.Conv2d(512, 1024, 3, padding=1)
+        # self.mid_conv1 = nn.Conv2d(512, 1024, 3, padding=1)
         self.mid_conv2 = nn.Conv2d(1024, 1024, 3, padding=1)
-        self.activate = nn.LeakyReLU()
+        self.mid_conv_ex = nn.Conv2d(1024, 2048, 3, padding=1)
+        self.activate = nn.ReLU()
         self.dropout = nn.Dropout2d(0.5)
-        # self.decoder_1 = UNet_up_block(-1, 2048, 1024)
+        self.decoder_ex = UNet_up_block(-1, 2048, 1024)
         self.decoder_1 = UNet_up_block(-1, 1024, 512)
         self.decoder_2 = UNet_up_block(-1, 512, 256)
         self.decoder_3 = UNet_up_block(-1, 256, 128)
@@ -124,19 +125,20 @@ class UNet(nn.Module):
         self.x4_cat_1 = self.dropout(self.x4_cat)
         self.x4 = self.max_pool(self.x4_cat_1)
 
-        # self.x5_cat = self.encoder_5(self.x4)
-        # self.x5_cat_1 = self.dropout(self.x5_cat)
-        # self.x5 = self.max_pool(self.x5_cat_1)
+        self.x_ex_cat = self.encoder_ex(self.x4)
+        self.x_ex_cat_1 = self.dropout(self.x_ex_cat)
+        self.x_ex = self.max_pool(self.x_ex_cat_1)
 
         # print(self.x5.shape)
-        self.x_mid = self.mid_conv1(self.x4)
+        self.x_mid = self.mid_conv2(self.x_ex)
         self.x_mid = self.activate(self.x_mid)
-        self.x_mid = self.mid_conv2(self.x_mid)
+        self.x_mid = self.mid_conv_ex(self.x_mid)
         self.x_mid = self.activate(self.x_mid)
         self.x_mid = self.dropout(self.x_mid)
 
+        x = self.decoder_ex(self.x_ex_cat_1, self.x_mid)
         # print(self.x5_cat_1.shape, self.x_mid.shape)
-        x = self.decoder_1(self.x4_cat_1, self.x_mid)
+        x = self.decoder_1(self.x4_cat, x)
         # print(self.x4_cat.shape, x.shape)
         x = self.decoder_2(self.x3_cat, x)
         # print(self.x3_cat.shape, x.shape)
@@ -144,7 +146,6 @@ class UNet(nn.Module):
         # print(self.x2_cat.shape, x.shape)
         x = self.decoder_4(self.x1_cat, x)
         # print(self.x1_cat.shape, x.shape)
-        # x = self.decoder_5(self.x1_cat, x)
         x = self.last_conv(x)
         return x, self.softmax(x)  # the final vector and the corresponding softmaxed prediction
 

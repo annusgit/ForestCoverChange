@@ -242,6 +242,9 @@ def toTensor(**kwargs):
     # numpy image: H x W x C
     # torch image: C X H X W
     image = image.transpose((2, 0, 1))
+    if kwargs['one_hot']:
+        label = label.transpose((2, 0, 1))
+        return torch.from_numpy(image).float(), torch.from_numpy(label).float()
     return torch.from_numpy(image).float(), torch.from_numpy(label).long()
 
 
@@ -417,7 +420,8 @@ def get_dataloaders_raw(images_path, bands, labels_path, save_data_path, block_s
 
 
 def get_dataloaders_generated_data(generated_data_path, save_data_path, model_input_size=64, stride=10,
-                                   train_split=0.8, batch_size=16, num_workers=4, max_label=16):
+                                   num_classes=16, train_split=0.8, one_hot=False, batch_size=16,
+                                   num_workers=4, max_label=16):
 
     # This function is faster because we have already saved our data as subset pickle files
     print('inside dataloading code...')
@@ -429,6 +433,8 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
             self.all_images = []
             self.total_images = 0
             self.stride = stride
+            self.one_hot = one_hot
+            self.num_classes = num_classes
             self.mode = mode
             if os.path.exists(data_map_path):
                 print('LOG: Saved data map found! Loading now...')
@@ -444,27 +450,7 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
             pass
 
         def get_full_data_map(self):
-            # for data in self.examples_list:
-            #     with open(data, 'rb') as this_data:
-            #         _, label = pickle.load(this_data)
-            #         if self.mode == 'train':
-            #             row_start =
-            #             col_start =
-            #             row_limit = 350
-            #             col_limit =
-            #             row_step =
-            #             col_step =
-            #         elif self.mode == 'test':
-            #             row_start =
-            #             col_start =
-            #             row_limit = 350
-            #             col_limit =
-            #             row_step = self.model_input_size
-            #             col_step = self.model_input_size
-            #         for i in range(0, row_limit, self.stride):
-            #             for j in range(0, label.shape[1]-self.model_input_size, self.stride):
-            #                 self.all_images.append((data, i, j))
-            #                 self.total_images += 1
+
             pass
 
         def __getitem__(self, k):
@@ -477,8 +463,10 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
                                   this_col:this_col + self.model_input_size, :]
             this_label_subset = label_subset[
                                 this_row:this_row + self.model_input_size,
-                                this_col:this_col + self.model_input_size,]
-            this_label_subset = fix(this_label_subset, total_labels=max_label)
+                                this_col:this_col + self.model_input_size, ]
+            this_label_subset = fix(this_label_subset, total_labels=max_label).astype(np.uint8)
+            if self.one_hot:
+                this_label_subset = np.eye(self.num_classes)[this_label_subset]
 
             if self.mode == 'train':
                 # augmentation
@@ -501,7 +489,8 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
                 pass
 
             # print(this_label_subset.shape, this_example_subset.shape)
-            this_example_subset, this_label_subset = toTensor(image=this_example_subset, label=this_label_subset)
+            this_example_subset, this_label_subset = toTensor(image=this_example_subset, label=this_label_subset,
+                                                              one_hot=self.one_hot)
             return {'input': this_example_subset, 'label': this_label_subset}
 
         def __len__(self):
@@ -656,7 +645,7 @@ def main():
                                                                  'reduced_dataset_for_segmentation_MODIS/',
                                              save_data_path='pickled_data_check.pkl',
                                              model_input_size=64, batch_size=64, train_split=0.8,
-                                             num_workers=4, max_label=22)
+                                             one_hot=True, num_workers=4, max_label=22)
     #
     # loaders = get_dataloaders_generated_data(generated_data_path='/home/annuszulfiqar/forest_cover/forestcoverUnet/'
     #                                                              'ESA_landcover/reduced_regions_landsat/dataset',
@@ -671,8 +660,9 @@ def main():
         this_example_subset = (examples[0].numpy()).transpose(1,2,0)
         this = histogram_equalize(np.asarray(255*(this_example_subset[:,:,[3,2,1]]), dtype=np.uint8))
         that = labels[0].numpy().astype(np.uint8)
+        # print(this.shape, that.shape, np.unique(that))
+        that = np.argmax(that, axis=0)
         # print()
-        print(this.shape, that.shape, np.unique(that))
         pl.subplot(121)
         pl.imshow(this)
         pl.subplot(122)

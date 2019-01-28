@@ -245,12 +245,16 @@ def make_CCI_dataset_numpy_from_image(this_example, full_label_file, this_region
 def make_MODIS_dataset_numpy_from_image(this_example, this_label, this_region, pickle_path):
     this_ds = gdal.Open(this_example)
     example_array = get_combination(example=this_ds, bands=range(1, 12))
-    label_map = gdal.Open(this_label)
-    label_image = label_map.GetRasterBand(1).ReadAsArray()
-    min_r = min(example_array.shape[0], label_image.shape[0])
-    min_c = min(example_array.shape[1], label_image.shape[1])
-    example_array = example_array[:min_r, :min_c, :]
-    label_image = label_image[:min_r, :min_c]
+    label_image = -1 # indicating no label
+    if os.path.exists(this_label):
+        label_map = gdal.Open(this_label)
+        label_image = label_map.GetRasterBand(1).ReadAsArray()
+        min_r = min(example_array.shape[0], label_image.shape[0])
+        min_c = min(example_array.shape[1], label_image.shape[1])
+        example_array = example_array[:min_r, :min_c, :]
+        label_image = label_image[:min_r, :min_c]
+    else:
+        print('LOG: No labeling passed.')
     with open(pickle_path, 'wb') as pickle_file:
         pickle.dump((example_array, label_image), pickle_file, protocol=pickle.HIGHEST_PROTOCOL)
         print('Saved {}'.format(pickle_path))
@@ -278,23 +282,23 @@ def generate_dataset_CCI(year):
 
 
 def generate_dataset_MODIS(year):
-    # examples_path = '/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/' \
-    #                 'reduced_landsat_images/reduced_landsat_images/{}/'.format(year)
-    examples_path = '/home/annuszulfiqar/forest_cover/forestcoverUnet/ESA_landcover/reduced_regions_landsat/{}/'\
-                    .format(year)
+    examples_path = '/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/' \
+                    'reduced_landsat_images/reduced_landsat_images/{}/'.format(year)
+    # examples_path = '/home/annuszulfiqar/forest_cover/forestcoverUnet/ESA_landcover/reduced_regions_landsat/{}/'\
+    #                 .format(year)
     single_example_name = 'reduced_regions_landsat_{}_'.format(year)
-    # labels_path = '/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/' \
-    #               'modis_land_covermaps/{}'.format(year)
-    labels_path = '/home/annuszulfiqar/forest_cover/forestcoverUnet/ESA_landcover/reduced_regions_landsat/' \
+    labels_path = '/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/' \
                   'modis_land_covermaps/{}'.format(year)
+    # labels_path = '/home/annuszulfiqar/forest_cover/forestcoverUnet/ESA_landcover/reduced_regions_landsat/' \
+    #               'modis_land_covermaps/{}'.format(year)
     single_label_name = 'covermap_{}_reduced_region_'.format(year)
     this_region_name = 'reduced_region_'
-    # pickle_main_path = '/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/' \
-    #                    'reduced_landsat_images/reduced_dataset_for_segmentation_MODIS/'
-    pickle_main_path = '/home/annuszulfiqar/forest_cover/forestcoverUnet/ESA_landcover/reduced_regions_landsat/dataset'
+    pickle_main_path = '/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/' \
+                       'reduced_landsat_images/reduced_dataset_for_segmentation_MODIS/'
+    # pickle_main_path = '/home/annuszulfiqar/forest_cover/forestcoverUnet/ESA_landcover/reduced_regions_landsat/dataset'
     single_pickle_name = 'reduced_regions_landsat_{}_'.format(year)
 
-    for region in range(8,13):
+    for region in range(1,13):
         make_MODIS_dataset_numpy_from_image(this_example=os.path.join(examples_path, single_example_name+'{}.tif'
                                                                       .format(region)),
                                       this_label=os.path.join(labels_path, single_label_name+'{}.tif'.format(region)),
@@ -349,7 +353,7 @@ def check_temporal_map_difference(label_1, label_2, label_3, this_region):
 def check_generated_numpy(pathtonumpy):
     with open(pathtonumpy, 'rb') as dataset:
         example_array, label_array = pickle.load(dataset)
-    this = histogram_equalize(np.asarray(255*(example_array[:,:,[4,3,2]]), dtype=np.uint8))
+    this = histogram_equalize(np.asarray(255*(example_array[:,:,[3,2,1]]), dtype=np.uint8))
 
     print(this.shape, label_array.shape)
     registered = this.copy()
@@ -520,7 +524,7 @@ if __name__ == '__main__':
 
     # generate_dataset(year='2015')
 
-    generate_dataset_MODIS(year=sys.argv[1])
+    # generate_dataset_MODIS(year=sys.argv[1])
 
     # label_image_homography(pathtonumpy='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
     #                                   'reduced_landsat_images/reduced_dataset_for_segmentation/2015/'
@@ -529,7 +533,7 @@ if __name__ == '__main__':
 
     # check_generated_numpy(pathtonumpy='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
     #                                   'reduced_landsat_images/reduced_dataset_for_segmentation_MODIS/'
-    #                                   'reduced_regions_landsat_2016_1.pkl')
+    #                                   'reduced_regions_landsat_2016_12.pkl')
 
     # register_label_on_image(pathtonumpy='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
     #                                     'reduced_landsat_images/reduced_dataset_for_segmentation/2015/'
@@ -543,14 +547,14 @@ if __name__ == '__main__':
     #                                       'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.tif',
     #                               this_region='reduced_region_7')
 
-    # check_MODIS_earth_engine_label(this_example='/home/annus/PycharmProjects/'
-    #                                             'ForestCoverChange_inputs_and_numerical_results/reduced_landsat_images/'
-    #                                             'reduced_landsat_images/{}/reduced_regions_landsat_{}_{}.tif'
-    #                                .format(sys.argv[1], sys.argv[1], sys.argv[2]),
-    #                                full_label_file='/home/annus/PycharmProjects/'
-    #                                                'ForestCoverChange_inputs_and_numerical_results/'
-    #                                                'modis_land_covermaps/{}/covermap_{}_reduced_region_{}.tif'
-    #                                .format(sys.argv[1], sys.argv[1], sys.argv[2]))
+    check_MODIS_earth_engine_label(this_example='/home/annus/PycharmProjects/'
+                                                'ForestCoverChange_inputs_and_numerical_results/reduced_landsat_images/'
+                                                'reduced_landsat_images/{}/reduced_regions_landsat_{}_{}.tif'
+                                   .format(sys.argv[1], sys.argv[1], sys.argv[2]),
+                                   full_label_file='/home/annus/PycharmProjects/'
+                                                   'ForestCoverChange_inputs_and_numerical_results/'
+                                                   'modis_land_covermaps/{}/covermap_{}_reduced_region_{}.tif'
+                                   .format(sys.argv[1], sys.argv[1], sys.argv[2]))
 
     # check_MODIS_earth_engine_label(this_example='/home/annus/Desktop/new_regions_images/'
     #                                             'reduced_regions_landsat_{}_{}.tif'
@@ -558,7 +562,6 @@ if __name__ == '__main__':
     #                                full_label_file='/home/annus/Desktop/new_regions_labels/'
     #                                                'covermap_{}_reduced_region_{}.tif'
     #                                .format(sys.argv[1], sys.argv[2]))
-
 
     # watch -n2 rsync -avh /home/annus/PycharmProjects/ForestCoverChange/ESA_landcover/  -a annuszulfiqar@111.68.101.28:forest_cover/forestcoverUnet/ESA_landcover/
     # watch -n2 rsync -avh /home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/modis_land_covermaps/   -a annuszulfiqar@111.68.101.28:forest_cover/forestcoverUnet/ESA_landcover/reduced_regions_landsat/modis_land_covermaps
