@@ -181,7 +181,9 @@ def check_focal_loss2d():
 def check_dice_loss():
     num_c = 16
     weights = torch.Tensor([7, 2, 241, 500, 106, 5, 319, 0.06, 0.58, 0.125, 0.045, 0.18, 0.026, 0.506, 0.99, 0.321])
-    weights.to('cpu')
+    weights = 100*weights/torch.sum(weights)
+    # weights.to('cpu')
+    print(weights)
     logits_np = np.random.randint(0, 2, size=(64*64*16*num_c)).reshape((16, num_c, 64, 64))
     target_np = np.random.randint(0, 2, size=(64*64*16*num_c)).reshape((16, num_c, 64, 64))
 
