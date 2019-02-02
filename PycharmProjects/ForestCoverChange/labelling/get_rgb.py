@@ -43,11 +43,15 @@ def main(this_example):
     print(example.GetMetadata())
     print(example.RasterCount)
     example_array = get_combination(example=example, bands=[1])
-    # example_array = np.nan_to_num(example_array)
+    example_array = np.nan_to_num(example_array)
     # example_array = (255*example_array/example_array.max()).astype(np.uint8)
     # example_array = histogram_equalize(example_array)
-    print(example_array)
     show_image = example_array
+    # show_image = histogram_equalize(show_image)
+    # show_image = np.asarray(255*show_image, dtype=np.uint8)
+    print(np.unique(show_image))
+    # show_image[show_image < 1] = 4
+    # show_image[show_image > 3] = 4
     # show_image = np.asarray(np.clip(example_array/4096, 0, 1)*255, dtype=np.uint8)
     print(show_image.shape)
     pl.imshow(show_image)

@@ -242,8 +242,9 @@ def check_model():
 
     reverse_input = torch.Tensor(last_output)
     print('Reverse Model:')
-    [last_hidden, last_cell_state], last_output = reverse_model(reverse_input, input_hidden_state=[last_hidden,
-                                                                                                   last_cell_state])
+    [last_hidden, last_cell_state], last_output = reverse_model(reverse_input,
+                                                                input_hidden_state=[last_hidden,
+                                                                                    last_cell_state])
 
     print('\treverse_input.shape', forward_input.shape)
     print('\tlast_hidden.shape', last_hidden.shape)
