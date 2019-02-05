@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 
 def confusion(file_path):
-    all_labels = ['{}'.format(x) for x in range(16)]
+    all_labels = ['{}'.format(x) for x in range(3)]
 
     with open(file_path, 'rb') as this:
         matrix = pickle.load(this)

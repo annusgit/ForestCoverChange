@@ -22,7 +22,7 @@ import matplotlib as mpl
 # mpl.use('Agg')
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
-from torchsummary import summary
+# from torchsummary import summary
 from torchvision import models
 
 # for getting pretrained layers from a vgg
@@ -84,27 +84,27 @@ class UNet(nn.Module):
         pretrained_layers = list(VGG.features)
         self.bn_init = nn.BatchNorm2d(num_features=input_channels)
         self.max_pool = nn.MaxPool2d(2, 2)
-        self.dropout = nn.Dropout2d(0.1)
+        self.dropout = nn.Dropout2d(0.5)
         self.activate = nn.ReLU()
 
         self.encoder_1 = UNet_down_block(input_channels, 64)
-        self.encoder_2 = UNet_down_block(64, 128) #, conv_1=pretrained_layers[3])
-        self.encoder_3 = UNet_down_block(128, 256) #, conv_1=pretrained_layers[6], conv_2=pretrained_layers[8])
-        self.encoder_4 = UNet_down_block(256, 512) #, conv_1=pretrained_layers[11], conv_2=pretrained_layers[13])
-        self.encoder_5 = UNet_down_block(512, 1024)
-        self.encoder_6 = UNet_down_block(1024, 1024)
+        self.encoder_2 = UNet_down_block(64, 128, conv_1=pretrained_layers[3])
+        self.encoder_3 = UNet_down_block(128, 256, conv_1=pretrained_layers[6], conv_2=pretrained_layers[8])
+        self.encoder_4 = UNet_down_block(256, 512, conv_1=pretrained_layers[11], conv_2=pretrained_layers[13])
+        # self.encoder_5 = UNet_down_block(512, 1024)
+        # self.encoder_6 = UNet_down_block(1024, 1024)
 
-        self.mid_conv1 = nn.Conv2d(1024, 1024, 3, padding=1)
+        self.mid_conv1 = nn.Conv2d(512, 1024, 3, padding=1)
         self.mid_conv2 = nn.Conv2d(1024, 1024, 3, padding=1)
 
-        self.decoder_1 = UNet_up_block(prev_channel=self.encoder_6.output_channels,
-                                       input_channel=self.mid_conv2.out_channels,
-                                       output_channel=1024)
-        self.decoder_2 = UNet_up_block(prev_channel=self.encoder_5.output_channels,
-                                       input_channel=self.decoder_1.output_channels,
-                                       output_channel=512)
+        # self.decoder_1 = UNet_up_block(prev_channel=self.encoder_6.output_channels,
+                                       # input_channel=self.mid_conv2.out_channels,
+                                       # output_channel=1024)
+        # self.decoder_2 = UNet_up_block(prev_channel=self.encoder_5.output_channels,
+        #                                input_channel=self.mid_conv2.out_channels,
+        #                                output_channel=512)
         self.decoder_3 = UNet_up_block(prev_channel=self.encoder_4.output_channels,
-                                       input_channel=self.decoder_2.output_channels,
+                                       input_channel=self.mid_conv2.out_channels,
                                        output_channel=256)
         self.decoder_4 = UNet_up_block(prev_channel=self.encoder_3.output_channels,
                                        input_channel=self.decoder_3.output_channels,
@@ -131,22 +131,22 @@ class UNet(nn.Module):
         self.x4_cat = self.encoder_4(self.x3)
         self.x4_cat_1 = self.dropout(self.x4_cat)
         self.x4 = self.max_pool(self.x4_cat_1)
-        self.x5_cat = self.encoder_5(self.x4)
-        self.x5_cat_1 = self.dropout(self.x5_cat)
-        self.x5 = self.max_pool(self.x5_cat_1)
-        self.x6_cat = self.encoder_6(self.x5)
-        self.x6_cat_1 = self.dropout(self.x6_cat)
-        self.x6 = self.max_pool(self.x6_cat_1)
+        # self.x5_cat = self.encoder_5(self.x4)
+        # self.x5_cat_1 = self.dropout(self.x5_cat)
+        # self.x5 = self.max_pool(self.x5_cat_1)
+        # self.x6_cat = self.encoder_6(self.x5)
+        # self.x6_cat_1 = self.dropout(self.x6_cat)
+        # self.x6 = self.max_pool(self.x6_cat_1)
 
-        self.x_mid = self.mid_conv1(self.x6)
+        self.x_mid = self.mid_conv1(self.x4)
         self.x_mid = self.activate(self.x_mid)
         self.x_mid = self.mid_conv2(self.x_mid)
         self.x_mid = self.activate(self.x_mid)
         self.x_mid = self.dropout(self.x_mid)
 
-        x = self.decoder_1(self.x6_cat_1, self.x_mid)
-        x = self.decoder_2(self.x5_cat, x)
-        x = self.decoder_3(self.x4_cat, x)
+        # x = self.decoder_1(self.x6_cat_1, self.x_mid)
+        # x = self.decoder_2(self.x5_cat, self.x_mid)
+        x = self.decoder_3(self.x4_cat, self.x_mid)
         x = self.decoder_4(self.x3_cat, x)
         x = self.decoder_5(self.x2_cat, x)
         x = self.decoder_6(self.x1_cat, x)

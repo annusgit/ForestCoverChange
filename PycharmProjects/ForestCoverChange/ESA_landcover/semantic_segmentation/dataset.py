@@ -1,10 +1,10 @@
 
 
-
 from __future__ import print_function
 from __future__ import division
 import os
-import cv2
+# import cv2
+import sys
 import time
 import gdal
 import torch
@@ -17,7 +17,7 @@ import matplotlib.pyplot as pl
 import scipy.misc as misc
 from scipy.ndimage import rotate
 import scipy.ndimage as ndimage
-from skimage.measure import block_reduce
+# from skimage.measure import block_reduce
 from torch.utils.data import Dataset, DataLoader
 
 
@@ -30,84 +30,52 @@ def convert_lat_lon_to_xy(ds, coordinates):
 
 
 def histogram_equalize(img):
-    b, g, r = cv2.split(img)
-    red = cv2.equalizeHist(r)
-    green = cv2.equalizeHist(g)
-    blue = cv2.equalizeHist(b)
-    return cv2.merge((blue, green, red))
+    # b, g, r = cv2.split(img)
+    # red = cv2.equalizeHist(r)
+    # green = cv2.equalizeHist(g)
+    # blue = cv2.equalizeHist(b)
+    # return cv2.merge((blue, green, red))
+    pass
 
 
-def get_images_from_large_file(image_path, bands, label_path, site_size, min_coords, max_coords, destination, stride):
-    """
-        This code generates our training images from our training site
-    :param image_path: path to sentinel-2 satellite image
-    :param bands: bands required from the test image
-    :param label_path: path to ESA land cover map
-    :param site_size: the spatial size of the actual image in pixels (rows, cols)
-    :param min_coords: top-left coordinates in latitude and longitude
-    :param max_coords: bottom right coordinates in latitude and longitude
-    :param destination: folder path to save the dataset
-    :param stride: step size for cropping out images
-    :return: None
-    """
+def get_images_from_large_file(image_path, bands, label_path, destination, region, stride):
+    image_path = image_path + str(region) + '.tif'
+    label_path = label_path + str(region) + '.tif'
+    print(image_path, label_path)
+    # we will use this to divide those fnf images
     covermap = gdal.Open(label_path, gdal.GA_ReadOnly)
     channel = covermap.GetRasterBand(1)
-    min_x, min_y = convert_lat_lon_to_xy(ds=covermap, coordinates=min_coords)
-    max_x, max_y = convert_lat_lon_to_xy(ds=covermap, coordinates=max_coords)
+    x_size, y_size = covermap.RasterXSize, covermap.RasterYSize
+    # min_x, min_y = 0, 0
+    # max_x, max_y = x_size, y_size
     # read the corresponding label at 360m per pixel resolution
-    label = channel.ReadAsArray(min_x, min_y, abs(max_x - min_x), abs(max_y - min_y))
-    # np.save('/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/ESA_landcover_dataset/raw/'
-    #         'label_full_test_site.npy', label)
-
-    # let's reshape it to match our actual image
-    label = misc.imresize(label, size=site_size, interp='nearest')
-    label = ndimage.median_filter(label, size=7)
-    # re_label = np.load('/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/ESA_landcover_dataset/raw/'
-    #                    'label_full_test_site.npy')
-    # re_label = misc.imresize(re_label, size=site_size, interp='nearest')
-    # re_label = ndimage.median_filter(re_label, size=7)
-    # print(np.all(label==re_label))
-
-    # pl.imshow(label)
-    # pl.title('Full label Image')
-    # pl.show()
-
+    label = channel.ReadAsArray()
     # let's get the actual image now
     image_ds = gdal.Open(image_path, gdal.GA_ReadOnly)
-    x_size, y_size = image_ds.RasterXSize, image_ds.RasterYSize
     all_raster_bands = [image_ds.GetRasterBand(x) for x in bands]
 
-    count = -1
+    count = 0
     # stride = 3000  # for testing only
-    error_pixels = 50  # add this to remove the error pixels at the boundary of the test image
     for i in range(y_size//stride):
         for j in range(x_size//stride):
             count += 1
             # read the raster band by band for this subset
-            example_subset = np.nan_to_num(all_raster_bands[0].ReadAsArray(j*stride+error_pixels,
-                                                                   i*stride+error_pixels,
-                                                                   stride, stride))
+            example_subset = np.nan_to_num(all_raster_bands[0].ReadAsArray(j*stride,
+                                                                           i*stride,
+                                                                           stride, stride))
             for band in all_raster_bands[1:]:
-                example_subset = np.dstack((example_subset , np.nan_to_num(band.ReadAsArray(j*stride+error_pixels,
-                                                                           i*stride+error_pixels,
-                                                                           stride,
-                                                                           stride))))
-            show_image = np.asarray(255*(example_subset [:,:,[4,3,2]]/4096.0).clip(0,1), dtype=np.uint8)
-            label_subset = label[i*stride+error_pixels:(i+1)*stride+error_pixels,
-                                j*stride+error_pixels:(j+1)*stride+error_pixels]
-            # image_subset[:,:,0] = label_subset
+                example_subset = np.dstack((example_subset, np.nan_to_num(band.ReadAsArray(j*stride,
+                                                                                           i*stride,
+                                                                                           stride,
+                                                                                           stride))))
+            label_subset = label[i*stride:(i+1)*stride, j*stride:(j+1)*stride]
 
             # save this example/label pair of numpy arrays as a pickle file with an index
-            this_example_save_path = os.path.join(destination, '{}.pkl'.format(count))
+            this_example_save_path = os.path.join(destination, '{}_{}.pkl'.format(region, count))
             with open(this_example_save_path, 'wb') as this_pickle:
                 pickle.dump((example_subset, label_subset), file=this_pickle, protocol=pickle.HIGHEST_PROTOCOL)
-                print('log: Saved {}'.format(this_example_save_path))
-
-            # pl.subplot(1,2,1)
-            # pl.imshow(show_image)
-            # pl.subplot(1,2,2)
-            # pl.imshow(label_subset)
-            # pl.show()
+                print('log: Saved {} '.format(this_example_save_path), end='')
+                print(i*stride, (i+1)*stride, j*stride, (j+1)*stride)
             pass
     pass
 
@@ -231,7 +199,7 @@ def convert_labels(label_im):
 
 def fix(target_image, total_labels):
     # target_image[target_image < 0] = -1
-    # target_image[target_image > total_labels] = -1
+    target_image[target_image > 2] = 2
     return target_image
 
 
@@ -419,18 +387,18 @@ def get_dataloaders_raw(images_path, bands, labels_path, save_data_path, block_s
     return train_dataloader, val_dataloader, test_dataloader
 
 
-def get_dataloaders_generated_data(generated_data_path, save_data_path, model_input_size=64, stride=32,
-                                   num_classes=16, train_split=0.8, one_hot=False, batch_size=16,
-                                   num_workers=4, max_label=16):
+def get_dataloaders_generated_data(generated_data_path, save_data_path, model_input_size=64, num_classes=16,
+                                   train_split=0.8, one_hot=False, batch_size=16, num_workers=4, max_label=16):
 
     # This function is faster because we have already saved our data as subset pickle files
     print('inside dataloading code...')
     class dataset(Dataset):
-        def __init__(self, all_images, data_map_path, mode='train'):
+        def __init__(self, data_list, data_map_path, stride, mode='train'):
             super(dataset, self).__init__()
             self.model_input_size = model_input_size
-            self.all_images = all_images
-            self.total_images = len(all_images)
+            self.data_list = data_list
+            self.all_images = []
+            self.total_images = 0
             self.stride = stride
             self.one_hot = one_hot
             self.num_classes = num_classes
@@ -438,12 +406,21 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
             if os.path.exists(data_map_path):
                 print('LOG: Saved data map found! Loading now...')
                 with open(data_map_path, 'rb') as data_map:
-                    self.total_images, self.all_images = pickle.load(data_map)
+                    self.data_list, self.all_images = pickle.load(data_map)
+                    self.total_images = len(self.all_images)
             else:
                 print('LOG: No data map found! Generating now...')
+                for example_path in self.data_list:
+                    with open(example_path, 'rb') as this_data:
+                        _, label = pickle.load(this_data)
+                        row_limit, col_limit = label.shape[0]-model_input_size, label.shape[1]-model_input_size
+                        for i in range(0, row_limit, self.stride):
+                            for j in range(0, col_limit, self.stride):
+                                self.all_images.append((example_path, i, j))
+                                self.total_images += 1
+
                 with open(data_map_path, 'wb') as data_map:
-                    pickle.dump((self.total_images, self.all_images), file=data_map,
-                                protocol=pickle.HIGHEST_PROTOCOL)
+                    pickle.dump((self.data_list, self.all_images), file=data_map, protocol=pickle.HIGHEST_PROTOCOL)
                     print('LOG: {} saved!'.format(data_map_path))
             pass
 
@@ -452,6 +429,7 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
             with open(example_path, 'rb') as this_pickle:
                 (example_subset, label_subset) = pickle.load(this_pickle)
                 example_subset = np.nan_to_num(example_subset)
+                label_subset = np.nan_to_num(label_subset)
             this_example_subset = example_subset[
                                   this_row:this_row + self.model_input_size,
                                   this_col:this_col + self.model_input_size, :]
@@ -532,10 +510,15 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
             return 1*self.total_images if self.mode == 'train' else self.total_images
     ######################################################################################
 
-    train_images, eval_images, test_images = [], [], []
+    train_list, eval_list, test_list = [], [], []
     if not os.path.exists(save_data_path):
         os.mkdir(save_data_path)
         print('LOG: No saved data found. Making new data directory {}'.format(save_data_path))
+        full_list = [os.path.join(generated_data_path, x) for x in os.listdir(generated_data_path)]
+        random.shuffle(full_list)
+        train_list = full_list[:int(len(full_list)*0.8)]
+        eval_list = full_list[int(len(full_list)*0.8):]
+
         # full_list = [
         #     os.path.join(generated_data_path, 'reduced_regions_landsat_2013_1.pkl'),
         #     os.path.join(generated_data_path, 'reduced_regions_landsat_2013_2.pkl'),
@@ -590,8 +573,6 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
         #     # os.path.join(generated_data_path, 'reduced_regions_landsat_2016_12.pkl'),
         #     ]
 
-        train_images, eval_images, test_images = [], [], []
-        total_train_images, total_eval_images = 0, 0
         # for data in full_list:
         #     with open(data, 'rb') as this_data:
         #         _, label = pickle.load(this_data)
@@ -606,49 +587,47 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
         #                     total_train_images += 1
 
         # get indices for the year 2013
-        reference_year = 2013
-        for ref_region in range(1, 8):
-            example_path_2013 = os.path.join(generated_data_path,
-                                             'reduced_regions_landsat_{}_{}.pkl'.format(reference_year, ref_region))
-            with open(example_path_2013, 'rb') as this_data:
-                _, label = pickle.load(this_data)
-                row_limit, col_limit = label.shape[0] - model_input_size, label.shape[1] - model_input_size
-                for i in range(0, row_limit, stride):
-                    for j in range(0, col_limit, stride):
-                        if np.random.uniform(0, 1) > 0.8:
-                            # map the same coordinates in all images of the same regions to train and test
-                            for year in range(2013, 2017):
-                                this_example_path = os.path.join(generated_data_path,
-                                                                 'reduced_regions_landsat_{}_{}.pkl'.format(
-                                                                     year,
-                                                                     ref_region))
-                                eval_images.append((this_example_path, i, j))
-                                total_eval_images += 1
-                        else:
-                            # map the same coordinates in all images of the same regions to train and test
-                            for year in range(2013, 2017):
-                                this_example_path = os.path.join(generated_data_path,
-                                                                 'reduced_regions_landsat_{}_{}.pkl'.format(
-                                                                     year,
-                                                                     ref_region))
-                                train_images.append((this_example_path, i, j))
-                                total_train_images += 1
+        # reference_year = 2013
+        # for example_path in full_list:
+        #     with open(example_path, 'rb') as this_data:
+        #         _, label = pickle.load(this_data)
+        #         row_limit, col_limit = label.shape[0] - model_input_size, label.shape[1] - model_input_size
+        #         for i in range(0, row_limit, stride):
+        #             for j in range(0, col_limit, stride):
+        #                 if np.random.uniform(0, 1) > 0.8:
+        #                     # map the same coordinates in all images of the same regions to train and test
+        #                     for year in range(2013, 2017):
+        #                         this_example_path = os.path.join(generated_data_path,
+        #                                                          'reduced_regions_landsat_{}_{}.pkl'.format(
+        #                                                              year,
+        #                                                              ref_region))
+        #                         eval_images.append((this_example_path, i, j))
+        #                         total_eval_images += 1
+        #                 else:
+        #                     # map the same coordinates in all images of the same regions to train and test
+        #                     for year in range(2013, 2017):
+        #                         this_example_path = os.path.join(generated_data_path,
+        #                                                          'reduced_regions_landsat_{}_{}.pkl'.format(
+        #                                                              year,
+        #                                                              ref_region))
+        #                         train_images.append((this_example_path, i, j))
+        #                         total_train_images += 1
 
     ######################################################################################
 
-    print('LOG: [train_list, eval_list, test_list] ->', map(len, (train_images, eval_images, test_images)))
-    print('LOG: set(train_list).isdisjoint(set(eval_list)) ->', set(train_images).isdisjoint(set(eval_images)))
-    print('LOG: set(train_list).isdisjoint(set(test_list)) ->', set(train_images).isdisjoint(set(test_images)))
-    print('LOG: set(test_list).isdisjoint(set(eval_list)) ->', set(test_images).isdisjoint(set(eval_images)))
+    print('LOG: [train_list, eval_list, test_list] ->', map(len, (train_list, eval_list, test_list)))
+    print('LOG: set(train_list).isdisjoint(set(eval_list)) ->', set(train_list).isdisjoint(set(eval_list)))
+    print('LOG: set(train_list).isdisjoint(set(test_list)) ->', set(train_list).isdisjoint(set(test_list)))
+    print('LOG: set(test_list).isdisjoint(set(eval_list)) ->', set(test_list).isdisjoint(set(eval_list)))
 
     # create dataset class instances
     # images_per_image means approx. how many images are in each example
-    train_data = dataset(all_images=train_images, data_map_path=os.path.join(save_data_path, 'train_datamap.pkl'),
-                         mode='train')
-    eval_data = dataset(all_images=eval_images, data_map_path=os.path.join(save_data_path, 'eval_datamap.pkl'),
-                        mode='test')
-    test_data = dataset(all_images=test_images, data_map_path=os.path.join(save_data_path, 'test_datamap.pkl'),
-                        mode='test')
+    train_data = dataset(data_list=train_list, data_map_path=os.path.join(save_data_path, 'train_datamap.pkl'),
+                         mode='train', stride=32) # more images for training
+    eval_data = dataset(data_list=eval_list, data_map_path=os.path.join(save_data_path, 'eval_datamap.pkl'),
+                        mode='test', stride=model_input_size)
+    test_data = dataset(data_list=test_list, data_map_path=os.path.join(save_data_path, 'test_datamap.pkl'),
+                        mode='test', stride=model_input_size)
     print('LOG: [train_data, eval_data, test_data] ->', len(train_data), len(eval_data), len(test_data))
 
     # for j in range(10):
@@ -664,6 +643,20 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
 
     return train_dataloader, val_dataloader, test_dataloader
 
+
+def check_generated_fnf_datapickle(example_path):
+    with open(example_path, 'rb') as this_pickle:
+        (example_subset, label_subset) = pickle.load(this_pickle)
+        example_subset = np.nan_to_num(example_subset)
+        label_subset = np.nan_to_num(label_subset)
+    # print(example_subset)
+    this = histogram_equalize(np.asarray(255*(example_subset[:,:,[3,2,1]]), dtype=np.uint8))
+    that = label_subset
+    pl.subplot(121)
+    pl.imshow(this)
+    pl.subplot(122)
+    pl.imshow(that)
+    pl.show()
 
 
 def main():
@@ -682,11 +675,8 @@ def main():
     #                               save_data_path='dataset/pickled_data.pkl',
     #                               block_size=256, model_input_size=64, batch_size=16, num_workers=6)
 
-    loaders = get_dataloaders_generated_data(generated_data_path='/home/annus/PycharmProjects/'
-                                                                 'ForestCoverChange_inputs_and_numerical_results/'
-                                                                 'reduced_landsat_images/'
-                                                                 'reduced_dataset_for_segmentation_MODIS',
-                                             save_data_path='local_test',
+    loaders = get_dataloaders_generated_data(generated_data_path='/home/azulfiqar_bee15seecs/fnf_dataset/',
+                                             save_data_path='pickled_dataset_lists',
                                              model_input_size=128, batch_size=64, train_split=0.8,
                                              one_hot=True, num_workers=4, max_label=16)
 
@@ -709,24 +699,22 @@ def main():
             # print(this.shape, that.shape, np.unique(that))
             that = np.argmax(that, axis=0)
             # print()
-            for j in range(7):
-                pl.subplot(4,3,j+1)
-                pl.imshow(this_example_subset[:,:,11+j])
-            pl.show()
+            # for j in range(7):
+            #     pl.subplot(4,3,j+1)
+            #     pl.imshow(this_example_subset[:,:,11+j])
+            # pl.show()
 
 
 if __name__ == '__main__':
-    main()
-    # get_images_from_large_file(image_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-    #                                       'ESA_landcover_dataset/raw/full_test_site_2015.tif',
-    #                            bands=range(1,14),
-    #                            label_path='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-    #                                       'ESA_landcover_dataset/raw/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.tif',
-    #                            site_size=(3663, 5077),
-    #                            min_coords=(34.46484326132815, 73.30923379854437),
-    #                            max_coords=(34.13584821210507, 73.76516641573187),
-    #                            destination='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-    #                                        'ESA_landcover_dataset/divided',
+    # main()
+
+    check_generated_fnf_datapickle('/home/annus/Desktop/1_12.pkl')
+
+    # get_images_from_large_file(image_path='/home/azulfiqar_bee15seecs/regions_25m/region_landsat_2017_',
+    #                            bands=range(1,12),
+    #                            label_path='/home/azulfiqar_bee15seecs/fnf/fnf_2017_region_',
+    #                            destination='/home/azulfiqar_bee15seecs/fnf_dataset/',
+    #                            region=int(sys.argv[1]),
     #                            stride=256)
 
     # get_images_from_large_file(image_path='raw_dataset/full_test_site_2015.tif',

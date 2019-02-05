@@ -515,6 +515,7 @@ def check_MODIS_earth_engine_label(this_example, full_label_file):
     pass
 
 
+
 if __name__ == '__main__':
     # check_image_against_label(this_example=sys.argv[1], full_label_file=sys.argv[2], this_region=sys.argv[3])
 

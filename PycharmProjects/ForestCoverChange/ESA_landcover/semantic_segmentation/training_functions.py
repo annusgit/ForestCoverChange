@@ -27,47 +27,7 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
     if cuda:
         print('log: Using GPU')
         model.cuda(device=device)
-    # define loss and optimizer
-    optimizer = RMSprop(model.parameters(), lr=lr)
-    weights = torch.Tensor([7, 2, 241, 500, 106, 5, 319, 0.06, 0.58, 0.125, 0.045, 0.18, 0.026, 0.506, 0.99, 0.321])
-    weights = 100*weights/torch.sum(weights)
-    weights = weights.cuda(device=device) if cuda else weights
-    # choose a better loss for this problem
-    # if cuda:
-    #     criterion = DiceLoss(weights=weights, device='cpu')
-    # else:
-    #     criterion = DiceLoss(weights=weights, device='cuda:{}'.format(device))
-    # criterion = tversky_loss(num_c=16)
-    focal_criterion = FocalLoss2d()
-    # crossentropy_criterion = nn.CrossEntropyLoss()
-    # dice_criterion = DiceLoss()
-    # criterion = dice_loss(num_classes=16)
 
-    #### scheduler addition
-    lr_final = 5e-5
-    LR_decay = (lr_final / lr) ** (1. / epochs)
-    scheduler = lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=LR_decay)
-
-    # loaders = get_dataloaders(images_path=images,
-    #                           bands=range(1,14),
-    #                           labels_path=labels,
-    #                           save_data_path=save_data,
-    #                           block_size=block_size,
-    #                           model_input_size=input_dim,
-    #                           batch_size=batch_size,
-    #                           num_workers=workers)
-
-    loaders = get_dataloaders_generated_data(generated_data_path=generated_data_path, save_data_path=save_data,
-                                             model_input_size=input_dim, batch_size=batch_size, train_split=0.8,
-                                             one_hot=True, num_workers=workers, max_label=16)
-
-    train_loader, val_dataloader, test_loader = loaders
-
-    if not os.path.exists(save_dir):
-        os.mkdir(save_dir)
-    if not os.path.exists(sum_dir):
-        os.mkdir(sum_dir)
-    # writer = SummaryWriter()
     if pre_model == -1:
         model_number = 0
         print('log: No trained model passed. Starting from scratch...')
@@ -78,10 +38,34 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
         model.load_state_dict(torch.load(model_path), strict=False)
         print('log: Resuming from model {} ...'.format(model_path))
     ###############################################################################
+
+    if not os.path.exists(save_dir):
+        os.mkdir(save_dir)
+    if not os.path.exists(sum_dir):
+        os.mkdir(sum_dir)
+    # writer = SummaryWriter()
+
+    # define loss and optimizer
+    optimizer = RMSprop(model.parameters(), lr=lr)
+    weights = torch.Tensor([1, 4, 1]) # forest has ten times more weight
+    weights = weights.cuda(device=device) if cuda else weights
+    # focal_criterion = FocalLoss2d(weight=weights)
+    crossentropy_criterion = nn.CrossEntropyLoss(weight=weights)
+    # dice_criterion = DiceLoss(weights=weights)
+
+    lr_final = 5e-5
+    LR_decay = (lr_final / lr) ** (1. / epochs)
+    scheduler = lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=LR_decay)
+
+    loaders = get_dataloaders_generated_data(generated_data_path=generated_data_path, save_data_path=save_data,
+                                             model_input_size=input_dim, batch_size=batch_size, num_classes=3,
+                                             train_split=0.8, one_hot=True, num_workers=workers, max_label=3)
+
+    train_loader, val_dataloader, test_loader = loaders
     # training loop
     for k in range(epochs):
         net_loss = []
-        net_accuracy = []
+        total_correct, total_examples = 0, 0
         model_path = os.path.join(save_dir, 'model-{}.pt'.format(model_number+k))
         if not os.path.exists(model_path):
             torch.save(model.state_dict(), model_path)
@@ -94,50 +78,35 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
 
         for idx, data in enumerate(train_loader):
             model.train()
+            model.zero_grad()
             test_x, label = data['input'], data['label']
             test_x = test_x.cuda(device=device) if cuda else test_x
             label = label.cuda(device=device) if cuda else label
             dimension = test_x.size(-1)
             out_x, logits = model.forward(test_x)
             pred = torch.argmax(logits, dim=1)
-
-            # label = label.unsqueeze(1)
-            # print(logits.shape, label.shape)
-            # print(label[label > 15])
-
-            # out_x, crit_label = out_x.cpu(), label.cpu().unsqueeze(1).float()
-            # print(out_x.shape, crit_label.shape)
             not_one_hot_target = torch.argmax(label, dim=1)
-            loss = focal_criterion(logits, not_one_hot_target) #dice_criterion(logits, label) #+
-            accurate = (pred == not_one_hot_target).sum()
-
-            numerator = accurate
-            denominator = float(test_x.size(0)*dimension**2)
-            accuracy = float(numerator)*100/denominator
-            if idx % log_after == 0 and idx > 0:
-                print('{}. ({}/{}) output size = {}, loss = {}, '
-                      'accuracy = {}/{} = {:.2f}%'.format(k,
-                                                          idx,
-                                                          len(train_loader),
-                                                          out_x.size(),
-                                                          loss.item(),
-                                                          numerator,
-                                                          denominator,
-                                                          accuracy))
-            #################################
-            # three steps for backprop
-            model.zero_grad()
+            # dice_criterion(logits, label) #+ focal_criterion(logits, not_one_hot_target) #
+            loss = crossentropy_criterion(logits, not_one_hot_target)
             loss.backward()
-            # perform gradient clipping between loss backward and optimizer step
             clip_grad_norm_(model.parameters(), 0.05)
             optimizer.step()
-            net_accuracy.append(accuracy)
+            accurate = (pred == not_one_hot_target).sum().item()
+            numerator = float(accurate)
+            denominator = float(pred.view(-1).size(0)) #test_x.size(0)*dimension**2)
+            total_correct += numerator
+            total_examples += denominator
+
+            if idx % log_after == 0 and idx > 0:
+                accuracy = float(numerator) * 100 / denominator
+                print('{}. ({}/{}) output size = {}, loss = {}, '
+                      'accuracy = {}/{} = {:.2f}%'.format(k, idx, len(train_loader), out_x.size(), loss.item(),
+                                                          numerator, denominator, accuracy))
             net_loss.append(loss.item())
-            #################################
 
         # this should be done at the end of epoch only
         scheduler.step()  # to dynamically change the learning rate
-        mean_accuracy = np.asarray(net_accuracy).mean()
+        mean_accuracy = total_correct*100/total_examples
         mean_loss = np.asarray(net_loss).mean()
         print('####################################')
         print('LOG: epoch {} -> total loss = {:.5f}, total accuracy = {:.5f}%'.format(k, mean_loss, mean_accuracy))
@@ -145,7 +114,7 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
 
         # validate model
         print('log: Evaluating now...')
-        eval_net(model=model, criterion=focal_criterion, val_loader=val_dataloader,
+        eval_net(model=model, criterion=crossentropy_criterion, val_loader=val_dataloader,
                  cuda=cuda, device=device, writer=None, batch_size=batch_size, step=k)
     pass
 
@@ -162,8 +131,8 @@ def eval_net(**kwargs):
         # it means this is evaluation at training time
         val_loader = kwargs['val_loader']
         model = kwargs['model']
-        focal_criterion = kwargs['criterion']
-        net_accuracy, net_loss = [], []
+        crossentropy_criterion = kwargs['criterion']
+        total_examples, total_correct, net_loss = 0, 0, []
         for idx, data in enumerate(val_loader):
             test_x, label = data['input'], data['label']
             test_x = test_x.cuda(device=device) if cuda else test_x
@@ -171,21 +140,18 @@ def eval_net(**kwargs):
             dimension = test_x.size(-1)
             out_x, softmaxed = model.forward(test_x)
             pred = torch.argmax(softmaxed, dim=1)
-            # pred = pred.cpu()
             not_one_hot_target = torch.argmax(label, dim=1)
-            loss = focal_criterion(softmaxed, not_one_hot_target) # dice_criterion(softmaxed, label) # +
-            # accurate = (pred == label).sum()
-            accurate = (pred == not_one_hot_target).sum()
-
-            numerator = accurate
-            denominator = float(test_x.size(0) * dimension ** 2)
-            accuracy = float(numerator) * 100 / denominator
-
-            net_accuracy.append(accuracy)
+            # dice_criterion(softmaxed, label) # + focal_criterion(softmaxed, not_one_hot_target) #
+            loss = crossentropy_criterion(softmaxed, not_one_hot_target)
+            accurate = (pred == not_one_hot_target).sum().item()
+            numerator = float(accurate)
+            denominator = float(pred.view(-1).size(0)) #test_x.size(0) * dimension ** 2)
+            # accuracy = float(numerator) * 100 / denominator
+            total_correct += numerator
+            total_examples += denominator
             net_loss.append(loss.item())
-
             #################################
-        mean_accuracy = np.asarray(net_accuracy).mean()
+        mean_accuracy = total_correct*100/total_examples
         mean_loss = np.asarray(net_loss).mean()
         # writer.add_scalar(tag='eval accuracy', scalar_value=mean_accuracy, global_step=step)
         # writer.add_scalar(tag='eval loss', scalar_value=mean_loss, global_step=step)
@@ -195,7 +161,7 @@ def eval_net(**kwargs):
 
     else:
         # model, images, labels, pre_model, save_dir, sum_dir, batch_size, lr, log_after, cuda
-        num_classes = 16
+        num_classes = 3
         pre_model = kwargs['pre_model']
         un_confusion_meter = tnt.meter.ConfusionMeter(num_classes, normalized=False)
         confusion_meter = tnt.meter.ConfusionMeter(num_classes, normalized=True)
@@ -204,7 +170,10 @@ def eval_net(**kwargs):
         model.load_state_dict(torch.load(model_path), strict=False)
         print('log: resumed model {} successfully!'.format(pre_model))
 
-        crossentropy_criterion, dice_criterion, focal_criterion = nn.CrossEntropyLoss(), DiceLoss(), FocalLoss2d()
+        weights = torch.Tensor([1, 4, 1])  # forest has ten times more weight
+        weights = weights.cuda(device=device) if cuda else weights
+        # dice_criterion, focal_criterion = nn.CrossEntropyLoss(), DiceLoss(), FocalLoss2d()
+        crossentropy_criterion = nn.CrossEntropyLoss(weight=weights)
         loaders = get_dataloaders_generated_data(generated_data_path=kwargs['generated_data_path'],
                                                  save_data_path=kwargs['save_data'],
                                                  model_input_size=kwargs['input_dim'],
@@ -215,37 +184,30 @@ def eval_net(**kwargs):
                                                  max_label=num_classes)
         train_loader, test_loader, empty_loader = loaders
 
-        net_accuracy, net_loss = [], []
+        net_loss = []
+        total_correct, total_examples = 0, 0
         net_class_accuracy_0, net_class_accuracy_1, net_class_accuracy_2, \
         net_class_accuracy_3, net_class_accuracy_4, net_class_accuracy_5,\
         net_class_accuracy_6  = [], [], [], [], [], [], []
-        net_class_accuracies = [[] for i in range(16)]
+        # net_class_accuracies = [[] for i in range(16)]
         classes_mean_accuracies = []
-        for idx, data in enumerate(test_loader):
+        for idx, data in enumerate(train_loader):
             test_x, label = data['input'], data['label']
             test_x = test_x.cuda(device=device) if cuda else test_x
             label = label.cuda(device=device) if cuda else label
-            # forward
             out_x, softmaxed = model.forward(test_x)
             pred = torch.argmax(softmaxed, dim=1)
-            # pred = pred.cpu()
             not_one_hot_target = torch.argmax(label, dim=1)
-            loss = focal_criterion(softmaxed, not_one_hot_target) # dice_criterion(softmaxed, label) # +
-            # accurate = (pred == label).sum()
-            accurate = (pred == not_one_hot_target).sum()
-
+            loss = crossentropy_criterion(softmaxed, not_one_hot_target) # dice_criterion(softmaxed, label) # +
+            accurate = (pred == not_one_hot_target).sum().item()
+            numerator = float(accurate)
+            denominator = float(pred.view(-1).size(0)) #test_x.size(0) * dimension ** 2)
+            total_correct += numerator
+            total_examples += denominator
+            net_loss.append(loss.item())
             un_confusion_meter.add(predicted=pred.view(-1), target=not_one_hot_target.view(-1))
             confusion_meter.add(predicted=pred.view(-1), target=not_one_hot_target.view(-1))
 
-            # get accuracy metric
-            # accurate = (pred == label).sum()
-            dimension = test_x.size(-1)
-            numerator = accurate
-            denominator = float(test_x.size(0) * dimension ** 2)
-            accuracy = float(numerator) * 100 / denominator
-
-            net_accuracy.append(accuracy)
-            net_loss.append(loss.item())
             if idx % 10 == 0:
                 print('log: on {}'.format(idx))
 
@@ -302,7 +264,7 @@ def eval_net(**kwargs):
             # preds = torch.cat((preds, pred.long().view(-1)))
             # labs = torch.cat((labs, label.long().view(-1)))
             #################################
-        mean_accuracy = np.asarray(net_accuracy).mean()
+        mean_accuracy = total_correct*100/total_examples
         mean_loss = np.asarray(net_loss).mean()
 
         # for k in range(num_classes):
