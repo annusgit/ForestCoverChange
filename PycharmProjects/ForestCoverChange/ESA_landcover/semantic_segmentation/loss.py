@@ -75,15 +75,6 @@ class DiceLoss(nn.Module):
         smooth = 1.
         output = output.exp()  # computes the exponential of each element ie. for 0 it finds 10
         encoded_target = target # supposed to be a one-hot array
-        if self.ignore_index is not None:
-            mask = target == self.ignore_index
-            target = target.clone()
-            target[mask] = 0
-            encoded_target.scatter_(1, target.unsqueeze(1), 1)
-            mask = mask.unsqueeze(1).expand_as(encoded_target)
-            encoded_target[mask] = 0
-        # if self.weights is None:
-            # self.weights = Variable(torch.ones(output.size(1)).type_as(output.data))
         intersection = output * encoded_target
         numerator = (2*intersection.sum(3).sum(2).sum(0) + smooth)
         denominator = ((output+encoded_target).sum(3).sum(2).sum(0) + smooth)

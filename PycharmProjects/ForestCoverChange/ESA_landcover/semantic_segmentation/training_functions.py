@@ -47,10 +47,10 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
 
     # define loss and optimizer
     optimizer = RMSprop(model.parameters(), lr=lr)
-    weights = torch.Tensor([1, 4, 1]) # forest has ten times more weight
+    weights = torch.Tensor([1, 10, 1, 1]) # forest has ____ times more weight
     weights = weights.cuda(device=device) if cuda else weights
-    # focal_criterion = FocalLoss2d(weight=weights)
-    crossentropy_criterion = nn.CrossEntropyLoss(weight=weights)
+    focal_criterion = FocalLoss2d(weight=weights)
+    # crossentropy_criterion = nn.BCELoss(weight=weights)
     # dice_criterion = DiceLoss(weights=weights)
 
     lr_final = 5e-5
@@ -58,11 +58,12 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
     scheduler = lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=LR_decay)
 
     loaders = get_dataloaders_generated_data(generated_data_path=generated_data_path, save_data_path=save_data,
-                                             model_input_size=input_dim, batch_size=batch_size, num_classes=3,
+                                             model_input_size=input_dim, batch_size=batch_size, num_classes=4,
                                              train_split=0.8, one_hot=True, num_workers=workers, max_label=3)
 
     train_loader, val_dataloader, test_loader = loaders
     # training loop
+    best_evaluation = 0.0
     for k in range(epochs):
         net_loss = []
         total_correct, total_examples = 0, 0
@@ -82,12 +83,13 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
             test_x, label = data['input'], data['label']
             test_x = test_x.cuda(device=device) if cuda else test_x
             label = label.cuda(device=device) if cuda else label
-            dimension = test_x.size(-1)
             out_x, logits = model.forward(test_x)
             pred = torch.argmax(logits, dim=1)
             not_one_hot_target = torch.argmax(label, dim=1)
             # dice_criterion(logits, label) #+ focal_criterion(logits, not_one_hot_target) #
-            loss = crossentropy_criterion(logits, not_one_hot_target)
+            # print(logits.view(batch_size, -1).shape, logits.view(batch_size, -1).shape)
+            # loss = focal_criterion(logits.view(-1, 2), label.view(-1, 2))
+            loss = focal_criterion(logits, not_one_hot_target) # dice_criterion(logits, label) #
             loss.backward()
             clip_grad_norm_(model.parameters(), 0.05)
             optimizer.step()
@@ -114,8 +116,13 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
 
         # validate model
         print('log: Evaluating now...')
-        eval_net(model=model, criterion=crossentropy_criterion, val_loader=val_dataloader,
-                 cuda=cuda, device=device, writer=None, batch_size=batch_size, step=k)
+        eval_accuracy = eval_net(model=model, criterion=focal_criterion, val_loader=val_dataloader,
+                                 cuda=cuda, device=device, writer=None, batch_size=batch_size, step=k)
+        if eval_accuracy > best_evaluation:
+            best_evaluation = eval_accuracy
+            model_path = os.path.join(save_dir, 'model-best-{}.pt'.format(model_number + k))
+            torch.save(model.state_dict(), model_path)
+            print('log: Saved best performing {}'.format(model_path))
     pass
 
 
@@ -125,24 +132,27 @@ def eval_net(**kwargs):
     device = kwargs['device']
     model = kwargs['model']
     model.eval()
+    num_classes = 4
     if cuda:
         model.cuda(device=device)
+    un_confusion_meter = tnt.meter.ConfusionMeter(num_classes, normalized=False)
+    confusion_meter = tnt.meter.ConfusionMeter(num_classes, normalized=True)
     if 'writer' in kwargs.keys():
         # it means this is evaluation at training time
         val_loader = kwargs['val_loader']
         model = kwargs['model']
-        crossentropy_criterion = kwargs['criterion']
+        focal_criterion = kwargs['criterion']
         total_examples, total_correct, net_loss = 0, 0, []
         for idx, data in enumerate(val_loader):
             test_x, label = data['input'], data['label']
             test_x = test_x.cuda(device=device) if cuda else test_x
             label = label.cuda(device=device) if cuda else label
-            dimension = test_x.size(-1)
             out_x, softmaxed = model.forward(test_x)
             pred = torch.argmax(softmaxed, dim=1)
             not_one_hot_target = torch.argmax(label, dim=1)
             # dice_criterion(softmaxed, label) # + focal_criterion(softmaxed, not_one_hot_target) #
-            loss = crossentropy_criterion(softmaxed, not_one_hot_target)
+            # loss = crossentropy_criterion(softmaxed.view(-1, 2), label.view(-1, 2))
+            loss = focal_criterion(softmaxed, not_one_hot_target) # dice_criterion(softmaxed, label) #
             accurate = (pred == not_one_hot_target).sum().item()
             numerator = float(accurate)
             denominator = float(pred.view(-1).size(0)) #test_x.size(0) * dimension ** 2)
@@ -150,6 +160,10 @@ def eval_net(**kwargs):
             total_correct += numerator
             total_examples += denominator
             net_loss.append(loss.item())
+
+            un_confusion_meter.add(predicted=pred.view(-1), target=not_one_hot_target.view(-1))
+            confusion_meter.add(predicted=pred.view(-1), target=not_one_hot_target.view(-1))
+
             #################################
         mean_accuracy = total_correct*100/total_examples
         mean_loss = np.asarray(net_loss).mean()
@@ -157,12 +171,15 @@ def eval_net(**kwargs):
         # writer.add_scalar(tag='eval loss', scalar_value=mean_loss, global_step=step)
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
         print('LOG: validation:: total loss = {:.5f}, total accuracy = {:.5f}%'.format(mean_loss, mean_accuracy))
+        print('Log: Confusion matrix')
+        print(confusion_meter.value())
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+        return mean_accuracy
 
     else:
         # model, images, labels, pre_model, save_dir, sum_dir, batch_size, lr, log_after, cuda
-        num_classes = 3
         pre_model = kwargs['pre_model']
+        batch_size = kwargs['batch_size']
         un_confusion_meter = tnt.meter.ConfusionMeter(num_classes, normalized=False)
         confusion_meter = tnt.meter.ConfusionMeter(num_classes, normalized=True)
 
@@ -170,14 +187,16 @@ def eval_net(**kwargs):
         model.load_state_dict(torch.load(model_path), strict=False)
         print('log: resumed model {} successfully!'.format(pre_model))
 
-        weights = torch.Tensor([1, 4, 1])  # forest has ten times more weight
+        weights = torch.Tensor([1, 10, 1, 1])  # forest has ten times more weight
         weights = weights.cuda(device=device) if cuda else weights
         # dice_criterion, focal_criterion = nn.CrossEntropyLoss(), DiceLoss(), FocalLoss2d()
-        crossentropy_criterion = nn.CrossEntropyLoss(weight=weights)
+        # crossentropy_criterion = nn.BCELoss(weight=weights)
+        focal_criterion = FocalLoss2d(weight=weights)
+        # dice_criterion = DiceLoss(weights=weights)
         loaders = get_dataloaders_generated_data(generated_data_path=kwargs['generated_data_path'],
                                                  save_data_path=kwargs['save_data'],
                                                  model_input_size=kwargs['input_dim'],
-                                                 batch_size=kwargs['batch_size'],
+                                                 batch_size=batch_size,
                                                  # train_split=0.8,
                                                  one_hot=True,
                                                  num_workers=kwargs['workers'],
@@ -191,14 +210,17 @@ def eval_net(**kwargs):
         net_class_accuracy_6  = [], [], [], [], [], [], []
         # net_class_accuracies = [[] for i in range(16)]
         classes_mean_accuracies = []
-        for idx, data in enumerate(train_loader):
+        for idx, data in enumerate(test_loader):
             test_x, label = data['input'], data['label']
             test_x = test_x.cuda(device=device) if cuda else test_x
             label = label.cuda(device=device) if cuda else label
             out_x, softmaxed = model.forward(test_x)
             pred = torch.argmax(softmaxed, dim=1)
             not_one_hot_target = torch.argmax(label, dim=1)
-            loss = crossentropy_criterion(softmaxed, not_one_hot_target) # dice_criterion(softmaxed, label) # +
+            # dice_criterion(softmaxed, label) # +
+            # print(softmaxed.shape, label.shape)
+            # loss = crossentropy_criterion(softmaxed.view(-1, 2), label.view(-1, 2))
+            loss = focal_criterion(softmaxed, not_one_hot_target) # dice_criterion(softmaxed, label) #
             accurate = (pred == not_one_hot_target).sum().item()
             numerator = float(accurate)
             denominator = float(pred.view(-1).size(0)) #test_x.size(0) * dimension ** 2)
@@ -290,7 +312,8 @@ def eval_net(**kwargs):
         # print('log: class 5:: total accuracy = {:.5f}%'.format(class_5_mean_accuracy))
         # print('log: class 6:: total accuracy = {:.5f}%'.format(class_6_mean_accuracy))
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
-
+        print('---> Confusion Matrix:')
+        print(confusion_meter.value())
         # class_names = ['background/clutter', 'buildings', 'trees', 'cars',
         #                'low_vegetation', 'impervious_surfaces', 'noise']
         with open('normalized.pkl', 'wb') as this:

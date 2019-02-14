@@ -19,6 +19,7 @@ from scipy.ndimage import rotate
 import scipy.ndimage as ndimage
 # from skimage.measure import block_reduce
 from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms
 
 
 def convert_lat_lon_to_xy(ds, coordinates):
@@ -46,11 +47,7 @@ def get_images_from_large_file(image_path, bands, label_path, destination, regio
     covermap = gdal.Open(label_path, gdal.GA_ReadOnly)
     channel = covermap.GetRasterBand(1)
     x_size, y_size = covermap.RasterXSize, covermap.RasterYSize
-    # min_x, min_y = 0, 0
-    # max_x, max_y = x_size, y_size
-    # read the corresponding label at 360m per pixel resolution
     label = channel.ReadAsArray()
-    # let's get the actual image now
     image_ds = gdal.Open(image_path, gdal.GA_ReadOnly)
     all_raster_bands = [image_ds.GetRasterBand(x) for x in bands]
 
@@ -199,7 +196,7 @@ def convert_labels(label_im):
 
 def fix(target_image, total_labels):
     # target_image[target_image < 0] = -1
-    target_image[target_image > 2] = 2
+    # target_image = target_image - 1 #[target_image > 2] = 2, convert 1,2,3 to 0,1,2
     return target_image
 
 
@@ -387,13 +384,13 @@ def get_dataloaders_raw(images_path, bands, labels_path, save_data_path, block_s
     return train_dataloader, val_dataloader, test_dataloader
 
 
-def get_dataloaders_generated_data(generated_data_path, save_data_path, model_input_size=64, num_classes=16,
-                                   train_split=0.8, one_hot=False, batch_size=16, num_workers=4, max_label=16):
+def get_dataloaders_generated_data(generated_data_path, save_data_path, model_input_size=64, num_classes=4,
+                                   train_split=0.8, one_hot=False, batch_size=16, num_workers=4, max_label=3):
 
     # This function is faster because we have already saved our data as subset pickle files
     print('inside dataloading code...')
     class dataset(Dataset):
-        def __init__(self, data_list, data_map_path, stride, mode='train'):
+        def __init__(self, data_list, data_map_path, stride, mode='train', transformation=None):
             super(dataset, self).__init__()
             self.model_input_size = model_input_size
             self.data_list = data_list
@@ -403,6 +400,8 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
             self.one_hot = one_hot
             self.num_classes = num_classes
             self.mode = mode
+            self.transformation = transformation
+
             if os.path.exists(data_map_path):
                 print('LOG: Saved data map found! Loading now...')
                 with open(data_map_path, 'rb') as data_map:
@@ -430,54 +429,58 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
                 (example_subset, label_subset) = pickle.load(this_pickle)
                 example_subset = np.nan_to_num(example_subset)
                 label_subset = np.nan_to_num(label_subset)
-            this_example_subset = example_subset[
-                                  this_row:this_row + self.model_input_size,
-                                  this_col:this_col + self.model_input_size, :]
+            this_example_subset = example_subset[this_row:this_row + self.model_input_size,
+                                                 this_col:this_col + self.model_input_size, :]
+
             # get more indices to add to the example
-            ndvi_band = (this_example_subset[:,:,4]-
-                         this_example_subset[:,:,3])/(this_example_subset[:,:,4]+
-                                                      this_example_subset[:,:,3]+1e-7)
-            evi_band = 2.5*(this_example_subset[:,:,4]-
-                            this_example_subset[:,:,3])/(this_example_subset[:,:,4]+
-                                                         6*this_example_subset[:,:,3]-
-                                                         7.5*this_example_subset[:,:,1]+1)
-            savi_band = 1.5*(this_example_subset[:,:,4]-
-                             this_example_subset[:,:,3])/(this_example_subset[:,:,4]+
-                                                          this_example_subset[:,:,3]+0.5)
-            msavi_band = 0.5*(2*this_example_subset[:,:,4]+1-
-                              np.sqrt((2*this_example_subset[:,:,4]+1)**2-
-                                      8*(this_example_subset[:,:,4]-
-                                         this_example_subset[:,:,3])))
-            ndmi_band = (this_example_subset[:,:,4]-
-                         this_example_subset[:,:,5])/(this_example_subset[:,:,4]+
-                                                      this_example_subset[:,:,5]+1e-7)
-            nbr_band = (this_example_subset[:,:,4]-
-                        this_example_subset[:,:,6])/(this_example_subset[:,:,4]+
-                                                     this_example_subset[:,:,6]+1e-7)
-            nbr2_band = (this_example_subset[:,:,5]-
-                         this_example_subset[:,:,6])/(this_example_subset[:,:,5]+
-                                                      this_example_subset[:,:,6]+1e-7)
+            # ndvi_band = (this_example_subset[:,:,4]-
+            #              this_example_subset[:,:,3])/(this_example_subset[:,:,4]+
+            #                                           this_example_subset[:,:,3]+1e-7)
+            # evi_band = 2.5*(this_example_subset[:,:,4]-
+            #                 this_example_subset[:,:,3])/(this_example_subset[:,:,4]+
+            #                                              6*this_example_subset[:,:,3]-
+            #                                              7.5*this_example_subset[:,:,1]+1)
+            # savi_band = 1.5*(this_example_subset[:,:,4]-
+            #                  this_example_subset[:,:,3])/(this_example_subset[:,:,4]+
+            #                                               this_example_subset[:,:,3]+0.5)
+            # msavi_band = 0.5*(2*this_example_subset[:,:,4]+1-
+            #                   np.sqrt((2*this_example_subset[:,:,4]+1)**2-
+            #                           8*(this_example_subset[:,:,4]-
+            #                              this_example_subset[:,:,3])))
+            # ndmi_band = (this_example_subset[:,:,4]-
+            #              this_example_subset[:,:,5])/(this_example_subset[:,:,4]+
+            #                                           this_example_subset[:,:,5]+1e-7)
+            # nbr_band = (this_example_subset[:,:,4]-
+            #             this_example_subset[:,:,6])/(this_example_subset[:,:,4]+
+            #                                          this_example_subset[:,:,6]+1e-7)
+            # nbr2_band = (this_example_subset[:,:,5]-
+            #              this_example_subset[:,:,6])/(this_example_subset[:,:,5]+
+            #                                           this_example_subset[:,:,6]+1e-7)
+            #
+            # ndvi_band = np.nan_to_num(ndvi_band)
+            # evi_band = np.nan_to_num(evi_band)
+            # savi_band = np.nan_to_num(savi_band)
+            # msavi_band = np.nan_to_num(msavi_band)
+            # ndmi_band = np.nan_to_num(ndmi_band)
+            # nbr_band = np.nan_to_num(nbr_band)
+            # nbr2_band = np.nan_to_num(nbr2_band)
+            #
+            # this_example_subset = np.dstack((this_example_subset, ndvi_band))
+            # this_example_subset = np.dstack((this_example_subset, evi_band))
+            # this_example_subset = np.dstack((this_example_subset, savi_band))
+            # this_example_subset = np.dstack((this_example_subset, msavi_band))
+            # this_example_subset = np.dstack((this_example_subset, ndmi_band))
+            # this_example_subset = np.dstack((this_example_subset, nbr_band))
+            # this_example_subset = np.dstack((this_example_subset, nbr2_band))
 
-            ndvi_band = np.nan_to_num(ndvi_band)
-            evi_band = np.nan_to_num(evi_band)
-            savi_band = np.nan_to_num(savi_band)
-            msavi_band = np.nan_to_num(msavi_band)
-            ndmi_band = np.nan_to_num(ndmi_band)
-            nbr_band = np.nan_to_num(nbr_band)
-            nbr2_band = np.nan_to_num(nbr2_band)
-
-            this_example_subset = np.dstack((this_example_subset, ndvi_band))
-            this_example_subset = np.dstack((this_example_subset, evi_band))
-            this_example_subset = np.dstack((this_example_subset, savi_band))
-            this_example_subset = np.dstack((this_example_subset, msavi_band))
-            this_example_subset = np.dstack((this_example_subset, ndmi_band))
-            this_example_subset = np.dstack((this_example_subset, nbr_band))
-            this_example_subset = np.dstack((this_example_subset, nbr2_band))
-
-            this_label_subset = label_subset[
-                                this_row:this_row + self.model_input_size,
-                                this_col:this_col + self.model_input_size, ]
+            this_label_subset = label_subset[this_row:this_row + self.model_input_size,
+                                             this_col:this_col + self.model_input_size, ]
             this_label_subset = fix(this_label_subset, total_labels=max_label).astype(np.uint8)
+            # these_labels, their_frequency = np.unique(this_label_subset, return_counts=True)
+            # reject all noisy pixels
+            # if 0 in these_labels:
+            #     self.__getitem__(np.random.randint(self.__len__()))
+            # this_label_subset = this_label_subset//2 # convert 1, 2 to 0, 1
             if self.one_hot:
                 this_label_subset = np.eye(self.num_classes)[this_label_subset]
 
@@ -504,11 +507,17 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
             # print(this_label_subset.shape, this_example_subset.shape)
             this_example_subset, this_label_subset = toTensor(image=this_example_subset, label=this_label_subset,
                                                               one_hot=self.one_hot)
+            if self.transformation:
+                this_example_subset = self.transformation(this_example_subset)
             return {'input': this_example_subset, 'label': this_label_subset}
 
         def __len__(self):
             return 1*self.total_images if self.mode == 'train' else self.total_images
     ######################################################################################
+
+    palsar_mean = torch.Tensor([8116.269912828, 3419.031791692, 40.270058337])
+    palsar_std = torch.Tensor([6136.70160067, 2201.432263753, 19.38761076])
+    transformation = transforms.Compose([transforms.Normalize(mean=palsar_mean, std=palsar_std)])
 
     train_list, eval_list, test_list = [], [], []
     if not os.path.exists(save_data_path):
@@ -516,8 +525,8 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
         print('LOG: No saved data found. Making new data directory {}'.format(save_data_path))
         full_list = [os.path.join(generated_data_path, x) for x in os.listdir(generated_data_path)]
         random.shuffle(full_list)
-        train_list = full_list[:int(len(full_list)*0.8)]
-        eval_list = full_list[int(len(full_list)*0.8):]
+        train_list = full_list[:int(len(full_list)*train_split)]
+        eval_list = full_list[int(len(full_list)*train_split):]
 
         # full_list = [
         #     os.path.join(generated_data_path, 'reduced_regions_landsat_2013_1.pkl'),
@@ -623,11 +632,11 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
     # create dataset class instances
     # images_per_image means approx. how many images are in each example
     train_data = dataset(data_list=train_list, data_map_path=os.path.join(save_data_path, 'train_datamap.pkl'),
-                         mode='train', stride=32) # more images for training
+                         mode='train', stride=16, transformation=transformation) # more images for training
     eval_data = dataset(data_list=eval_list, data_map_path=os.path.join(save_data_path, 'eval_datamap.pkl'),
-                        mode='test', stride=model_input_size)
+                        mode='test', stride=model_input_size, transformation=transformation)
     test_data = dataset(data_list=test_list, data_map_path=os.path.join(save_data_path, 'test_datamap.pkl'),
-                        mode='test', stride=model_input_size)
+                        mode='test', stride=model_input_size, transformation=transformation)
     print('LOG: [train_data, eval_data, test_data] ->', len(train_data), len(eval_data), len(test_data))
 
     # for j in range(10):
@@ -708,14 +717,14 @@ def main():
 if __name__ == '__main__':
     # main()
 
-    check_generated_fnf_datapickle('/home/annus/Desktop/1_12.pkl')
+    # check_generated_fnf_datapickle('/home/annus/Desktop/1_12.pkl')
 
-    # get_images_from_large_file(image_path='/home/azulfiqar_bee15seecs/regions_25m/region_landsat_2017_',
-    #                            bands=range(1,12),
-    #                            label_path='/home/azulfiqar_bee15seecs/fnf/fnf_2017_region_',
-    #                            destination='/home/azulfiqar_bee15seecs/fnf_dataset/',
-    #                            region=int(sys.argv[1]),
-    #                            stride=256)
+    get_images_from_large_file(image_path='/home/annuszulfiqar/palsar_dataset/palsar_2015_region_',
+                               bands=[1,2,3],
+                               label_path='/home/annuszulfiqar/palsar_dataset/fnf_2015_region_',
+                               destination='/home/annuszulfiqar/pickled_palsar_dataset/',
+                               region=int(sys.argv[1]),
+                               stride=256)
 
     # get_images_from_large_file(image_path='raw_dataset/full_test_site_2015.tif',
     #                            bands=range(1, 14),

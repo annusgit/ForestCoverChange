@@ -22,7 +22,7 @@ import matplotlib as mpl
 # mpl.use('Agg')
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
-# from torchsummary import summary
+from torchsummary import summary
 from torchvision import models
 
 # for getting pretrained layers from a vgg
@@ -82,7 +82,7 @@ class UNet(nn.Module):
         super(UNet, self).__init__()
         VGG = models.vgg11(pretrained=True)
         pretrained_layers = list(VGG.features)
-        self.bn_init = nn.BatchNorm2d(num_features=input_channels)
+        # self.bn_init = nn.BatchNorm2d(num_features=input_channels)
         self.max_pool = nn.MaxPool2d(2, 2)
         self.dropout = nn.Dropout2d(0.5)
         self.activate = nn.ReLU()
@@ -115,12 +115,13 @@ class UNet(nn.Module):
         self.decoder_6 = UNet_up_block(prev_channel=self.encoder_1.output_channels,
                                        input_channel=self.decoder_5.output_channels,
                                        output_channel=64)
-        self.last_conv = nn.Conv2d(64, num_classes, kernel_size=1)
+        # self.last_conv = nn.Conv2d(64, num_classes, kernel_size=1)
+        self.binary_last_conv = nn.Conv2d(64, num_classes, kernel_size=1)
         self.softmax = nn.Softmax(dim=1)
         pass
 
     def forward(self, x):
-        x = self.bn_init(x)
+        # x = self.bn_init(x)
         self.x1_cat = self.encoder_1(x)
         self.x1 = self.max_pool(self.x1_cat)
         self.x2_cat = self.encoder_2(self.x1)
@@ -150,7 +151,7 @@ class UNet(nn.Module):
         x = self.decoder_4(self.x3_cat, x)
         x = self.decoder_5(self.x2_cat, x)
         x = self.decoder_6(self.x1_cat, x)
-        x = self.last_conv(x)
+        x = self.binary_last_conv(x)
         return x, self.softmax(x)  # the final vector and the corresponding softmaxed prediction
 
 
@@ -227,10 +228,10 @@ def see_children_recursively(graph, layer=None):
 
 if __name__ == '__main__':
     # check_model
-    model = UNet(input_channels=11, num_classes=16)
+    model = UNet(input_channels=3, num_classes=4)
     model.eval()
     with torch.no_grad():
-        summary(model, input_size=(11, 128, 128))
+        summary(model, input_size=(3, 128, 128))
     see_children_recursively(graph=model, layer=nn.Conv2d)
     pass
 

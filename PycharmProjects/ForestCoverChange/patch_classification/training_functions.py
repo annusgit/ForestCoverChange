@@ -13,250 +13,287 @@ import numpy as np
 import pickle as pkl
 from model import *
 import torchnet as tnt
-from dataset import get_dataloaders
+from dataset import get_dataloaders_generated_data
 from tensorboardX import SummaryWriter
 
 
-def train_net(model, base_folder, pre_model, save_dir, batch_size, lr, log_after, cuda, device, one_hot=False):
-    if not pre_model:
-        print(model)
-    writer = SummaryWriter()
+def train_net(model, generated_data_path, input_dim, workers, pre_model, save_data, save_dir, sum_dir,
+              batch_size, lr, epochs, log_after, cuda, device):
     if cuda:
-        print('GPU')
+        print('log: Using GPU')
         model.cuda(device=device)
-        print('log: training started on device: {}'.format(device))
-    # define loss and optimizer
-    optimizer = Adam(model.parameters(), lr=lr)
-    lr_final = 0.0000003
-    num_epochs = 500
-    LR_decay = (lr_final/lr)**(1./num_epochs)
-    scheduler = lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=LR_decay)
-    # print(LR_decay, optimizer.state)
-    # print(optimizer.param_groups[0]['lr'])
-    # criterion = nn.CrossEntropyLoss()
-    criterion = nn.CrossEntropyLoss()
-    train_loader, val_dataloader, test_loader = get_dataloaders(base_folder=base_folder,
-                                                                batch_size=batch_size)
+
+    if pre_model == -1:
+        model_number = 0
+        print('log: No trained model passed. Starting from scratch...')
+        # model_path = os.path.join(save_dir, 'model-{}.pt'.format(model_number))
+    else:
+        model_number = pre_model
+        model_path = os.path.join(save_dir, 'model-{}.pt'.format(pre_model))
+        model.load_state_dict(torch.load(model_path), strict=False)
+        print('log: Resuming from model {} ...'.format(model_path))
+    ###############################################################################
+
     if not os.path.exists(save_dir):
         os.mkdir(save_dir)
+    if not os.path.exists(sum_dir):
+        os.mkdir(sum_dir)
+    # writer = SummaryWriter()
 
-    if True:
-        i = 1
-        m_loss, m_accuracy = [], []
-        if pre_model:
-            # self.load_state_dict(torch.load(pre_model)['model'])
-            model.load_state_dict(torch.load(os.path.join(save_dir, "model-"+pre_model+'.pt')))
-            print('log: resumed model {} successfully!'.format(pre_model))
-            print(model)
+    # define loss and optimizer
+    optimizer = Adam(model.parameters(), lr=lr)
+    # focal_criterion = FocalLoss2d(weight=weights)
+    crossentropy_criterion = nn.BCELoss()
+    # dice_criterion = DiceLoss(weights=weights)
 
-            # starting point
-            # model_number = int(pre_model.split('/')[1].split('-')[1].split('.')[0])
-            model_number = int(pre_model) #re.findall('\d+', str(pre_model))[0])
-            i = i + model_number - 1
-        else:
-            print('log: starting anew...')
+    lr_final = 5e-5
+    LR_decay = (lr_final / lr) ** (1. / epochs)
+    scheduler = lr_scheduler.ExponentialLR(optimizer=optimizer, gamma=LR_decay)
 
-        while i < num_epochs:
-            i += 1
-            net_loss = []
-            # new model path
-            save_path = os.path.join(save_dir, 'model-{}.pt'.format(i))
+    loaders = get_dataloaders_generated_data(generated_data_path=generated_data_path, save_data_path=save_data,
+                                             model_input_size=input_dim, batch_size=batch_size, num_classes=2,
+                                             one_hot=True, num_workers=workers)
+    writer = SummaryWriter()
+
+    train_loader, val_dataloader, test_loader = loaders
+    # training loop
+    for k in range(epochs):
+        net_loss = []
+        total_correct, total_examples = 0, 0
+        model_path = os.path.join(save_dir, 'model-{}.pt'.format(model_number+k))
+        if not os.path.exists(model_path):
+            torch.save(model.state_dict(), model_path)
+            print('log: saved {}'.format(model_path))
             # remember to save only five previous models, so
-            del_this = os.path.join(save_dir, 'model-{}.pt'.format(i-6))
+            del_this = os.path.join(save_dir, 'model-{}.pt'.format(model_number+k-6))
             if os.path.exists(del_this):
                 os.remove(del_this)
                 print('log: removed {}'.format(del_this))
 
-            if i > 1 and not os.path.exists(save_path):
-                torch.save(model.state_dict(), save_path)
-                print('log: saved {}'.format(save_path))
+        for idx, data in enumerate(train_loader):
+            model.train()
+            model.zero_grad()
+            test_x, label = data['input'], data['label']
+            test_x = test_x.cuda(device=device) if cuda else test_x
+            label = label.cuda(device=device) if cuda else label
+            out_x, logits = model.forward(test_x)
+            pred = torch.argmax(logits, dim=1)
+            # print(np.unique(pred.detach().cpu().numpy()))
+            not_one_hot_target = torch.argmax(label, dim=1)
+            # dice_criterion(logits, label) #+ focal_criterion(logits, not_one_hot_target) #
+            loss = crossentropy_criterion(logits, label.float())
+            loss.backward()
+            clip_grad_norm_(model.parameters(), 0.05)
+            optimizer.step()
+            accurate = (pred == not_one_hot_target).sum().item()
+            numerator = float(accurate)
+            denominator = float(pred.view(-1).size(0)) #test_x.size(0)*dimension**2)
+            total_correct += numerator
+            total_examples += denominator
 
-            correct_count, total_count = 0, 0
-            for idx, data in enumerate(train_loader):
-                ##########################
-                model.train() # train mode at each epoch, just in case...
-                ##########################
-                test_x, label = data['input'], data['label']
-                if cuda:
-                    test_x = test_x.cuda(device=device)
-                    label = label.cuda(device=device)
-                # forward
-                out_x, pred = model(test_x)
-                # out_x, pred = out_x.cpu(), pred.cpu()
-                loss = criterion(out_x, label)
-                net_loss.append(loss.item())
+            if idx % log_after == 0 and idx > 0:
+                accuracy = float(numerator) * 100 / denominator
+                print('{}. ({}/{}) output size = {}, loss = {}, '
+                      'accuracy = {}/{} = {:.2f}%, (lr = {})'.format(k, idx, len(train_loader), out_x.size(),
+                                                                     loss.item(), numerator, denominator, accuracy,
+                                                                     optimizer.param_groups[0]['lr']))
+            net_loss.append(loss.item())
 
-                # get accuracy metric
-                if one_hot:
-                    batch_correct = (torch.argmax(label, dim=1).eq(pred.long())).double().sum().item()
-                else:
-                    batch_correct = (label.eq(pred.long())).double().sum().item()
-                correct_count += batch_correct
-                # print(batch_correct)
-                total_count += np.float(pred.size(0))
-                if idx % log_after == 0 and idx > 0:
-                    print('{}. ({}/{}) image size = {}, loss = {}: accuracy = {}/{}'.format(i,
-                                                                                            idx,
-                                                                                            len(train_loader),
-                                                                                            out_x.size(),
-                                                                                            loss.item(),
-                                                                                            batch_correct,
-                                                                                            pred.size(0)))
-                #################################
-                # three steps for backprop
-                model.zero_grad()
-                loss.backward()
-                # perform gradient clipping between loss backward and optimizer step
-                clip_grad_norm_(model.parameters(), 0.05)
-                optimizer.step()
-                #################################
-            # remember this should be in the epoch loop ;)
-            scheduler.step()  # to dynamically change the learning rate
-            mean_accuracy = correct_count / total_count * 100
-            mean_loss = np.asarray(net_loss).mean()
-            m_loss.append((i, mean_loss))
-            m_accuracy.append((i, mean_accuracy))
+        # this should be done at the end of epoch only
+        scheduler.step()  # to dynamically change the learning rate
+        mean_accuracy = total_correct*100/total_examples
+        mean_loss = np.asarray(net_loss).mean()
+        writer.add_scalar(tag='train loss', scalar_value=mean_loss, global_step=k)
+        writer.add_scalar(tag='train over_all accuracy', scalar_value=mean_accuracy, global_step=k)
+        print('####################################')
+        print('LOG: epoch {} -> total loss = {:.5f}, total accuracy = {:.5f}%'.format(k, mean_loss, mean_accuracy))
+        print('####################################')
 
-            writer.add_scalar(tag='train loss', scalar_value=mean_loss, global_step=i)
-            writer.add_scalar(tag='train over_all accuracy', scalar_value=mean_accuracy, global_step=i)
-
-            print('####################################')
-            print('epoch {} -> total loss = {:.5f}, total accuracy = {:.5f}% (lr: {})'.format(i,
-                                                                                              mean_loss,
-                                                                                              mean_accuracy,
-                                                                                              optimizer.param_groups[0]['lr']))
-            print('####################################')
-
-            # validate model after each epoch
-            with torch.no_grad():
-                eval_net(model=model, writer=writer, criterion=criterion,
-                         val_loader=val_dataloader, denominator=batch_size,
-                         cuda=cuda, device=device, global_step=i, one_hot=one_hot)
+        # validate model
+        print('log: Evaluating now...')
+        eval_net(model=model, criterion=crossentropy_criterion, val_loader=val_dataloader, cuda=cuda, device=device,
+                 writer=None, batch_size=batch_size, global_step=k)
     pass
 
 
-# @torch.no_grad()
+@torch.no_grad()
 def eval_net(**kwargs):
-    model = kwargs['model']
     cuda = kwargs['cuda']
     device = kwargs['device']
+    model = kwargs['model']
+    model.eval()
     if cuda:
         model.cuda(device=device)
-    if 'criterion' in kwargs.keys():
-        writer = kwargs['writer']
+    if 'writer' in kwargs.keys():
+        # it means this is evaluation at training time
         val_loader = kwargs['val_loader']
-        criterion = kwargs['criterion']
+        model = kwargs['model']
+        writer = kwargs['writer']
         global_step = kwargs['global_step']
-        correct_count, total_count = 0, 0
-        net_loss = []
-        model.eval()  # put in eval mode first ############################
-        print('evaluating now...')
+        crossentropy_criterion = kwargs['criterion']
+        total_examples, total_correct, net_loss = 0, 0, []
         for idx, data in enumerate(val_loader):
             test_x, label = data['input'], data['label']
-            if cuda:
-                test_x = test_x.cuda(device=device)
-                label = label.cuda(device=device)
-            # forward
-            out_x, pred = model.forward(test_x)
-            loss = criterion(out_x, label)
+            test_x = test_x.cuda(device=device) if cuda else test_x
+            label = label.cuda(device=device) if cuda else label
+            out_x, softmaxed = model.forward(test_x)
+            pred = torch.argmax(softmaxed, dim=1)
+            not_one_hot_target = torch.argmax(label, dim=1)
+            # dice_criterion(softmaxed, label) # + focal_criterion(softmaxed, not_one_hot_target) #
+            loss = crossentropy_criterion(softmaxed, label.float())
+            accurate = (pred == not_one_hot_target).sum().item()
+            numerator = float(accurate)
+            denominator = float(pred.view(-1).size(0)) #test_x.size(0) * dimension ** 2)
+            # accuracy = float(numerator) * 100 / denominator
+            total_correct += numerator
+            total_examples += denominator
             net_loss.append(loss.item())
-
-            # get accuracy metric
-            if kwargs['one_hot']:
-                batch_correct = (torch.argmax(label, dim=1).eq(pred.long())).double().sum().item()
-            else:
-                batch_correct = (label.eq(pred.long())).double().sum().item()
-            correct_count += batch_correct
-            total_count += np.float(pred.size(0))
-        #################################
-        mean_accuracy = correct_count / total_count * 100
+            #################################
+        mean_accuracy = total_correct*100/total_examples
         mean_loss = np.asarray(net_loss).mean()
-        # summarize mean accuracy
         writer.add_scalar(tag='val. loss', scalar_value=mean_loss, global_step=global_step)
         writer.add_scalar(tag='val. over_all accuracy', scalar_value=mean_accuracy, global_step=global_step)
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
-        print('log: validation:: total loss = {:.5f}, total accuracy = {:.5f}%'.format(mean_loss, mean_accuracy))
+        print('LOG: validation:: total loss = {:.5f}, total accuracy = {:.5f}%'.format(mean_loss, mean_accuracy))
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
 
     else:
         # model, images, labels, pre_model, save_dir, sum_dir, batch_size, lr, log_after, cuda
+        num_classes = 3
         pre_model = kwargs['pre_model']
-        base_folder = kwargs['base_folder']
-        batch_size = kwargs['batch_size']
-        log_after = kwargs['log_after']
-        criterion = nn.CrossEntropyLoss()
-        un_confusion_meter = tnt.meter.ConfusionMeter(10, normalized=False)
-        confusion_meter = tnt.meter.ConfusionMeter(10, normalized=True)
-        model.load_state_dict(torch.load(pre_model))
+        un_confusion_meter = tnt.meter.ConfusionMeter(num_classes, normalized=False)
+        confusion_meter = tnt.meter.ConfusionMeter(num_classes, normalized=True)
+
+        model_path = os.path.join(kwargs['save_dir'], 'model-{}.pt'.format(pre_model))
+        model.load_state_dict(torch.load(model_path), strict=False)
         print('log: resumed model {} successfully!'.format(pre_model))
-        _, _, test_loader  = get_dataloaders(base_folder=base_folder, batch_size=batch_size)
-        net_accuracy, net_loss = [], []
-        correct_count = 0
-        total_count = 0
-        print('batch size = {}'.format(batch_size))
-        model.eval()  # put in eval mode first
-        with torch.no_grad():
-            for idx, data in enumerate(test_loader):
-                # if idx == 1:
-                #     break
-                # print(model.training)
-                test_x, label = data['input'], data['label']
-                # print(test_x)
-                # print(test_x.shape)
-                # this = test_x.numpy().squeeze(0).transpose(1,2,0)
-                # print(this.shape, np.min(this), np.max(this))
-                if cuda:
-                    test_x = test_x.cuda(device=device)
-                    label = label.cuda(device=device)
-                # forward
-                out_x, pred = model(test_x)
-                loss = criterion(out_x, label)
-                un_confusion_meter.add(predicted=pred, target=label)
-                confusion_meter.add(predicted=pred, target=label)
 
-                ###############################
-                # pred = pred.view(-1)
-                # pred = pred.cpu().numpy()
-                # label = label.cpu().numpy()
-                # print(pred.shape, label.shape)
-                ###############################
+        # weights = torch.Tensor([1, 1, 1])  # forest has ten times more weight
+        # weights = weights.cuda(device=device) if cuda else weights
+        # dice_criterion, focal_criterion = nn.CrossEntropyLoss(), DiceLoss(), FocalLoss2d()
+        crossentropy_criterion = nn.BCELoss()
+        loaders = get_dataloaders_generated_data(generated_data_path=kwargs['generated_data_path'],
+                                                 save_data_path=kwargs['save_data'],
+                                                 model_input_size=kwargs['input_dim'],
+                                                 batch_size=kwargs['batch_size'],
+                                                 one_hot=True,
+                                                 num_workers=kwargs['workers'])
+        train_loader, test_loader, empty_loader = loaders
 
-                # get accuracy metric
-                # correct_count += np.sum((pred == label))
-                # print(pred, label)
-                # get accuracy metric
-                if 'one_hot' in kwargs.keys():
-                    if kwargs['one_hot']:
-                        batch_correct = (torch.argmax(label, dim=1).eq(pred.long())).double().sum().item()
-                else:
-                    batch_correct = (label.eq(pred.long())).double().sum().item()
-                # print(label.shape, pred.shape)
-                # break
-                correct_count += batch_correct
-                # print(batch_correct)
-                total_count += np.float(batch_size)
-                net_loss.append(loss.item())
-                if idx % log_after == 0:
-                    print('log: on {}'.format(idx))
+        net_loss = []
+        total_correct, total_examples = 0, 0
+        net_class_accuracy_0, net_class_accuracy_1, net_class_accuracy_2, \
+        net_class_accuracy_3, net_class_accuracy_4, net_class_accuracy_5,\
+        net_class_accuracy_6  = [], [], [], [], [], [], []
+        # net_class_accuracies = [[] for i in range(16)]
+        classes_mean_accuracies = []
+        for idx, data in enumerate(train_loader):
+            test_x, label = data['input'], data['label']
+            test_x = test_x.cuda(device=device) if cuda else test_x
+            label = label.cuda(device=device) if cuda else label
+            out_x, softmaxed = model.forward(test_x)
+            pred = torch.argmax(softmaxed, dim=1)
+            not_one_hot_target = torch.argmax(label, dim=1)
+            loss = crossentropy_criterion(softmaxed, label.float()) # dice_criterion(softmaxed, label) # +
+            accurate = (pred == not_one_hot_target).sum().item()
+            numerator = float(accurate)
+            denominator = float(pred.view(-1).size(0)) #test_x.size(0) * dimension ** 2)
+            total_correct += numerator
+            total_examples += denominator
+            net_loss.append(loss.item())
+            un_confusion_meter.add(predicted=pred.view(-1), target=not_one_hot_target.view(-1))
+            confusion_meter.add(predicted=pred.view(-1), target=not_one_hot_target.view(-1))
 
-                #################################
-            mean_loss = np.asarray(net_loss).mean()
-            mean_accuracy = correct_count * 100 / total_count
-            print(correct_count, total_count)
-            print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
-            print('log: test:: total loss = {:.5f}, total accuracy = {:.5f}%'.format(mean_loss, mean_accuracy))
-            print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+            if idx % 10 == 0:
+                print('log: on {}'.format(idx))
 
-            with open('normalized.pkl', 'wb') as this:
-                pkl.dump(confusion_meter.value(), this, protocol=pkl.HIGHEST_PROTOCOL)
-            with open('un_normalized.pkl', 'wb') as this:
-                pkl.dump(un_confusion_meter.value(), this, protocol=pkl.HIGHEST_PROTOCOL)
-        pass
+            # get per-class metrics
+            # for k in range(num_classes):
+            #     class_pred = (pred == k)
+            #     class_label = (label == k)
+            #     class_accuracy = (class_pred == class_label).sum()
+            #     class_accuracy = class_accuracy * 100 / (pred.view(-1).size(0))
+            #     net_class_accuracies[k].append(class_accuracy)
+
+            # class_pred_0 = (pred == 0)
+            # class_label_0 = (label == 0)
+            # class_accuracy_0 = (class_pred_0 == class_label_0).sum()
+            # class_accuracy_0 = class_accuracy_0 * 100 / (pred.view(-1).size(0))
+            # net_class_accuracy_0.append(class_accuracy_0)
+            #
+            # class_pred_1 = (pred == 1)
+            # class_label_1 = (label == 1)
+            # class_accuracy_1 = (class_pred_1 == class_label_1).sum()
+            # class_accuracy_1 = class_accuracy_1 * 100 / (pred.view(-1).size(0))
+            # net_class_accuracy_1.append(class_accuracy_1)
+            #
+            # class_pred_2 = (pred == 2)
+            # class_label_2 = (label == 2)
+            # class_accuracy_2 = (class_pred_2 == class_label_2).sum()
+            # class_accuracy_2 = class_accuracy_2 * 100 / (pred.view(-1).size(0))
+            # net_class_accuracy_2.append(class_accuracy_2)
+            #
+            # class_pred_3 = (pred == 3)
+            # class_label_3 = (label == 3)
+            # class_accuracy_3 = (class_pred_3 == class_label_3).sum()
+            # class_accuracy_3 = class_accuracy_3 * 100 / (pred.view(-1).size(0))
+            # net_class_accuracy_3.append(class_accuracy_3)
+            #
+            # class_pred_4 = (pred == 4)
+            # class_label_4 = (label == 4)
+            # class_accuracy_4 = (class_pred_4 == class_label_4).sum()
+            # class_accuracy_4 = class_accuracy_4 * 100 / (pred.view(-1).size(0))
+            # net_class_accuracy_4.append(class_accuracy_4)
+            #
+            # class_pred_5 = (pred == 5)
+            # class_label_5 = (label == 5)
+            # class_accuracy_5 = (class_pred_5 == class_label_5).sum()
+            # class_accuracy_5 = class_accuracy_5 * 100 / (pred.view(-1).size(0))
+            # net_class_accuracy_5.append(class_accuracy_5)
+            #
+            # class_pred_6 = (pred == 6)
+            # class_label_6 = (label == 6)
+            # class_accuracy_6 = (class_pred_6 == class_label_6).sum()
+            # class_accuracy_6 = class_accuracy_6 * 100 / (pred.view(-1).size(0))
+            # net_class_accuracy_6.append(class_accuracy_6)
+
+            # preds = torch.cat((preds, pred.long().view(-1)))
+            # labs = torch.cat((labs, label.long().view(-1)))
+            #################################
+        mean_accuracy = total_correct*100/total_examples
+        mean_loss = np.asarray(net_loss).mean()
+
+        # for k in range(num_classes):
+        #     classes_mean_accuracies.append(np.asarray(net_class_accuracies[k]).mean())
+        #
+        # class_0_mean_accuracy = np.asarray(net_class_accuracy_0).mean()
+        # class_1_mean_accuracy = np.asarray(net_class_accuracy_1).mean()
+        # class_2_mean_accuracy = np.asarray(net_class_accuracy_2).mean()
+        # class_3_mean_accuracy = np.asarray(net_class_accuracy_3).mean()
+        # class_4_mean_accuracy = np.asarray(net_class_accuracy_4).mean()
+        # class_5_mean_accuracy = np.asarray(net_class_accuracy_5).mean()
+        # class_6_mean_accuracy = np.asarray(net_class_accuracy_6).mean()
+
+        print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+        print('log: test:: total loss = {:.5f}, total accuracy = {:.5f}%'.format(mean_loss, mean_accuracy))
+        # for k in range(num_classes):
+        #     print('log: class {}:: total accuracy = {:.5f}%'.format(k, classes_mean_accuracies[k]))
+        # print('log: class 0:: total accuracy = {:.5f}%'.format(class_0_mean_accuracy))
+        # print('log: class 1:: total accuracy = {:.5f}%'.format(class_1_mean_accuracy))
+        # print('log: class 2:: total accuracy = {:.5f}%'.format(class_2_mean_accuracy))
+        # print('log: class 3:: total accuracy = {:.5f}%'.format(class_3_mean_accuracy))
+        # print('log: class 4:: total accuracy = {:.5f}%'.format(class_4_mean_accuracy))
+        # print('log: class 5:: total accuracy = {:.5f}%'.format(class_5_mean_accuracy))
+        # print('log: class 6:: total accuracy = {:.5f}%'.format(class_6_mean_accuracy))
+        print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
+
+        # class_names = ['background/clutter', 'buildings', 'trees', 'cars',
+        #                'low_vegetation', 'impervious_surfaces', 'noise']
+        with open('normalized.pkl', 'wb') as this:
+            pkl.dump(confusion_meter.value(), this, protocol=pkl.HIGHEST_PROTOCOL)
+        with open('un_normalized.pkl', 'wb') as this:
+            pkl.dump(un_confusion_meter.value(), this, protocol=pkl.HIGHEST_PROTOCOL)
     pass
-
-
-
-
 
 
 
