@@ -540,13 +540,13 @@ if __name__ == '__main__':
     #                                     'reduced_landsat_images/reduced_dataset_for_segmentation/2015/'
     #                                     'reduced_regions_landsat_2015_7.pkl')
 
-    # check_temporal_map_difference(label_1='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-    #                                       'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2013-v2.0.7.tif',
-    #                               label_2='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-    #                                       'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2014-v2.0.7.tif',
-    #                               label_3='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-    #                                       'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.tif',
-    #                               this_region='reduced_region_7')
+    check_temporal_map_difference(label_1='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+                                          'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2013-v2.0.7.tif',
+                                  label_2='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+                                          'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2014-v2.0.7.tif',
+                                  label_3='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
+                                          'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.tif',
+                                  this_region='reduced_region_7')
 
     check_MODIS_earth_engine_label(this_example='/home/annus/PycharmProjects/'
                                                 'ForestCoverChange_inputs_and_numerical_results/reduced_landsat_images/'

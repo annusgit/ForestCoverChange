@@ -132,7 +132,7 @@ def eval_net(**kwargs):
     device = kwargs['device']
     model = kwargs['model']
     model.eval()
-    num_classes = 4
+    num_classes = 2 # because we convert to binary classification at test time
     if cuda:
         model.cuda(device=device)
     un_confusion_meter = tnt.meter.ConfusionMeter(num_classes, normalized=False)
@@ -184,7 +184,7 @@ def eval_net(**kwargs):
         confusion_meter = tnt.meter.ConfusionMeter(num_classes, normalized=True)
 
         model_path = os.path.join(kwargs['save_dir'], 'model-{}.pt'.format(pre_model))
-        model.load_state_dict(torch.load(model_path), strict=False)
+        model.load_state_dict(torch.load(model_path, map_location='cpu'), strict=False)
         print('log: resumed model {} successfully!'.format(pre_model))
 
         weights = torch.Tensor([1, 10, 1, 1])  # forest has ten times more weight
@@ -217,6 +217,17 @@ def eval_net(**kwargs):
             out_x, softmaxed = model.forward(test_x)
             pred = torch.argmax(softmaxed, dim=1)
             not_one_hot_target = torch.argmax(label, dim=1)
+
+            # convert to binary classes
+            # 0-> noise, 1-> forest, 2-> non-forest, 3-> water
+            pred[pred == 0] = 2
+            pred[pred == 3] = 2
+            not_one_hot_target[not_one_hot_target == 0] = 2
+            not_one_hot_target[not_one_hot_target == 3] = 2
+            # now convert 1, 2 to 0, 1
+            pred -= 1
+            not_one_hot_target -= 1
+
             # dice_criterion(softmaxed, label) # +
             # print(softmaxed.shape, label.shape)
             # loss = crossentropy_criterion(softmaxed.view(-1, 2), label.view(-1, 2))

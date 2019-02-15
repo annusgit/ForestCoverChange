@@ -385,7 +385,7 @@ def get_dataloaders_raw(images_path, bands, labels_path, save_data_path, block_s
 
 
 def get_dataloaders_generated_data(generated_data_path, save_data_path, model_input_size=64, num_classes=4,
-                                   train_split=0.8, one_hot=False, batch_size=16, num_workers=4, max_label=3):
+                                   train_split=0.0, one_hot=False, batch_size=16, num_workers=4, max_label=3):
 
     # This function is faster because we have already saved our data as subset pickle files
     print('inside dataloading code...')
@@ -718,11 +718,10 @@ if __name__ == '__main__':
     # main()
 
     # check_generated_fnf_datapickle('/home/annus/Desktop/1_12.pkl')
-
-    get_images_from_large_file(image_path='/home/annuszulfiqar/palsar_dataset/palsar_2015_region_',
+    get_images_from_large_file(image_path='/home/annus/Desktop/palsar_dataset_full/palsar_dataset/palsar_2017_region_',
                                bands=[1,2,3],
-                               label_path='/home/annuszulfiqar/palsar_dataset/fnf_2015_region_',
-                               destination='/home/annuszulfiqar/pickled_palsar_dataset/',
+                               label_path='/home/annus/Desktop/palsar_dataset_full/palsar_dataset/fnf_2017_region_',
+                               destination='/home/annus/Desktop/palsar/pickled_palsar_dataset/2017/',
                                region=int(sys.argv[1]),
                                stride=256)
 
