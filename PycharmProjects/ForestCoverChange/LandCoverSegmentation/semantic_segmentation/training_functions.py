@@ -21,8 +21,8 @@ import torchnet as tnt
 from torchnet.meter import ConfusionMeter as CM
 
 
-def train_net(model, generated_data_path, images, labels, block_size, input_dim, workers, pre_model,
-              save_data, save_dir, sum_dir, batch_size, lr, epochs, log_after, cuda, device):
+def train_net(model, generated_data_path, input_dim, workers, pre_model, save_data, save_dir,
+              sum_dir, batch_size, lr, epochs, log_after, cuda, device):
     # print(model)
     if cuda:
         print('log: Using GPU')
@@ -67,16 +67,6 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
     for k in range(epochs):
         net_loss = []
         total_correct, total_examples = 0, 0
-        model_path = os.path.join(save_dir, 'model-{}.pt'.format(model_number+k))
-        if not os.path.exists(model_path):
-            torch.save(model.state_dict(), model_path)
-            print('log: saved {}'.format(model_path))
-            # remember to save only five previous models, so
-            del_this = os.path.join(save_dir, 'model-{}.pt'.format(model_number+k-6))
-            if os.path.exists(del_this):
-                os.remove(del_this)
-                print('log: removed {}'.format(del_this))
-
         for idx, data in enumerate(train_loader):
             model.train()
             model.zero_grad()
@@ -118,11 +108,29 @@ def train_net(model, generated_data_path, images, labels, block_size, input_dim,
         print('log: Evaluating now...')
         eval_accuracy = eval_net(model=model, criterion=focal_criterion, val_loader=val_dataloader,
                                  cuda=cuda, device=device, writer=None, batch_size=batch_size, step=k)
+
+        # save best performing models only
+        # model_path = os.path.join(save_dir, 'model-{}.pt'.format(model_number + k))
+        # if not os.path.exists(model_path):
+        #     torch.save(model.state_dict(), model_path)
+        #     print('log: saved {}'.format(model_path))
+        #     # remember to save only five previous models, so
+        #     del_this = os.path.join(save_dir, 'model-{}.pt'.format(model_number + k - 6))
+        #     if os.path.exists(del_this):
+        #         os.remove(del_this)
+        #         print('log: removed {}'.format(del_this))
+
         if eval_accuracy > best_evaluation:
             best_evaluation = eval_accuracy
-            model_path = os.path.join(save_dir, 'model-best-{}.pt'.format(model_number + k))
+            model_number += 1
+            model_path = os.path.join(save_dir, 'model-{}.pt'.format(model_number))
             torch.save(model.state_dict(), model_path)
             print('log: Saved best performing {}'.format(model_path))
+
+            del_this = os.path.join(save_dir, 'model-{}.pt'.format(model_number-6))
+            if os.path.exists(del_this):
+                os.remove(del_this)
+                print('log: Removed {}'.format(del_this))
     pass
 
 
@@ -132,17 +140,18 @@ def eval_net(**kwargs):
     device = kwargs['device']
     model = kwargs['model']
     model.eval()
-    num_classes = 2 # because we convert to binary classification at test time
     if cuda:
         model.cuda(device=device)
-    un_confusion_meter = tnt.meter.ConfusionMeter(num_classes, normalized=False)
-    confusion_meter = tnt.meter.ConfusionMeter(num_classes, normalized=True)
+
     if 'writer' in kwargs.keys():
         # it means this is evaluation at training time
         val_loader = kwargs['val_loader']
         model = kwargs['model']
         focal_criterion = kwargs['criterion']
         total_examples, total_correct, net_loss = 0, 0, []
+        num_classes = 4
+        un_confusion_meter = tnt.meter.ConfusionMeter(num_classes, normalized=False)
+        confusion_meter = tnt.meter.ConfusionMeter(num_classes, normalized=True)
         for idx, data in enumerate(val_loader):
             test_x, label = data['input'], data['label']
             test_x = test_x.cuda(device=device) if cuda else test_x
@@ -180,6 +189,7 @@ def eval_net(**kwargs):
         # model, images, labels, pre_model, save_dir, sum_dir, batch_size, lr, log_after, cuda
         pre_model = kwargs['pre_model']
         batch_size = kwargs['batch_size']
+        num_classes = 2  # we convert to a binary classification problem at test time only
         un_confusion_meter = tnt.meter.ConfusionMeter(num_classes, normalized=False)
         confusion_meter = tnt.meter.ConfusionMeter(num_classes, normalized=True)
 
@@ -205,11 +215,6 @@ def eval_net(**kwargs):
 
         net_loss = []
         total_correct, total_examples = 0, 0
-        net_class_accuracy_0, net_class_accuracy_1, net_class_accuracy_2, \
-        net_class_accuracy_3, net_class_accuracy_4, net_class_accuracy_5,\
-        net_class_accuracy_6  = [], [], [], [], [], [], []
-        # net_class_accuracies = [[] for i in range(16)]
-        classes_mean_accuracies = []
         for idx, data in enumerate(test_loader):
             test_x, label = data['input'], data['label']
             test_x = test_x.cuda(device=device) if cuda else test_x
@@ -244,89 +249,15 @@ def eval_net(**kwargs):
             if idx % 10 == 0:
                 print('log: on {}'.format(idx))
 
-            # get per-class metrics
-            # for k in range(num_classes):
-            #     class_pred = (pred == k)
-            #     class_label = (label == k)
-            #     class_accuracy = (class_pred == class_label).sum()
-            #     class_accuracy = class_accuracy * 100 / (pred.view(-1).size(0))
-            #     net_class_accuracies[k].append(class_accuracy)
-
-            # class_pred_0 = (pred == 0)
-            # class_label_0 = (label == 0)
-            # class_accuracy_0 = (class_pred_0 == class_label_0).sum()
-            # class_accuracy_0 = class_accuracy_0 * 100 / (pred.view(-1).size(0))
-            # net_class_accuracy_0.append(class_accuracy_0)
-            #
-            # class_pred_1 = (pred == 1)
-            # class_label_1 = (label == 1)
-            # class_accuracy_1 = (class_pred_1 == class_label_1).sum()
-            # class_accuracy_1 = class_accuracy_1 * 100 / (pred.view(-1).size(0))
-            # net_class_accuracy_1.append(class_accuracy_1)
-            #
-            # class_pred_2 = (pred == 2)
-            # class_label_2 = (label == 2)
-            # class_accuracy_2 = (class_pred_2 == class_label_2).sum()
-            # class_accuracy_2 = class_accuracy_2 * 100 / (pred.view(-1).size(0))
-            # net_class_accuracy_2.append(class_accuracy_2)
-            #
-            # class_pred_3 = (pred == 3)
-            # class_label_3 = (label == 3)
-            # class_accuracy_3 = (class_pred_3 == class_label_3).sum()
-            # class_accuracy_3 = class_accuracy_3 * 100 / (pred.view(-1).size(0))
-            # net_class_accuracy_3.append(class_accuracy_3)
-            #
-            # class_pred_4 = (pred == 4)
-            # class_label_4 = (label == 4)
-            # class_accuracy_4 = (class_pred_4 == class_label_4).sum()
-            # class_accuracy_4 = class_accuracy_4 * 100 / (pred.view(-1).size(0))
-            # net_class_accuracy_4.append(class_accuracy_4)
-            #
-            # class_pred_5 = (pred == 5)
-            # class_label_5 = (label == 5)
-            # class_accuracy_5 = (class_pred_5 == class_label_5).sum()
-            # class_accuracy_5 = class_accuracy_5 * 100 / (pred.view(-1).size(0))
-            # net_class_accuracy_5.append(class_accuracy_5)
-            #
-            # class_pred_6 = (pred == 6)
-            # class_label_6 = (label == 6)
-            # class_accuracy_6 = (class_pred_6 == class_label_6).sum()
-            # class_accuracy_6 = class_accuracy_6 * 100 / (pred.view(-1).size(0))
-            # net_class_accuracy_6.append(class_accuracy_6)
-
-            # preds = torch.cat((preds, pred.long().view(-1)))
-            # labs = torch.cat((labs, label.long().view(-1)))
             #################################
         mean_accuracy = total_correct*100/total_examples
         mean_loss = np.asarray(net_loss).mean()
 
-        # for k in range(num_classes):
-        #     classes_mean_accuracies.append(np.asarray(net_class_accuracies[k]).mean())
-        #
-        # class_0_mean_accuracy = np.asarray(net_class_accuracy_0).mean()
-        # class_1_mean_accuracy = np.asarray(net_class_accuracy_1).mean()
-        # class_2_mean_accuracy = np.asarray(net_class_accuracy_2).mean()
-        # class_3_mean_accuracy = np.asarray(net_class_accuracy_3).mean()
-        # class_4_mean_accuracy = np.asarray(net_class_accuracy_4).mean()
-        # class_5_mean_accuracy = np.asarray(net_class_accuracy_5).mean()
-        # class_6_mean_accuracy = np.asarray(net_class_accuracy_6).mean()
-
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
         print('log: test:: total loss = {:.5f}, total accuracy = {:.5f}%'.format(mean_loss, mean_accuracy))
-        # for k in range(num_classes):
-        #     print('log: class {}:: total accuracy = {:.5f}%'.format(k, classes_mean_accuracies[k]))
-        # print('log: class 0:: total accuracy = {:.5f}%'.format(class_0_mean_accuracy))
-        # print('log: class 1:: total accuracy = {:.5f}%'.format(class_1_mean_accuracy))
-        # print('log: class 2:: total accuracy = {:.5f}%'.format(class_2_mean_accuracy))
-        # print('log: class 3:: total accuracy = {:.5f}%'.format(class_3_mean_accuracy))
-        # print('log: class 4:: total accuracy = {:.5f}%'.format(class_4_mean_accuracy))
-        # print('log: class 5:: total accuracy = {:.5f}%'.format(class_5_mean_accuracy))
-        # print('log: class 6:: total accuracy = {:.5f}%'.format(class_6_mean_accuracy))
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
         print('---> Confusion Matrix:')
         print(confusion_meter.value())
-        # class_names = ['background/clutter', 'buildings', 'trees', 'cars',
-        #                'low_vegetation', 'impervious_surfaces', 'noise']
         with open('normalized.pkl', 'wb') as this:
             pkl.dump(confusion_meter.value(), this, protocol=pkl.HIGHEST_PROTOCOL)
         with open('un_normalized.pkl', 'wb') as this:

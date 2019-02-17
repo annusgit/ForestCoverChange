@@ -16,10 +16,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--function', dest='function', default='train_net')
     parser.add_argument('--data', dest='data', default='generated_data')
-    parser.add_argument('--images', dest='images', default=None)
-    parser.add_argument('--labels', dest='labels', default=None)
-    parser.add_argument('--block_size', dest='block_size', type=int, default=256)
-    parser.add_argument('--input_size', dest='input_dim', type=int, default=64)
+    parser.add_argument('--input_size', dest='input_dim', type=int, default=128)
     parser.add_argument('--workers', dest='workers', type=int, default=4)
     parser.add_argument('-p', '--pretrained_model', dest='pre_model', type=int, default=-1)
     parser.add_argument('--save_data', dest='save_data', default=None)
@@ -38,8 +35,7 @@ if __name__ == '__main__':
 
     # model, images, labels, block_size, input_dim, workers, pre_model,save_dir,
     #       sum_dir, batch_size, lr, log_after, cuda, device
-    function_to_call(model=net, generated_data_path=args.data, images=args.images, labels=args.labels,
-                     block_size=args.block_size, input_dim=args.input_dim, workers=args.workers,
+    function_to_call(model=net, generated_data_path=args.data, input_dim=args.input_dim, workers=args.workers,
                      pre_model=args.pre_model, save_data=args.save_data, save_dir=args.models_dir,
                      sum_dir=args.summary_dir, batch_size=args.batch_size, lr=args.lr, epochs=args.epochs,
                      log_after=args.log_after, cuda=args.cuda, device=args.device)

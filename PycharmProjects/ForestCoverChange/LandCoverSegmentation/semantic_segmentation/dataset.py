@@ -39,9 +39,15 @@ def histogram_equalize(img):
     pass
 
 
-def get_images_from_large_file(image_path, bands, label_path, destination, region, stride):
-    image_path = image_path + str(region) + '.tif'
-    label_path = label_path + str(region) + '.tif'
+def get_images_from_large_file(bands, year, region, stride):
+    data_directory_path = '/home/azulfiqar_bee15seecs/palsar_dataset/'
+    image_path = os.path.join(data_directory_path, 'palsar_{}_region_{}.tif'.format(year, region))
+    label_path = os.path.join(data_directory_path, 'fnf_{}_region_{}.tif'.format(year, region))
+    destination_directory_path = '/home/azulfiqar_bee15seecs/generated_palsar_dataset/'
+    destination = os.path.join(destination_directory_path, '{}'.format(year))
+    if not os.path.exists(destination):
+        print('Log: Making parent directory: {}'.format(destination))
+        os.mkdir(destination)
     print(image_path, label_path)
     # we will use this to divide those fnf images
     covermap = gdal.Open(label_path, gdal.GA_ReadOnly)
@@ -68,7 +74,7 @@ def get_images_from_large_file(image_path, bands, label_path, destination, regio
             label_subset = label[i*stride:(i+1)*stride, j*stride:(j+1)*stride]
 
             # save this example/label pair of numpy arrays as a pickle file with an index
-            this_example_save_path = os.path.join(destination, '{}_{}.pkl'.format(region, count))
+            this_example_save_path = os.path.join(destination, '{}_{}_{}.pkl'.format(year, region, count))
             with open(this_example_save_path, 'wb') as this_pickle:
                 pickle.dump((example_subset, label_subset), file=this_pickle, protocol=pickle.HIGHEST_PROTOCOL)
                 print('log: Saved {} '.format(this_example_save_path), end='')
@@ -385,7 +391,7 @@ def get_dataloaders_raw(images_path, bands, labels_path, save_data_path, block_s
 
 
 def get_dataloaders_generated_data(generated_data_path, save_data_path, model_input_size=64, num_classes=4,
-                                   train_split=0.0, one_hot=False, batch_size=16, num_workers=4, max_label=3):
+                                   train_split=0.8, one_hot=False, batch_size=16, num_workers=4, max_label=3):
 
     # This function is faster because we have already saved our data as subset pickle files
     print('inside dataloading code...')
@@ -413,6 +419,8 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
                     with open(example_path, 'rb') as this_data:
                         _, label = pickle.load(this_data)
                         row_limit, col_limit = label.shape[0]-model_input_size, label.shape[1]-model_input_size
+                        label = None  # clear memory
+                        _ = None  # clear memory
                         for i in range(0, row_limit, self.stride):
                             for j in range(0, col_limit, self.stride):
                                 self.all_images.append((example_path, i, j))
@@ -431,6 +439,13 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
                 label_subset = np.nan_to_num(label_subset)
             this_example_subset = example_subset[this_row:this_row + self.model_input_size,
                                                  this_col:this_col + self.model_input_size, :]
+            # instead of using the Digital Numbers (DN), use the backscattering coefficient
+            HH = this_example_subset[:,:,0]
+            HV = this_example_subset[:,:,1]
+            angle = this_example_subset[:,:,2]
+            HH_gamma_naught = np.nan_to_num(10 * np.log10(HH ** 2 + 1e-7) - 83.0)
+            HV_gamma_naught = np.nan_to_num(10 * np.log10(HV ** 2 + 1e-7) - 83.0)
+            this_example_subset = np.dstack((HH_gamma_naught, HV_gamma_naught, angle))
 
             # get more indices to add to the example
             # ndvi_band = (this_example_subset[:,:,4]-
@@ -517,16 +532,39 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
 
     palsar_mean = torch.Tensor([8116.269912828, 3419.031791692, 40.270058337])
     palsar_std = torch.Tensor([6136.70160067, 2201.432263753, 19.38761076])
-    transformation = transforms.Compose([transforms.Normalize(mean=palsar_mean, std=palsar_std)])
+    palsar_gamma_naught_mean = [-7.68182243, -14.59668144, 40.44296671]
+    palsar_gamma_naught_std = [3.78577892, 4.27134019, 19.73628546]
+
+    transformation = transforms.Compose([transforms.Normalize(mean=palsar_gamma_naught_mean,
+                                                              std=palsar_gamma_naught_std)])
 
     train_list, eval_list, test_list = [], [], []
     if not os.path.exists(save_data_path):
         os.mkdir(save_data_path)
         print('LOG: No saved data found. Making new data directory {}'.format(save_data_path))
-        full_list = [os.path.join(generated_data_path, x) for x in os.listdir(generated_data_path)]
-        random.shuffle(full_list)
-        train_list = full_list[:int(len(full_list)*train_split)]
-        eval_list = full_list[int(len(full_list)*train_split):]
+        # full_list = [os.path.join(generated_data_path, x) for x in os.listdir(generated_data_path)]
+        # random.shuffle(full_list)
+        # train_list = full_list[:int(len(full_list)*train_split)]
+        # eval_list = full_list[int(len(full_list)*train_split):]
+        train_path_1 = os.path.join(generated_data_path, "2007")
+        train_path_2 = os.path.join(generated_data_path, "2008")
+        train_path_3 = os.path.join(generated_data_path, "2009")
+        train_path_4 = os.path.join(generated_data_path, "2010")
+        eval_path_1 = os.path.join(generated_data_path, "2015")
+        eval_path_2 = os.path.join(generated_data_path, "2016")
+        eval_path_3 = os.path.join(generated_data_path, "2017")
+
+        train_list_1 = [os.path.join(train_path_1, x) for x in os.listdir(train_path_1)]
+        train_list_2 = [os.path.join(train_path_2, x) for x in os.listdir(train_path_2)]
+        train_list_3 = [os.path.join(train_path_3, x) for x in os.listdir(train_path_3)]
+        train_list_4 = [os.path.join(train_path_4, x) for x in os.listdir(train_path_4)]
+
+        eval_list_1 = [os.path.join(eval_path_1, x) for x in os.listdir(eval_path_1)]
+        eval_list_2 = [os.path.join(eval_path_2, x) for x in os.listdir(eval_path_2)]
+        eval_list_3 = [os.path.join(eval_path_3, x) for x in os.listdir(eval_path_3)]
+
+        train_list = train_list_1 + train_list_2 + train_list_3 + train_list_4
+        eval_list = eval_list_1 + eval_list_2 + eval_list_3
 
         # full_list = [
         #     os.path.join(generated_data_path, 'reduced_regions_landsat_2013_1.pkl'),
@@ -718,11 +756,9 @@ if __name__ == '__main__':
     # main()
 
     # check_generated_fnf_datapickle('/home/annus/Desktop/1_12.pkl')
-    get_images_from_large_file(image_path='/home/annus/Desktop/palsar_dataset_full/palsar_dataset/palsar_2017_region_',
-                               bands=[1,2,3],
-                               label_path='/home/annus/Desktop/palsar_dataset_full/palsar_dataset/fnf_2017_region_',
-                               destination='/home/annus/Desktop/palsar/pickled_palsar_dataset/2017/',
-                               region=int(sys.argv[1]),
+    get_images_from_large_file(bands=[1,2,3],
+                               year=sys.argv[1],
+                               region=int(sys.argv[2]),
                                stride=256)
 
     # get_images_from_large_file(image_path='raw_dataset/full_test_site_2015.tif',
