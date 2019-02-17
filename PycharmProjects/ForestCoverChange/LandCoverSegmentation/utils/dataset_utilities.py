@@ -10,6 +10,7 @@ import pickle
 import numpy as np
 import PIL.Image as Image
 import scipy.misc as misc
+from scipy.ndimage import median_filter
 import matplotlib.pyplot as pl
 
 # for image registration
@@ -308,44 +309,41 @@ def generate_dataset_MODIS(year):
     pass
 
 
-def check_temporal_map_difference(label_1, label_2, label_3, this_region):
+def check_temporal_map_difference(label_1, label_2):
     label_map_1 = gdal.Open(label_1)
     label_map_2 = gdal.Open(label_2)
-    label_map_3 = gdal.Open(label_3)
     channel_1 = label_map_1.GetRasterBand(1)
     channel_2 = label_map_2.GetRasterBand(1)
-    channel_3 = label_map_3.GetRasterBand(1)
-    min_coords, _, max_coords, _ = all_coordinates[this_region]
-    # use any one of the three as input
-    min_x, min_y = convert_lat_lon_to_xy(ds=label_map_1, coordinates=min_coords)
-    max_x, max_y = convert_lat_lon_to_xy(ds=label_map_1, coordinates=max_coords)
-    label_image_1 = channel_1.ReadAsArray(min_x - offset[this_region][0], min_y - offset[this_region][1],
-                                          abs(max_x - min_x), abs(max_y - min_y))
-    label_image_2 = channel_2.ReadAsArray(min_x - offset[this_region][0], min_y - offset[this_region][1],
-                                          abs(max_x - min_x), abs(max_y - min_y))
-    label_image_3 = channel_3.ReadAsArray(min_x - offset[this_region][0], min_y - offset[this_region][1],
-                                          abs(max_x - min_x), abs(max_y - min_y))
-    label_image_1 = convert_labels(label_image_1)
-    label_image_2 = convert_labels(label_image_2)
-    label_image_3 = convert_labels(label_image_3)
+    label_image_1 = channel_1.ReadAsArray()
+    label_image_2 = channel_2.ReadAsArray()
+    label_image_1 = np.nan_to_num(label_image_1).astype(np.float)
+    label_image_2 = np.nan_to_num(label_image_2).astype(np.float)
+    # convert to binary image, 0-> noise, 3-> water, map both to non-forest->2
+    label_image_1[label_image_1 == 0] = 2
+    label_image_1[label_image_1 == 3] = 2
+    label_image_2[label_image_2 == 0] = 2
+    label_image_2[label_image_2 == 3] = 2
+    # convert 1,2 to 0,1
+    label_image_1 -= 1
+    label_image_2 -= 1
+
     # positive valued differencing by adding an offset of
-    diff_1 = label_image_2 - label_image_1 + 22
-    diff_2 = label_image_3 - label_image_2 + 22
-    ############################################
-    # print(np.unique(label_image_1), np.unique(label_image_2), np.unique(label_image_3))
-    # print(np.unique(diff_1))
-    # print(np.unique(diff_2))
-    # print(label_image_2[diff_1 == 250], label_image_1[diff_1 == 250])
-    # print(label_image_1[diff_1 > 21], label_image_1[diff_1 > 21])
-    ############################################
+    diff_1 = label_image_2 - label_image_1
+    sum_1 = label_image_2 + label_image_1
     mng = pl.get_current_fig_manager()
     mng.resize(*mng.window.maxsize())
-    pl.subplot(121)
-    pl.title('difference 2014-2013: {}'.format(diff_1.shape[:2]))
-    pl.imshow(diff_1, cmap='Paired')
-    pl.subplot(122)
-    pl.title('difference 2015-2014: {}'.format(diff_2.shape[:2]))
-    pl.imshow(diff_2, cmap='Paired')
+    pl.subplot(221)
+    pl.title('first image {}'.format(label_image_1.shape[:2]))
+    pl.imshow(label_image_1) # , cmap='Paired'
+    pl.subplot(222)
+    pl.title('second image {}'.format(label_image_1.shape[:2]))
+    pl.imshow(label_image_1)
+    pl.subplot(223)
+    pl.title('difference image {}'.format(diff_1.shape[:2]))
+    pl.imshow(diff_1)
+    pl.subplot(224)
+    pl.title('sum image {}'.format(sum_1.shape[:2]))
+    pl.imshow(sum_1)
     pl.show()
     pass
 
@@ -515,6 +513,40 @@ def check_MODIS_earth_engine_label(this_example, full_label_file):
     pass
 
 
+def check_generated_map_palsar(label_path, generated_path):
+    with open(generated_path, 'rb') as generated:
+        generated_label = np.load(generated).astype(np.uint8)
+        generated_label = median_filter(generated_label, size=3)
+    rows, cols = generated_label.shape
+    covermap = gdal.Open(label_path, gdal.GA_ReadOnly)
+    channel = covermap.GetRasterBand(1)
+    inference_label = np.nan_to_num(channel.ReadAsArray()).astype(np.uint8)[:rows, :cols]
+    inference_label[inference_label == 0] = 2
+    inference_label[inference_label == 3] = 2
+    inference_label -= 1
+    uniq_labels, counts = np.unique(inference_label, return_counts=True)
+    forest_position = np.argmax(uniq_labels==0)
+    forest_pixels = float(counts[forest_position])
+    total_pixels = float(counts.sum())
+    forest_percentage = forest_pixels*100/total_pixels
+    print('original forest: {:.3f}%'.format(forest_percentage))
+    uniq_labels, counts = np.unique(generated_label, return_counts=True)
+    forest_position = np.argmax(uniq_labels == 0)
+    forest_pixels = float(counts[forest_position])
+    total_pixels = float(counts.sum())
+    forest_percentage = forest_pixels * 100 / total_pixels
+    print('generated forest: {:.3f}%'.format(forest_percentage))
+    accuracy = 100 * (inference_label == generated_label).sum() / (inference_label.shape[0] * inference_label.shape[1])
+    print('accuracy: {:.3f}%'.format(accuracy))
+    pl.subplot(121)
+    pl.title('original')
+    pl.imshow(inference_label)
+    pl.subplot(122)
+    pl.title('generated')
+    pl.imshow(generated_label)
+    pl.show()
+    pass
+
 
 if __name__ == '__main__':
     # check_image_against_label(this_example=sys.argv[1], full_label_file=sys.argv[2], this_region=sys.argv[3])
@@ -540,22 +572,19 @@ if __name__ == '__main__':
     #                                     'reduced_landsat_images/reduced_dataset_for_segmentation/2015/'
     #                                     'reduced_regions_landsat_2015_7.pkl')
 
-    check_temporal_map_difference(label_1='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-                                          'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2013-v2.0.7.tif',
-                                  label_2='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-                                          'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2014-v2.0.7.tif',
-                                  label_3='/home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/'
-                                          'land_cover_maps/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.tif',
-                                  this_region='reduced_region_7')
+    # check_temporal_map_difference(label_1='/home/annus/Desktop/palsar/palsar_dataset_full/palsar_dataset/'
+    #                                       'fnf_2007_region_1.tif',
+    #                               label_2='/home/annus/Desktop/palsar/palsar_dataset_full/palsar_dataset/'
+    #                                       'fnf_2008_region_1.tif')
 
-    check_MODIS_earth_engine_label(this_example='/home/annus/PycharmProjects/'
-                                                'ForestCoverChange_inputs_and_numerical_results/reduced_landsat_images/'
-                                                'reduced_landsat_images/{}/reduced_regions_landsat_{}_{}.tif'
-                                   .format(sys.argv[1], sys.argv[1], sys.argv[2]),
-                                   full_label_file='/home/annus/PycharmProjects/'
-                                                   'ForestCoverChange_inputs_and_numerical_results/'
-                                                   'modis_land_covermaps/{}/covermap_{}_reduced_region_{}.tif'
-                                   .format(sys.argv[1], sys.argv[1], sys.argv[2]))
+    # check_MODIS_earth_engine_label(this_example='/home/annus/PycharmProjects/'
+    #                                             'ForestCoverChange_inputs_and_numerical_results/reduced_landsat_images/'
+    #                                             'reduced_landsat_images/{}/reduced_regions_landsat_{}_{}.tif'
+    #                                .format(sys.argv[1], sys.argv[1], sys.argv[2]),
+    #                                full_label_file='/home/annus/PycharmProjects/'
+    #                                                'ForestCoverChange_inputs_and_numerical_results/'
+    #                                                'modis_land_covermaps/{}/covermap_{}_reduced_region_{}.tif'
+    #                                .format(sys.argv[1], sys.argv[1], sys.argv[2]))
 
     # check_MODIS_earth_engine_label(this_example='/home/annus/Desktop/new_regions_images/'
     #                                             'reduced_regions_landsat_{}_{}.tif'
@@ -567,6 +596,7 @@ if __name__ == '__main__':
     # watch -n2 rsync -avh /home/annus/PycharmProjects/ForestCoverChange/ESA_landcover/  -a annuszulfiqar@111.68.101.28:forest_cover/forestcoverUnet/ESA_landcover/
     # watch -n2 rsync -avh /home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/modis_land_covermaps/   -a annuszulfiqar@111.68.101.28:forest_cover/forestcoverUnet/ESA_landcover/reduced_regions_landsat/modis_land_covermaps
 
+    check_generated_map_palsar(label_path=sys.argv[1], generated_path=sys.argv[2])
 
 
 
