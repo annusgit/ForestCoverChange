@@ -499,25 +499,25 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
             if self.one_hot:
                 this_label_subset = np.eye(self.num_classes)[this_label_subset]
 
-            if self.mode == 'train':
-                # augmentation
-                if np.random.randint(0, 2) == 0:
-                    # print('flipped this')
-                    this_example_subset = np.fliplr(this_example_subset).copy()
-                    this_label_subset = np.fliplr(this_label_subset).copy()
-                if np.random.randint(0, 2) == 1:
-                    # print('flipped this')
-                    this_example_subset = np.flipud(this_example_subset).copy()
-                    this_label_subset = np.flipud(this_label_subset).copy()
-                if np.random.randint(0, 2) == 1:
-                    # print('flipped this')
-                    this_example_subset = np.fliplr(this_example_subset).copy()
-                    this_label_subset = np.fliplr(this_label_subset).copy()
-                if np.random.randint(0, 2) == 0:
-                    # print('flipped this')
-                    this_example_subset = np.flipud(this_example_subset).copy()
-                    this_label_subset = np.flipud(this_label_subset).copy()
-                pass
+            # if self.mode == 'train':
+            #     # augmentation
+            #     if np.random.randint(0, 2) == 0:
+            #         # print('flipped this')
+            #         this_example_subset = np.fliplr(this_example_subset).copy()
+            #         this_label_subset = np.fliplr(this_label_subset).copy()
+            #     if np.random.randint(0, 2) == 1:
+            #         # print('flipped this')
+            #         this_example_subset = np.flipud(this_example_subset).copy()
+            #         this_label_subset = np.flipud(this_label_subset).copy()
+            #     if np.random.randint(0, 2) == 1:
+            #         # print('flipped this')
+            #         this_example_subset = np.fliplr(this_example_subset).copy()
+            #         this_label_subset = np.fliplr(this_label_subset).copy()
+            #     if np.random.randint(0, 2) == 0:
+            #         # print('flipped this')
+            #         this_example_subset = np.flipud(this_example_subset).copy()
+            #         this_label_subset = np.flipud(this_label_subset).copy()
+            #     pass
 
             # print(this_label_subset.shape, this_example_subset.shape)
             this_example_subset, this_label_subset = toTensor(image=this_example_subset, label=this_label_subset,

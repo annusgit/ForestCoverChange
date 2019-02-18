@@ -27,16 +27,6 @@ def train_net(model, generated_data_path, input_dim, workers, pre_model, save_da
     if cuda:
         print('log: Using GPU')
         model.cuda(device=device)
-
-    if pre_model == -1:
-        model_number = 0
-        print('log: No trained model passed. Starting from scratch...')
-        # model_path = os.path.join(save_dir, 'model-{}.pt'.format(model_number))
-    else:
-        model_number = pre_model
-        model_path = os.path.join(save_dir, 'model-{}.pt'.format(pre_model))
-        model.load_state_dict(torch.load(model_path), strict=False)
-        print('log: Resuming from model {} ...'.format(model_path))
     ###############################################################################
 
     if not os.path.exists(save_dir):
@@ -47,7 +37,7 @@ def train_net(model, generated_data_path, input_dim, workers, pre_model, save_da
 
     # define loss and optimizer
     optimizer = RMSprop(model.parameters(), lr=lr)
-    weights = torch.Tensor([1, 10, 1, 1]) # forest has ____ times more weight
+    weights = torch.Tensor([1, 2, 1, 1]) # forest has ____ times more weight
     weights = weights.cuda(device=device) if cuda else weights
     focal_criterion = FocalLoss2d(weight=weights)
     # crossentropy_criterion = nn.BCELoss(weight=weights)
@@ -60,10 +50,25 @@ def train_net(model, generated_data_path, input_dim, workers, pre_model, save_da
     loaders = get_dataloaders_generated_data(generated_data_path=generated_data_path, save_data_path=save_data,
                                              model_input_size=input_dim, batch_size=batch_size, num_classes=4,
                                              train_split=0.8, one_hot=True, num_workers=workers, max_label=3)
-
     train_loader, val_dataloader, test_loader = loaders
-    # training loop
     best_evaluation = 0.0
+    ################################################################
+    if pre_model == -1:
+        model_number = 0
+        print('log: No trained model passed. Starting from scratch...')
+        # model_path = os.path.join(save_dir, 'model-{}.pt'.format(model_number))
+    else:
+        model_number = pre_model
+        model_path = os.path.join(save_dir, 'model-{}.pt'.format(pre_model))
+        model.load_state_dict(torch.load(model_path), strict=False)
+        print('log: Resuming from model {} ...'.format(model_path))
+        print('log: Evaluating now...')
+        best_evaluation = eval_net(model=model, criterion=focal_criterion, val_loader=val_dataloader,
+                                   cuda=cuda, device=device, writer=None, batch_size=batch_size, step=0)
+        print('LOG: Starting with best evaluation accuracy: {:.3f}%'.format(best_evaluation))
+    ##########################################################################
+
+    # training loop
     for k in range(epochs):
         net_loss = []
         total_correct, total_examples = 0, 0

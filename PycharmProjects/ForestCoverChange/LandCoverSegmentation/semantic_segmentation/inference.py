@@ -90,6 +90,15 @@ def get_inference_loader(image_path, label_path=None, model_input_size=64, num_c
             (this_row, this_col) = self.all_images[k]
             this_example_subset = self.temp_test_image[this_row:this_row + self.model_input_size,
                                                        this_col:this_col + self.model_input_size, :]
+
+            # instead of using the Digital Numbers (DN), use the backscattering coefficient
+            HH = this_example_subset[:, :, 0]
+            HV = this_example_subset[:, :, 1]
+            angle = this_example_subset[:, :, 2]
+            HH_gamma_naught = np.nan_to_num(10 * np.log10(HH ** 2 + 1e-7) - 83.0)
+            HV_gamma_naught = np.nan_to_num(10 * np.log10(HV ** 2 + 1e-7) - 83.0)
+            this_example_subset = np.dstack((HH_gamma_naught, HV_gamma_naught, angle))
+
             this_label_subset = self.temp_test_label[this_row:this_row + self.model_input_size,
                                                      this_col:this_col + self.model_input_size, ]
             this_label_subset = (this_label_subset).astype(np.uint8)
@@ -117,17 +126,22 @@ def get_inference_loader(image_path, label_path=None, model_input_size=64, num_c
     ######################################################################################
 
     # these are predefined
-    palsar_mean = torch.Tensor([8116.269912828, 3419.031791692, 40.270058337])
-    palsar_std = torch.Tensor([6136.70160067, 2201.432263753, 19.38761076])
-    transformation = transforms.Compose([transforms.Normalize(mean=palsar_mean, std=palsar_std)])
+    # palsar_mean = torch.Tensor([8116.269912828, 3419.031791692, 40.270058337])
+    # palsar_std = torch.Tensor([6136.70160067, 2201.432263753, 19.38761076])
+    palsar_gamma_naught_mean = [-7.68182243, -14.59668144, 40.44296671]
+    palsar_gamma_naught_std = [3.78577892, 4.27134019, 19.73628546]
+    transformation = transforms.Compose([transforms.Normalize(mean=palsar_gamma_naught_mean,
+                                                              std=palsar_gamma_naught_std)])
 
     ######################################################################################
 
     # create dataset class instances
     # images_per_image means approx. how many images are in each example
-    inference_data = dataset(image_path=image_path, label_path=label_path, transformation=transformation) # more images for training
+    inference_data = dataset(image_path=image_path, label_path=label_path,
+                             transformation=transformation) # more images for training
     print('LOG: inference_data] ->', len(inference_data))
-    inference_loader = DataLoader(dataset=inference_data, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+    inference_loader = DataLoader(dataset=inference_data, batch_size=batch_size, shuffle=False,
+                                  num_workers=num_workers)
 
     return inference_loader
 
@@ -139,14 +153,19 @@ def run_inference(args):
     print('Log: Loaded pretrained {}'.format(args.model_path))
     model.eval()
 
-    inference_loader = get_inference_loader(image_path=args.test_image, label_path=args.test_label,
+    test_image_path = '/home/annus/Desktop/palsar/palsar_dataset_full/palsar_dataset/' \
+                      'palsar_{}_region_{}.tif'.format(args.year, args.region)
+    test_label_path = '/home/annus/Desktop/palsar/palsar_dataset_full/palsar_dataset/' \
+                      'fnf_{}_region_{}.tif'.format(args.year, args.region)
+
+    inference_loader = get_inference_loader(image_path=test_image_path, label_path=test_label_path,
                                             model_input_size=128, num_classes=4, one_hot=True,
                                             batch_size=args.bs, num_workers=4)
 
     # we need to fill our new generated test image
     generated_map = np.empty(shape=inference_loader.dataset.get_image_size())
 
-    weights = torch.Tensor([1, 10, 1, 1])
+    weights = torch.Tensor([1, 2, 1, 1])
     focal_criterion = FocalLoss2d(weight=weights)
     un_confusion_meter = tnt.meter.ConfusionMeter(2, normalized=False)
     confusion_meter = tnt.meter.ConfusionMeter(2, normalized=True)
@@ -208,9 +227,11 @@ def run_inference(args):
         pkl.dump(confusion_meter.value(), this, protocol=pkl.HIGHEST_PROTOCOL)
     with open('un_normalized.pkl', 'wb') as this:
         pkl.dump(un_confusion_meter.value(), this, protocol=pkl.HIGHEST_PROTOCOL)
-    np.save(os.path.join(args.save_path), generated_map)
-    #########################################################################################3
 
+    save_path = '/home/annus/Desktop/palsar/generated_maps/using_2007-10_model/' \
+                'generated_{}_{}.npy'.format(args.year, args.region)
+    np.save(save_path, generated_map)
+    #########################################################################################3
     inference_loader.dataset.clear_mem()
     pass
 
@@ -218,12 +239,10 @@ def run_inference(args):
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', dest='model_path', type=str)
-    parser.add_argument('--image', dest='test_image', type=str)
-    parser.add_argument('--label', dest='test_label', type=str)
-    parser.add_argument('--bs', dest='bs', type=int)
-    parser.add_argument('--save_path', dest='save_path', type=str)
-
+    parser.add_argument('-m', '--model', dest='model_path', type=str)
+    parser.add_argument('-y', dest='year', type=str)
+    parser.add_argument('-r', dest='region', type=str)
+    parser.add_argument('-b', dest='bs', type=int)
     args = parser.parse_args()
     run_inference(args)
 
