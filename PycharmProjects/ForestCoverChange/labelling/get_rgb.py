@@ -44,10 +44,10 @@ def main(this_example):
     example = gdal.Open(this_example)
     print(example.GetMetadata())
     print(example.RasterCount)
-    example_array = get_combination(example=example, bands=[1, 2, 3])
+    example_array = get_combination(example=example, bands=[1])
     example_array = np.nan_to_num(example_array)
-    print(example_array.mean(axis=(0,1)), example_array.std(axis=(0,1)))
-    example_array = (example_array-palsar_mean).astype(np.float)/palsar_std
+    # print(example_array.mean(axis=(0,1)), example_array.std(axis=(0,1)))
+    # example_array = (example_array-palsar_mean).astype(np.float)/palsar_std
     # print(example_array)
     # example_array = (255*example_array/example_array.max()).astype(np.uint8)
     # example_array = histogram_equalize(example_array)
@@ -58,6 +58,12 @@ def main(this_example):
     # show_image[show_image < 1] = 4
     # show_image[show_image > 3] = 4
     # show_image = np.asarray(np.clip(example_array/4096, 0, 1)*255, dtype=np.uint8)
+    uniq_labels, counts = np.unique(show_image, return_counts=True)
+    forest_position = np.argmax(uniq_labels == 1)
+    forest_pixels = float(counts[forest_position])
+    total_pixels = float(counts.sum())
+    forest_percentage = forest_pixels * 100 / total_pixels
+    print('original forest: {:.3f}%'.format(forest_percentage))
     print(show_image.shape)
     pl.imshow(show_image)
     pl.show()
