@@ -92,12 +92,53 @@ def get_inference_loader(image_path, label_path=None, model_input_size=64, num_c
                                                        this_col:this_col + self.model_input_size, :]
 
             # instead of using the Digital Numbers (DN), use the backscattering coefficient
-            HH = this_example_subset[:, :, 0]
-            HV = this_example_subset[:, :, 1]
-            angle = this_example_subset[:, :, 2]
-            HH_gamma_naught = np.nan_to_num(10 * np.log10(HH ** 2 + 1e-7) - 83.0)
-            HV_gamma_naught = np.nan_to_num(10 * np.log10(HV ** 2 + 1e-7) - 83.0)
-            this_example_subset = np.dstack((HH_gamma_naught, HV_gamma_naught, angle))
+            # HH = this_example_subset[:, :, 0]
+            # HV = this_example_subset[:, :, 1]
+            # angle = this_example_subset[:, :, 2]
+            # HH_gamma_naught = np.nan_to_num(10 * np.log10(HH ** 2 + 1e-7) - 83.0)
+            # HV_gamma_naught = np.nan_to_num(10 * np.log10(HV ** 2 + 1e-7) - 83.0)
+            # this_example_subset = np.dstack((HH_gamma_naught, HV_gamma_naught, angle))
+
+            # get more indices to add to the example
+            ndvi_band = (this_example_subset[:, :, 4] -
+                         this_example_subset[:, :, 3]) / (this_example_subset[:, :, 4] +
+                                                          this_example_subset[:, :, 3] + 1e-7)
+            evi_band = 2.5 * (this_example_subset[:, :, 4] -
+                              this_example_subset[:, :, 3]) / (this_example_subset[:, :, 4] +
+                                                               6 * this_example_subset[:, :, 3] -
+                                                               7.5 * this_example_subset[:, :, 1] + 1)
+            savi_band = 1.5 * (this_example_subset[:, :, 4] -
+                               this_example_subset[:, :, 3]) / (this_example_subset[:, :, 4] +
+                                                                this_example_subset[:, :, 3] + 0.5)
+            msavi_band = 0.5 * (2 * this_example_subset[:, :, 4] + 1 -
+                                np.sqrt((2 * this_example_subset[:, :, 4] + 1) ** 2 -
+                                        8 * (this_example_subset[:, :, 4] -
+                                             this_example_subset[:, :, 3])))
+            ndmi_band = (this_example_subset[:, :, 4] -
+                         this_example_subset[:, :, 5]) / (this_example_subset[:, :, 4] +
+                                                          this_example_subset[:, :, 5] + 1e-7)
+            nbr_band = (this_example_subset[:, :, 4] -
+                        this_example_subset[:, :, 6]) / (this_example_subset[:, :, 4] +
+                                                         this_example_subset[:, :, 6] + 1e-7)
+            nbr2_band = (this_example_subset[:, :, 5] -
+                         this_example_subset[:, :, 6]) / (this_example_subset[:, :, 5] +
+                                                          this_example_subset[:, :, 6] + 1e-7)
+
+            ndvi_band = np.nan_to_num(ndvi_band)
+            evi_band = np.nan_to_num(evi_band)
+            savi_band = np.nan_to_num(savi_band)
+            msavi_band = np.nan_to_num(msavi_band)
+            ndmi_band = np.nan_to_num(ndmi_band)
+            nbr_band = np.nan_to_num(nbr_band)
+            nbr2_band = np.nan_to_num(nbr2_band)
+
+            this_example_subset = np.dstack((this_example_subset, ndvi_band))
+            this_example_subset = np.dstack((this_example_subset, evi_band))
+            this_example_subset = np.dstack((this_example_subset, savi_band))
+            this_example_subset = np.dstack((this_example_subset, msavi_band))
+            this_example_subset = np.dstack((this_example_subset, ndmi_band))
+            this_example_subset = np.dstack((this_example_subset, nbr_band))
+            this_example_subset = np.dstack((this_example_subset, nbr2_band))
 
             this_label_subset = self.temp_test_label[this_row:this_row + self.model_input_size,
                                                      this_col:this_col + self.model_input_size, ]
@@ -130,8 +171,9 @@ def get_inference_loader(image_path, label_path=None, model_input_size=64, num_c
     # palsar_std = torch.Tensor([6136.70160067, 2201.432263753, 19.38761076])
     palsar_gamma_naught_mean = [-7.68182243, -14.59668144, 40.44296671]
     palsar_gamma_naught_std = [3.78577892, 4.27134019, 19.73628546]
-    transformation = transforms.Compose([transforms.Normalize(mean=palsar_gamma_naught_mean,
-                                                              std=palsar_gamma_naught_std)])
+    # transformation = transforms.Compose([transforms.Normalize(mean=palsar_gamma_naught_mean,
+    #                                                           std=palsar_gamma_naught_std)])
+    transformation = None
 
     ######################################################################################
 
@@ -165,7 +207,7 @@ def run_inference(args):
     # we need to fill our new generated test image
     generated_map = np.empty(shape=inference_loader.dataset.get_image_size())
 
-    weights = torch.Tensor([1, 2, 1, 1])
+    weights = torch.Tensor([1, 1])
     focal_criterion = FocalLoss2d(weight=weights)
     un_confusion_meter = tnt.meter.ConfusionMeter(2, normalized=False)
     confusion_meter = tnt.meter.ConfusionMeter(2, normalized=True)

@@ -58,7 +58,7 @@ class ConvLSTMCell(nn.Module):
 class ConvLSTM(nn.Module):
 
     def __init__(self, input_size, input_dim, encoder_hidden_dim, decoder_hidden_dim, kernel_size, num_layers,
-                 out_seq_len, out_classes=2, batch_first=False, bias=True, return_all_layers=False):
+                 in_seq_len, out_seq_len, out_classes=2, batch_first=False, bias=True, return_all_layers=False):
         super(ConvLSTM, self).__init__()
         self._check_kernel_size_consistency(kernel_size)
         # Make sure that both `kernel_size` and `hidden_dim` are lists having len == num_layers
@@ -76,12 +76,16 @@ class ConvLSTM(nn.Module):
         self.kernel_size = kernel_size
         self.num_layers = num_layers
         self.out_classes = out_classes
+        self.in_seq_len = in_seq_len
         self.out_seq_len = out_seq_len
         self.batch_first = batch_first
         self.bias = bias
         self.return_all_layers = return_all_layers
         encoder_cell_list = []
         decoder_cell_list = []
+        self.classification_conv_1 = nn.Conv2d(in_channels=(self.out_seq_len*self.decoder_hidden_dim[0]),
+                                               out_channels=(self.out_seq_len*self.decoder_hidden_dim[0]),
+                                               kernel_size=3, padding=1)
         # encoder cell list
         for i in range(0, self.num_layers):
             cur_input_dim = self.input_dim if i == 0 else self.encoder_hidden_dim[i-1]
@@ -90,7 +94,7 @@ class ConvLSTM(nn.Module):
                                                   bias=self.bias))
         # decoder cell list
         for i in range(0, self.num_layers):
-            cur_input_dim = 7 if i == 0 else self.decoder_hidden_dim[i-1]
+            cur_input_dim = self.decoder_hidden_dim[-i]
             # cur_input_dim = self.hidden_dim[-1] if i == 0 else self.hidden_dim[-1-i]
             decoder_cell_list.append(ConvLSTMCell(input_size=(self.height, self.width), input_dim=cur_input_dim,
                                                   hidden_dim=self.decoder_hidden_dim[i-1], kernel_size=self.kernel_size[i],
@@ -121,8 +125,6 @@ class ConvLSTM(nn.Module):
             print('Initializing with a given hidden state...')
         else:
             hidden_state = self._init_hidden(batch_size=input_tensor.size(0))
-        encoder_layer_output_list = []
-        encoder_last_state_list = []
         seq_len = input_tensor.size(1)
         cur_layer_input = input_tensor
         # encoder forward pass
@@ -130,39 +132,34 @@ class ConvLSTM(nn.Module):
             h, c = hidden_state[layer_idx]
             output_inner = []
             for t in range(seq_len):
-                h, c = self.encoder_cell_list[layer_idx](input_tensor=cur_layer_input[:, t, :, :, :],
-                                                         cur_state=[h, c])
+                h, c = self.encoder_cell_list[layer_idx](input_tensor=cur_layer_input[:, t, :, :, :], cur_state=[h, c])
                 output_inner.append(h)
             layer_output = torch.stack(output_inner, dim=1)
             cur_layer_input = layer_output
-            encoder_layer_output_list.append(layer_output)
-            encoder_last_state_list.append([h, c])
-
-        decoder_layer_output_list = []
-        decoder_last_state_list = []
-        cur_layer_input = layer_output  # this is the last output from the encoder
+        encoder_output = layer_output
+        encoder_last_state = [h, c]
         # decoder forward pass; uses the last [hidden, cell] tuple
-        hidden_state = self._init_hidden(batch_size=layer_output.size(0))  # the last output is the input here
-        hidden_state[0] = encoder_last_state_list[-1]  # this is a tuple of [hidden, cell], the last state is initial state
+        cur_layer_input = torch.zeros(encoder_output.size(0), 1, encoder_output.size(2), encoder_output.size(3),
+                                      encoder_output.size(4))
+        hidden_state = self._init_hidden(batch_size=encoder_output.size(0))  # the last output is the input here
+        hidden_state[0] = encoder_last_state  # this is a tuple of [hidden, cell], the last state is initial state
         for layer_idx in range(self.num_layers):
             h, c = hidden_state[layer_idx]
             output_inner = []
             for t in range(self.out_seq_len):
-                # print(cur_layer_input.shape)
-                h, c = self.decoder_cell_list[layer_idx](input_tensor=cur_layer_input[:,t,:,:,:], cur_state=[h, c])
+                h, c = self.decoder_cell_list[layer_idx](input_tensor=cur_layer_input[:,0,:,:,:], cur_state=[h, c])
                 output_inner.append(h)
             layer_output = torch.stack(output_inner, dim=1)
+            shape = layer_output.shape
+            print(shape)
+            batch, time_steps, channels, width, height = shape
             cur_layer_input = layer_output
-            decoder_layer_output_list.append(layer_output)
-            decoder_last_state_list.append([h, c])
-        if not self.return_all_layers:
-            encoder_layer_output_list = encoder_layer_output_list[-1:]
-            encoder_last_state_list = encoder_last_state_list[-1:]
-            decoder_layer_output_list = decoder_layer_output_list[-1:]
-            decoder_last_state_list = decoder_last_state_list[-1:]
-            return encoder_last_state_list[0], encoder_layer_output_list[0], \
-                   decoder_last_state_list[0], decoder_layer_output_list[0]
-        return encoder_last_state_list, encoder_layer_output_list, decoder_last_state_list, decoder_layer_output_list
+            # take output predictions at the last layer of the decoder
+            branch_output = self.classification_conv_1(layer_output.view(batch, time_steps*channels,
+                                                                         width, height))
+        decoder_output = layer_output
+        decoder_last_state = [h, c]
+        return encoder_last_state, encoder_output, decoder_last_state, decoder_output
 
     def _init_hidden(self, batch_size):
         init_states = []
@@ -212,29 +209,33 @@ def check_model_on_moving_mnist():
 
 @torch.no_grad()
 def check_model():
-    height, width, channels, input_t_steps, out_t_steps = 64, 64, 1, 2, 3
-    encoder_hidden_dimensions = [3, 7]
-    decoder_hidden_dimensions = [7, 7]
+    height, width, channels, num_layers, input_t_steps, out_t_steps = 64, 64, 1, 2, 4, 3
+    encoder_hidden_dimensions = [8]*num_layers
+    decoder_hidden_dimensions = [8]*num_layers
     reverse_hidden = encoder_hidden_dimensions[::-1]
     num_layers = len(encoder_hidden_dimensions)
-    forward_lstm_encoder = ConvLSTM(input_size=(height, width), input_dim=channels, out_seq_len=4,
-                                    encoder_hidden_dim=encoder_hidden_dimensions,
-                                    decoder_hidden_dim=decoder_hidden_dimensions, kernel_size=(3, 3),
-                                    num_layers=num_layers, batch_first=True, bias=True, return_all_layers=False)
+    forward_lstm = ConvLSTM(input_size=(height, width), input_dim=channels, in_seq_len=input_t_steps,
+                            out_seq_len=out_t_steps, kernel_size=(3, 3), num_layers=num_layers, batch_first=True,
+                            encoder_hidden_dim=encoder_hidden_dimensions, decoder_hidden_dim=decoder_hidden_dimensions,
+                            bias=True, return_all_layers=False)
     # reverse_lstm_encoder = ConvLSTM(input_size=(height, width), input_dim=reverse_hidden[0], hidden_dim=reverse_hidden,
     #                                 kernel_size=(3, 3), num_layers=num_layers, batch_first=True, bias=True,
     #                                 return_all_layers=False)
-    forward_lstm_encoder.eval()
+    forward_lstm.eval()
     # reverse_lstm_encoder.eval()
     # input order (b, t, c, h, w)
     forward_input = torch.Tensor(16, input_t_steps, channels, height, width)
     print('Forward Model:')
-    encoder_last_states, encoder_last_output, decoder_last_states, decoder_last_output = forward_lstm_encoder(forward_input)
-    # [last_hidden, last_cell_state], last_output = forward_lstm_encoder(forward_input)
+    encoder_last_states, encoder_last_output, decoder_last_states, decoder_last_output = forward_lstm(forward_input)
+    [encoder_last_hidden, encoder_last_cell_state] = encoder_last_states
+    [decoder_last_hidden, decoder_last_cell_state] = encoder_last_states
     print('\tforward_input.shape', forward_input.shape)
-    print('\tlast_hidden.shape', last_hidden.shape)
-    print('\tlast_cell_state.shape', last_cell_state.shape)
-    print('\tlast_output.shape', last_output.shape)
+    print('\tencoder_last_hidden.shape', encoder_last_hidden.shape)
+    print('\tencoder_last_cell_state.shape', encoder_last_cell_state.shape)
+    print('\tencoder_last_output.shape', encoder_last_output.shape)
+    print('\tdecoder_last_hidden.shape', decoder_last_hidden.shape)
+    print('\tdecoder_last_cell_state.shape', decoder_last_cell_state.shape)
+    print('\tdecoder_last_output.shape', decoder_last_output.shape)
     # reverse_input = torch.Tensor(last_output)
     # print('Reverse Model:')
     # [last_hidden, last_cell_state], last_output = reverse_lstm_encoder(reverse_input,

@@ -40,10 +40,11 @@ def histogram_equalize(img):
 
 
 def get_images_from_large_file(bands, year, region, stride):
-    data_directory_path = '/home/azulfiqar_bee15seecs/palsar_dataset/'
-    image_path = os.path.join(data_directory_path, 'palsar_{}_region_{}.tif'.format(year, region))
+    # data_directory_path = '/home/annuszulfiqar/palsar_dataset_full/palsar_dataset/'
+    data_directory_path = '/home/azulfiqar_bee15seecs/bt_regions_final_defense/mansehra/'
+    image_path = os.path.join(data_directory_path, 'landsat8_{}_region_{}.tif'.format(year, region))
     label_path = os.path.join(data_directory_path, 'fnf_{}_region_{}.tif'.format(year, region))
-    destination_directory_path = '/home/azulfiqar_bee15seecs/generated_palsar_dataset/'
+    destination_directory_path = os.path.join(data_directory_path, 'generated_palsar_dataset/')
     destination = os.path.join(destination_directory_path, '{}'.format(year))
     if not os.path.exists(destination):
         print('Log: Making parent directory: {}'.format(destination))
@@ -51,7 +52,7 @@ def get_images_from_large_file(bands, year, region, stride):
     print(image_path, label_path)
     # we will use this to divide those fnf images
     covermap = gdal.Open(label_path, gdal.GA_ReadOnly)
-    channel = covermap.GetRasterBand(1)
+    channel = covermap.GetRasterBand(bands[0])
     x_size, y_size = covermap.RasterXSize, covermap.RasterYSize
     label = channel.ReadAsArray()
     image_ds = gdal.Open(image_path, gdal.GA_ReadOnly)
@@ -432,6 +433,7 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
             pass
 
         def __getitem__(self, k):
+            k = k % self.total_images ####
             (example_path, this_row, this_col) = self.all_images[k]
             with open(example_path, 'rb') as this_pickle:
                 (example_subset, label_subset) = pickle.load(this_pickle)
@@ -440,53 +442,55 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
             this_example_subset = example_subset[this_row:this_row + self.model_input_size,
                                                  this_col:this_col + self.model_input_size, :]
             # instead of using the Digital Numbers (DN), use the backscattering coefficient
-            HH = this_example_subset[:,:,0]
-            HV = this_example_subset[:,:,1]
-            angle = this_example_subset[:,:,2]
-            HH_gamma_naught = np.nan_to_num(10 * np.log10(HH ** 2 + 1e-7) - 83.0)
-            HV_gamma_naught = np.nan_to_num(10 * np.log10(HV ** 2 + 1e-7) - 83.0)
-            this_example_subset = np.dstack((HH_gamma_naught, HV_gamma_naught, angle))
+            # HH = this_example_subset[:,:,0]
+            # HV = this_example_subset[:,:,1]
+            # angle = this_example_subset[:,:,2]
+            # HH_gamma_naught = np.nan_to_num(10 * np.log10(HH ** 2 + 1e-7) - 83.0)
+            # HV_gamma_naught = np.nan_to_num(10 * np.log10(HV ** 2 + 1e-7) - 83.0)
+            # this_example_subset = np.dstack((HH_gamma_naught, HV_gamma_naught, angle))
 
             # get more indices to add to the example
-            # ndvi_band = (this_example_subset[:,:,4]-
-            #              this_example_subset[:,:,3])/(this_example_subset[:,:,4]+
-            #                                           this_example_subset[:,:,3]+1e-7)
-            # evi_band = 2.5*(this_example_subset[:,:,4]-
-            #                 this_example_subset[:,:,3])/(this_example_subset[:,:,4]+
-            #                                              6*this_example_subset[:,:,3]-
-            #                                              7.5*this_example_subset[:,:,1]+1)
-            # savi_band = 1.5*(this_example_subset[:,:,4]-
-            #                  this_example_subset[:,:,3])/(this_example_subset[:,:,4]+
-            #                                               this_example_subset[:,:,3]+0.5)
-            # msavi_band = 0.5*(2*this_example_subset[:,:,4]+1-
-            #                   np.sqrt((2*this_example_subset[:,:,4]+1)**2-
-            #                           8*(this_example_subset[:,:,4]-
-            #                              this_example_subset[:,:,3])))
-            # ndmi_band = (this_example_subset[:,:,4]-
-            #              this_example_subset[:,:,5])/(this_example_subset[:,:,4]+
-            #                                           this_example_subset[:,:,5]+1e-7)
-            # nbr_band = (this_example_subset[:,:,4]-
-            #             this_example_subset[:,:,6])/(this_example_subset[:,:,4]+
-            #                                          this_example_subset[:,:,6]+1e-7)
-            # nbr2_band = (this_example_subset[:,:,5]-
-            #              this_example_subset[:,:,6])/(this_example_subset[:,:,5]+
-            #                                           this_example_subset[:,:,6]+1e-7)
-            #
-            # ndvi_band = np.nan_to_num(ndvi_band)
-            # evi_band = np.nan_to_num(evi_band)
-            # savi_band = np.nan_to_num(savi_band)
-            # msavi_band = np.nan_to_num(msavi_band)
-            # ndmi_band = np.nan_to_num(ndmi_band)
-            # nbr_band = np.nan_to_num(nbr_band)
-            # nbr2_band = np.nan_to_num(nbr2_band)
-            #
-            # this_example_subset = np.dstack((this_example_subset, ndvi_band))
-            # this_example_subset = np.dstack((this_example_subset, evi_band))
-            # this_example_subset = np.dstack((this_example_subset, savi_band))
-            # this_example_subset = np.dstack((this_example_subset, msavi_band))
-            # this_example_subset = np.dstack((this_example_subset, ndmi_band))
-            # this_example_subset = np.dstack((this_example_subset, nbr_band))
-            # this_example_subset = np.dstack((this_example_subset, nbr2_band))
+            ndvi_band = (this_example_subset[:,:,4]-
+                         this_example_subset[:,:,3])/(this_example_subset[:,:,4]+
+                                                      this_example_subset[:,:,3]+1e-7)
+            evi_band = 2.5*(this_example_subset[:,:,4]-
+                            this_example_subset[:,:,3])/(this_example_subset[:,:,4]+
+                                                         6*this_example_subset[:,:,3]-
+                                                         7.5*this_example_subset[:,:,1]+1)
+            savi_band = 1.5*(this_example_subset[:,:,4]-
+                             this_example_subset[:,:,3])/(this_example_subset[:,:,4]+
+                                                          this_example_subset[:,:,3]+0.5)
+            msavi_band = 0.5*(2*this_example_subset[:,:,4]+1-
+                              np.sqrt((2*this_example_subset[:,:,4]+1)**2-
+                                      8*(this_example_subset[:,:,4]-
+                                         this_example_subset[:,:,3])))
+            ndmi_band = (this_example_subset[:,:,4]-
+                         this_example_subset[:,:,5])/(this_example_subset[:,:,4]+
+                                                      this_example_subset[:,:,5]+1e-7)
+            nbr_band = (this_example_subset[:,:,4]-
+                        this_example_subset[:,:,6])/(this_example_subset[:,:,4]+
+                                                     this_example_subset[:,:,6]+1e-7)
+            nbr2_band = (this_example_subset[:,:,5]-
+                         this_example_subset[:,:,6])/(this_example_subset[:,:,5]+
+                                                      this_example_subset[:,:,6]+1e-7)
+
+            ndvi_band = np.nan_to_num(ndvi_band)
+            evi_band = np.nan_to_num(evi_band)
+            savi_band = np.nan_to_num(savi_band)
+            msavi_band = np.nan_to_num(msavi_band)
+            ndmi_band = np.nan_to_num(ndmi_band)
+            nbr_band = np.nan_to_num(nbr_band)
+            nbr2_band = np.nan_to_num(nbr2_band)
+
+            this_example_subset = np.dstack((this_example_subset, ndvi_band))
+            this_example_subset = np.dstack((this_example_subset, evi_band))
+            this_example_subset = np.dstack((this_example_subset, savi_band))
+            this_example_subset = np.dstack((this_example_subset, msavi_band))
+            this_example_subset = np.dstack((this_example_subset, ndmi_band))
+            this_example_subset = np.dstack((this_example_subset, nbr_band))
+            this_example_subset = np.dstack((this_example_subset, nbr2_band))
+            # re-scale
+            # this_example_subset = this_example_subset/1000
 
             this_label_subset = label_subset[this_row:this_row + self.model_input_size,
                                              this_col:this_col + self.model_input_size, ]
@@ -499,25 +503,25 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
             if self.one_hot:
                 this_label_subset = np.eye(self.num_classes)[this_label_subset]
 
-            # if self.mode == 'train':
-            #     # augmentation
-            #     if np.random.randint(0, 2) == 0:
-            #         # print('flipped this')
-            #         this_example_subset = np.fliplr(this_example_subset).copy()
-            #         this_label_subset = np.fliplr(this_label_subset).copy()
-            #     if np.random.randint(0, 2) == 1:
-            #         # print('flipped this')
-            #         this_example_subset = np.flipud(this_example_subset).copy()
-            #         this_label_subset = np.flipud(this_label_subset).copy()
-            #     if np.random.randint(0, 2) == 1:
-            #         # print('flipped this')
-            #         this_example_subset = np.fliplr(this_example_subset).copy()
-            #         this_label_subset = np.fliplr(this_label_subset).copy()
-            #     if np.random.randint(0, 2) == 0:
-            #         # print('flipped this')
-            #         this_example_subset = np.flipud(this_example_subset).copy()
-            #         this_label_subset = np.flipud(this_label_subset).copy()
-            #     pass
+            if self.mode == 'train':
+                # augmentation
+                if np.random.randint(0, 2) == 0:
+                    # print('flipped this')
+                    this_example_subset = np.fliplr(this_example_subset).copy()
+                    this_label_subset = np.fliplr(this_label_subset).copy()
+                if np.random.randint(0, 2) == 1:
+                    # print('flipped this')
+                    this_example_subset = np.flipud(this_example_subset).copy()
+                    this_label_subset = np.flipud(this_label_subset).copy()
+                if np.random.randint(0, 2) == 1:
+                    # print('flipped this')
+                    this_example_subset = np.fliplr(this_example_subset).copy()
+                    this_label_subset = np.fliplr(this_label_subset).copy()
+                if np.random.randint(0, 2) == 0:
+                    # print('flipped this')
+                    this_example_subset = np.flipud(this_example_subset).copy()
+                    this_label_subset = np.flipud(this_label_subset).copy()
+                pass
 
             # print(this_label_subset.shape, this_example_subset.shape)
             this_example_subset, this_label_subset = toTensor(image=this_example_subset, label=this_label_subset,
@@ -527,16 +531,17 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
             return {'input': this_example_subset, 'label': this_label_subset}
 
         def __len__(self):
-            return 1*self.total_images if self.mode == 'train' else self.total_images
+            return 4*self.total_images if self.mode == 'train' else self.total_images
     ######################################################################################
 
-    palsar_mean = torch.Tensor([8116.269912828, 3419.031791692, 40.270058337])
-    palsar_std = torch.Tensor([6136.70160067, 2201.432263753, 19.38761076])
-    palsar_gamma_naught_mean = [-7.68182243, -14.59668144, 40.44296671]
-    palsar_gamma_naught_std = [3.78577892, 4.27134019, 19.73628546]
+    # palsar_mean = torch.Tensor([8116.269912828, 3419.031791692, 40.270058337])
+    # palsar_std = torch.Tensor([6136.70160067, 2201.432263753, 19.38761076])
+    # palsar_gamma_naught_mean = [-7.68182243, -14.59668144, 40.44296671]
+    # palsar_gamma_naught_std = [3.78577892, 4.27134019, 19.73628546]
 
-    transformation = transforms.Compose([transforms.Normalize(mean=palsar_gamma_naught_mean,
-                                                              std=palsar_gamma_naught_std)])
+    # transformation = transforms.Compose([transforms.Normalize(mean=palsar_gamma_naught_mean,
+    #                                                           std=palsar_gamma_naught_std)])
+    transformation = None
 
     train_list, eval_list, test_list = [], [], []
     if not os.path.exists(save_data_path):
@@ -546,120 +551,22 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
         # random.shuffle(full_list)
         # train_list = full_list[:int(len(full_list)*train_split)]
         # eval_list = full_list[int(len(full_list)*train_split):]
-        train_path_1 = os.path.join(generated_data_path, "2007")
-        train_path_2 = os.path.join(generated_data_path, "2008")
-        train_path_3 = os.path.join(generated_data_path, "2009")
-        train_path_4 = os.path.join(generated_data_path, "2010")
-        eval_path_1 = os.path.join(generated_data_path, "2015")
-        eval_path_2 = os.path.join(generated_data_path, "2016")
-        eval_path_3 = os.path.join(generated_data_path, "2017")
+        # train_years = ["2015"]
+        # eval_years = ["2016", "2017"]
+        # train_list_per_year = [os.path.join(generated_data_path, year) for year in train_years]
+        # eval_list_per_year = [os.path.join(generated_data_path, year) for year in eval_years]
+        # train_list = [os.path.join(per_year_train_folder, x) for per_year_train_folder in train_list_per_year
+        #               for x in os.listdir(per_year_train_folder)]
+        # eval_list = [os.path.join(per_year_eval_folder, x) for per_year_eval_folder in eval_list_per_year
+        #              for x in os.listdir(per_year_eval_folder)]
 
-        train_list_1 = [os.path.join(train_path_1, x) for x in os.listdir(train_path_1)]
-        train_list_2 = [os.path.join(train_path_2, x) for x in os.listdir(train_path_2)]
-        train_list_3 = [os.path.join(train_path_3, x) for x in os.listdir(train_path_3)]
-        train_list_4 = [os.path.join(train_path_4, x) for x in os.listdir(train_path_4)]
-
-        eval_list_1 = [os.path.join(eval_path_1, x) for x in os.listdir(eval_path_1)]
-        eval_list_2 = [os.path.join(eval_path_2, x) for x in os.listdir(eval_path_2)]
-        eval_list_3 = [os.path.join(eval_path_3, x) for x in os.listdir(eval_path_3)]
-
-        train_list = train_list_1 + train_list_2 + train_list_3 + train_list_4
-        eval_list = eval_list_1 + eval_list_2 + eval_list_3
-
-        # full_list = [
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2013_1.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2013_2.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2013_3.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2013_4.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2013_5.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2013_6.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2013_7.pkl'),
-        #     # os.path.join(generated_data_path, 'reduced_regions_landsat_2013_8.pkl'),
-        #     # os.path.join(generated_data_path, 'reduced_regions_landsat_2013_9.pkl'),
-        #     # os.path.join(generated_data_path, 'reduced_regions_landsat_2013_10.pkl'),
-        #     # os.path.join(generated_data_path, 'reduced_regions_landsat_2013_11.pkl'),
-        #     # os.path.join(generated_data_path, 'reduced_regions_landsat_2013_12.pkl'),
-        #
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2014_1.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2014_2.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2014_3.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2014_4.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2014_5.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2014_6.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2014_7.pkl'),
-        #     # os.path.join(generated_data_path, 'reduced_regions_landsat_2014_8.pkl'),
-        #     # os.path.join(generated_data_path, 'reduced_regions_landsat_2014_9.pkl'),
-        #     # os.path.join(generated_data_path, 'reduced_regions_landsat_2014_10.pkl'),
-        #     # os.path.join(generated_data_path, 'reduced_regions_landsat_2014_11.pkl'),
-        #     # os.path.join(generated_data_path, 'reduced_regions_landsat_2014_12.pkl'),
-        #
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2015_1.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2015_2.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2015_3.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2015_4.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2015_5.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2015_6.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2015_7.pkl'),
-        #     # os.path.join(generated_data_path, 'reduced_regions_landsat_2015_8.pkl'),
-        #     # os.path.join(generated_data_path, 'reduced_regions_landsat_2015_9.pkl'),
-        #     # os.path.join(generated_data_path, 'reduced_regions_landsat_2015_10.pkl'),
-        #     # os.path.join(generated_data_path, 'reduced_regions_landsat_2015_11.pkl'),
-        #     # os.path.join(generated_data_path, 'reduced_regions_landsat_2015_12.pkl'),
-        #
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2016_1.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2016_2.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2016_3.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2016_4.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2016_5.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2016_6.pkl'),
-        #     os.path.join(generated_data_path, 'reduced_regions_landsat_2016_7.pkl'),
-        #     # os.path.join(generated_data_path, 'reduced_regions_landsat_2016_8.pkl'),
-        #     # os.path.join(generated_data_path, 'reduced_regions_landsat_2016_9.pkl'),
-        #     # os.path.join(generated_data_path, 'reduced_regions_landsat_2016_10.pkl'),
-        #     # os.path.join(generated_data_path, 'reduced_regions_landsat_2016_11.pkl'),
-        #     # os.path.join(generated_data_path, 'reduced_regions_landsat_2016_12.pkl'),
-        #     ]
-
-        # for data in full_list:
-        #     with open(data, 'rb') as this_data:
-        #         _, label = pickle.load(this_data)
-        #         row_limit, col_limit = label.shape[0] - model_input_size, label.shape[1] - model_input_size
-        #         for i in range(0, row_limit, stride):
-        #             for j in range(0, col_limit, stride):
-        #                 if i > 3*row_limit//4 and j > 3*col_limit//4:
-        #                     eval_images.append((data, i, j))
-        #                     total_eval_images += 1
-        #                 else:
-        #                     train_images.append((data, i, j))
-        #                     total_train_images += 1
-
-        # get indices for the year 2013
-        # reference_year = 2013
-        # for example_path in full_list:
-        #     with open(example_path, 'rb') as this_data:
-        #         _, label = pickle.load(this_data)
-        #         row_limit, col_limit = label.shape[0] - model_input_size, label.shape[1] - model_input_size
-        #         for i in range(0, row_limit, stride):
-        #             for j in range(0, col_limit, stride):
-        #                 if np.random.uniform(0, 1) > 0.8:
-        #                     # map the same coordinates in all images of the same regions to train and test
-        #                     for year in range(2013, 2017):
-        #                         this_example_path = os.path.join(generated_data_path,
-        #                                                          'reduced_regions_landsat_{}_{}.pkl'.format(
-        #                                                              year,
-        #                                                              ref_region))
-        #                         eval_images.append((this_example_path, i, j))
-        #                         total_eval_images += 1
-        #                 else:
-        #                     # map the same coordinates in all images of the same regions to train and test
-        #                     for year in range(2013, 2017):
-        #                         this_example_path = os.path.join(generated_data_path,
-        #                                                          'reduced_regions_landsat_{}_{}.pkl'.format(
-        #                                                              year,
-        #                                                              ref_region))
-        #                         train_images.append((this_example_path, i, j))
-        #                         total_train_images += 1
-
+        year = '2016'
+        extended_data_path = os.path.join(generated_data_path, year)
+        full_examples_list = [os.path.join(extended_data_path, x) for x in os.listdir(extended_data_path)]
+        random.shuffle(full_examples_list)
+        train_split = int(train_split*len(full_examples_list))
+        train_list = full_examples_list[:train_split]
+        eval_list = full_examples_list[train_split:]
     ######################################################################################
 
     print('LOG: [train_list, eval_list, test_list] ->', map(len, (train_list, eval_list, test_list)))
@@ -670,7 +577,7 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
     # create dataset class instances
     # images_per_image means approx. how many images are in each example
     train_data = dataset(data_list=train_list, data_map_path=os.path.join(save_data_path, 'train_datamap.pkl'),
-                         mode='train', stride=16, transformation=transformation) # more images for training
+                         mode='train', stride=32, transformation=transformation) # more images for training
     eval_data = dataset(data_list=eval_list, data_map_path=os.path.join(save_data_path, 'eval_datamap.pkl'),
                         mode='test', stride=model_input_size, transformation=transformation)
     test_data = dataset(data_list=test_list, data_map_path=os.path.join(save_data_path, 'test_datamap.pkl'),
@@ -756,11 +663,11 @@ if __name__ == '__main__':
     # main()
 
     # check_generated_fnf_datapickle('/home/annus/Desktop/1_12.pkl')
-    get_images_from_large_file(bands=[1,2,3],
-                               year=sys.argv[1],
-                               region=int(sys.argv[2]),
-                               stride=256)
 
+    get_images_from_large_file(bands=range(1, 12),
+                               year=sys.argv[1],
+                               region=sys.argv[2],
+                               stride=256)
     # get_images_from_large_file(image_path='raw_dataset/full_test_site_2015.tif',
     #                            bands=range(1, 14),
     #                            label_path='raw_dataset/ESACCI-LC-L4-LCCS-Map-300m-P1Y-2015-v2.0.7.tif',

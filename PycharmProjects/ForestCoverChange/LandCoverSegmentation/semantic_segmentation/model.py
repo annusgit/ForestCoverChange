@@ -84,7 +84,7 @@ class UNet(nn.Module):
         pretrained_layers = list(VGG.features)
         # self.bn_init = nn.BatchNorm2d(num_features=input_channels)
         self.max_pool = nn.MaxPool2d(2, 2)
-        self.dropout = nn.Dropout2d(0.5)
+        self.dropout = nn.Dropout2d(0.8)
         self.activate = nn.ReLU()
 
         self.encoder_1 = UNet_down_block(input_channels, 64)
