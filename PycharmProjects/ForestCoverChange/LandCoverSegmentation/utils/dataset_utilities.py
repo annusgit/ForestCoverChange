@@ -7,11 +7,13 @@ import sys
 import cv2
 import gdal
 import pickle
+import imageio
 import numpy as np
 import PIL.Image as Image
 import scipy.misc as misc
 from scipy.ndimage import median_filter
 import matplotlib.pyplot as pl
+from matplotlib import colors
 
 # for image registration
 # from dipy.data import get_fnames
@@ -538,14 +540,35 @@ def check_generated_map_palsar(label_path, generated_path):
     print('generated forest: {:.3f}%'.format(forest_percentage))
     accuracy = 100 * (inference_label == generated_label).sum() / (inference_label.shape[0] * inference_label.shape[1])
     print('accuracy: {:.3f}%'.format(accuracy))
+    # for better visualization, we define our own cmaps
+    forest_cmap = colors.ListedColormap(['green', 'black'])
+    bounds = [-0.5, 0.5, 1.5]  # between each two numbers is one corresponding color
+    forest_norm = colors.BoundaryNorm(bounds, forest_cmap.N)
     pl.subplot(121)
     pl.title('original')
-    pl.imshow(inference_label)
+    pl.imshow(inference_label, cmap=forest_cmap, norm=forest_norm)
     pl.subplot(122)
     pl.title('generated')
-    pl.imshow(generated_label)
+    pl.imshow(generated_label, cmap=forest_cmap, norm=forest_norm)
     pl.show()
     pass
+
+
+def generate_palsar_series_gif(region, destination):
+    images = []
+    years = [2007, 2008, 2009, 2010, 2015, 2016, 2017]
+    parent_folder = '/home/annus/Desktop/palsar/generated_maps/using_separate_models'
+    filenames = [os.path.join(parent_folder, 'generated_{}_{}.npy'.format(year, region)) for year in years]
+    for filename in filenames:
+        with open(filename, 'rb') as generated:
+            generated_label = np.load(generated).astype(np.uint8)
+            # since forest is 0 and non-forest is 1, we'll have to swap their labels for better visualization
+            generated_label = 1 - generated_label
+            generated_label = 255*median_filter(generated_label, size=3)
+            generated_covermap = np.dstack((np.zeros_like(generated_label), generated_label,
+                                            np.zeros_like(generated_label)))
+        images.append(generated_covermap)
+    imageio.mimsave(destination, images)
 
 
 if __name__ == '__main__':
@@ -597,6 +620,7 @@ if __name__ == '__main__':
     # watch -n2 rsync -avh /home/annus/PycharmProjects/ForestCoverChange_inputs_and_numerical_results/modis_land_covermaps/   -a annuszulfiqar@111.68.101.28:forest_cover/forestcoverUnet/ESA_landcover/reduced_regions_landsat/modis_land_covermaps
 
     check_generated_map_palsar(label_path=sys.argv[1], generated_path=sys.argv[2])
+    # generate_palsar_series_gif(region=sys.argv[1], destination=sys.argv[2])
 
 
 

@@ -7,6 +7,7 @@ import png
 import cv2
 import gdal
 import numpy as np
+from matplotlib import colors
 import matplotlib.pyplot as pl
 
 
@@ -42,8 +43,8 @@ def main(this_example):
     palsar_mean = [8116.269912828, 3419.031791692, 40.270058337]
     palsar_std = [6136.70160067, 2201.432263753, 19.38761076]
     example = gdal.Open(this_example)
-    print(example.GetMetadata())
-    print(example.RasterCount)
+    # print(example.GetMetadata())
+    # print(example.RasterCount)
     example_array = get_combination(example=example, bands=[1])
     example_array = np.nan_to_num(example_array)
     # print(example_array.mean(axis=(0,1)), example_array.std(axis=(0,1)))
@@ -59,13 +60,16 @@ def main(this_example):
     # show_image[show_image > 3] = 4
     # show_image = np.asarray(np.clip(example_array/4096, 0, 1)*255, dtype=np.uint8)
     uniq_labels, counts = np.unique(show_image, return_counts=True)
-    forest_position = np.argmax(uniq_labels == 1)
+    forest_position = np.argmax(uniq_labels == 0)
     forest_pixels = float(counts[forest_position])
     total_pixels = float(counts.sum())
     forest_percentage = forest_pixels * 100 / total_pixels
     print('original forest: {:.3f}%'.format(forest_percentage))
+    forest_cmap = colors.ListedColormap(['green', 'black'])
+    bounds = [-0.5, 0.5, 1.5]  # between each two numbers is one corresponding color
+    forest_norm = colors.BoundaryNorm(bounds, forest_cmap.N)
     print(show_image.shape)
-    pl.imshow(show_image)
+    pl.imshow(show_image, norm=forest_norm, cmap=forest_cmap)
     pl.show()
     # if show_image is not None:
     #     pl.imsave(save_as, show_image) # save_as is the file_name you want to save with
