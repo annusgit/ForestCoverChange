@@ -12,8 +12,8 @@ from scipy.ndimage import median_filter
 
 
 def check_difference_map_palsar(args):
-    first_image_path = os.path.join(args.parent_dir_path, 'generated_{}_{}.npy'.format(args.first_year, args.region))
-    second_image_path = os.path.join(args.parent_dir_path, 'generated_{}_{}.npy'.format(args.second_year, args.region))
+    first_image_path = os.path.join(args.parent_dir_path, 'generated_map_{}.npy'.format(args.first_year))
+    second_image_path = os.path.join(args.parent_dir_path, 'generated_map_{}.npy'.format(args.second_year))
     with open(first_image_path, 'rb') as first_generated:
         first_year_generated_label = np.load(first_generated).astype(np.uint8)
         first_year_generated_label = median_filter(first_year_generated_label, size=3)
@@ -82,8 +82,8 @@ def check_difference_map_palsar(args):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--parent', dest='parent_dir_path', type=str, default='/home/annus/Desktop/palsar/'
-                                                                              'generated_maps/using_separate_models/')
+    parser.add_argument('--parent', dest='parent_dir_path', type=str, default='/home/annus/Desktop/'
+                                                                              'generated_maps_final_defense/mansehra/')
     parser.add_argument('-f_y', dest='first_year', type=int)
     parser.add_argument('-s_y', dest='second_year', type=int)
     parser.add_argument('-r', dest='region', type=int)
