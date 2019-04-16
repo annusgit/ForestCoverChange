@@ -83,7 +83,7 @@ def check_difference_map_palsar(args):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--parent', dest='parent_dir_path', type=str, default='/home/annus/Desktop/'
-                                                                              'generated_maps_final_defense/mansehra/')
+                                                                              'generated_maps_final_defense/haripur/')
     parser.add_argument('-f_y', dest='first_year', type=int)
     parser.add_argument('-s_y', dest='second_year', type=int)
     parser.add_argument('-r', dest='region', type=int)

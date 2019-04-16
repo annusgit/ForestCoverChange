@@ -21,8 +21,8 @@ import torchnet as tnt
 from torchnet.meter import ConfusionMeter as CM
 
 
-def train_net(model, generated_data_path, input_dim, workers, pre_model, save_data, save_dir,
-              sum_dir, batch_size, lr, epochs, log_after, cuda, device):
+def train_net(model, generated_data_path, input_dim, workers, pre_model, save_data, save_dir, sum_dir, batch_size,
+              lr, epochs, log_after, cuda, device):
     # print(model)
     if cuda:
         print('log: Using GPU')

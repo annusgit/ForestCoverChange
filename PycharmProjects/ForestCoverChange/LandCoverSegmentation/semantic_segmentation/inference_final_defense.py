@@ -120,8 +120,12 @@ def get_inference_loader(image_path, model_input_size=64, num_classes=4,
             this_example_subset = np.dstack((this_example_subset, nbr_band))
             this_example_subset = np.dstack((this_example_subset, nbr2_band))
             this_example_subset = toTensor(image=this_example_subset)
-            if self.transformation:
-                this_example_subset = self.transformation(this_example_subset)
+
+            # rescale like the original dataset used for training
+            this_example_subset = this_example_subset / 1000
+
+            # if self.transformation:
+            #     this_example_subset = self.transformation(this_example_subset)
             return {'coordinates': np.asarray([this_row, this_row + self.model_input_size,
                                                this_col, this_col + self.model_input_size]),
                     'input': this_example_subset}

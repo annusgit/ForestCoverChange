@@ -41,11 +41,12 @@ def histogram_equalize(img):
 
 def get_images_from_large_file(bands, year, region, stride):
     # data_directory_path = '/home/annuszulfiqar/palsar_dataset_full/palsar_dataset/'
-    data_directory_path = '/home/azulfiqar_bee15seecs/bt_regions_final_defense/mansehra/'
-    image_path = os.path.join(data_directory_path, 'landsat8_{}_region_{}.tif'.format(year, region))
-    label_path = os.path.join(data_directory_path, 'fnf_{}_region_{}.tif'.format(year, region))
-    destination_directory_path = os.path.join(data_directory_path, 'generated_palsar_dataset/')
-    destination = os.path.join(destination_directory_path, '{}'.format(year))
+    data_directory_path = '/home/azulfiqar_bee15seecs/all_billion_tree_regions/'
+    image_path = os.path.join(data_directory_path, '{}/landsat8_{}_region_{}.tif'.format(region, year, region))
+    label_path = os.path.join(data_directory_path, '{}/fnf_self_{}_region_{}.tif'.format(region, year, region))
+    destination_directory_path = 'all_bt_generated_dataset' #os.path.join(data_directory_path, '{}/generated_dataset/'.format(region))
+    # destination = os.path.join(destination_directory_path, '{}'.format(year))
+    destination = destination_directory_path
     if not os.path.exists(destination):
         print('Log: Making parent directory: {}'.format(destination))
         os.mkdir(destination)
@@ -489,13 +490,15 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
             this_example_subset = np.dstack((this_example_subset, ndmi_band))
             this_example_subset = np.dstack((this_example_subset, nbr_band))
             this_example_subset = np.dstack((this_example_subset, nbr2_band))
-            # re-scale
-            # this_example_subset = this_example_subset/1000
+            # # re-scale
+            this_example_subset = this_example_subset / 1000
 
             this_label_subset = label_subset[this_row:this_row + self.model_input_size,
                                              this_col:this_col + self.model_input_size, ]
             this_label_subset = fix(this_label_subset, total_labels=max_label).astype(np.uint8)
-            # these_labels, their_frequency = np.unique(this_label_subset, return_counts=True)
+            # if self.mode != 'train':
+            #     these_labels, their_frequency = np.unique(this_label_subset, return_counts=True)
+            #     print(these_labels, their_frequency)
             # reject all noisy pixels
             # if 0 in these_labels:
             #     self.__getitem__(np.random.randint(self.__len__()))
@@ -526,12 +529,12 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
             # print(this_label_subset.shape, this_example_subset.shape)
             this_example_subset, this_label_subset = toTensor(image=this_example_subset, label=this_label_subset,
                                                               one_hot=self.one_hot)
-            if self.transformation:
-                this_example_subset = self.transformation(this_example_subset)
+            # if self.transformation:
+            #     this_example_subset = self.transformation(this_example_subset)
             return {'input': this_example_subset, 'label': this_label_subset}
 
         def __len__(self):
-            return 4*self.total_images if self.mode == 'train' else self.total_images
+            return 1*self.total_images if self.mode == 'train' else self.total_images
     ######################################################################################
 
     # palsar_mean = torch.Tensor([8116.269912828, 3419.031791692, 40.270058337])
@@ -561,10 +564,13 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
         #              for x in os.listdir(per_year_eval_folder)]
 
         year = '2016'
-        extended_data_path = os.path.join(generated_data_path, year)
+        extended_data_path = generated_data_path #os.path.join(generated_data_path, year)
         full_examples_list = [os.path.join(extended_data_path, x) for x in os.listdir(extended_data_path)]
+        # print('we are here', len(full_examples_list))
         random.shuffle(full_examples_list)
+        # print(len(full_examples_list))
         train_split = int(train_split*len(full_examples_list))
+        # print(train_split)
         train_list = full_examples_list[:train_split]
         eval_list = full_examples_list[train_split:]
     ######################################################################################
