@@ -4,6 +4,7 @@ from __future__ import print_function
 from __future__ import division
 
 import os
+import gdal
 import argparse
 import numpy as np
 from matplotlib import colors
@@ -11,17 +12,20 @@ import matplotlib.pyplot as pl
 from scipy.ndimage import median_filter
 
 
-def check_difference_map(args):
-    first_image_path = os.path.join(args.parent_dir_path, args.region, 'generated_map_{}_{}.npy'.format(args.first_year,
-                                                                                                        args.region))
-    second_image_path = os.path.join(args.parent_dir_path, args.region, 'generated_map_{}_{}.npy'.format(args.second_year,
-                                                                                                         args.region))
-    with open(first_image_path, 'rb') as first_generated:
-        first_year_generated_label = np.load(first_generated).astype(np.uint8)
-        first_year_generated_label = median_filter(first_year_generated_label, size=3)
-    with open(second_image_path, 'rb') as second_generated:
-        second_year_generated_label = np.load(second_generated).astype(np.uint8)
-        second_year_generated_label = median_filter(second_year_generated_label, size=3)
+def check_difference_map_palsar(args):
+    first_image_path = os.path.join(args.parent_dir_path, 'fnf_palsar_{}_{}.tif'.format(args.first_year,
+                                                                                        args.region))
+    second_image_path = os.path.join(args.parent_dir_path, 'fnf_palsar_{}_{}.tif'.format(args.second_year,
+                                                                                         args.region))
+    # with open(first_image_path, 'rb') as first_generated:
+    #     first_year_generated_label = np.load(first_generated).astype(np.uint8)
+    #     first_year_generated_label = median_filter(first_year_generated_label, size=3)
+    # with open(second_image_path, 'rb') as second_generated:
+    #     second_year_generated_label = np.load(second_generated).astype(np.uint8)
+    #     second_year_generated_label = median_filter(second_year_generated_label, size=3)
+
+    first_year_generated_label = gdal.Open(first_image_path).ReadAsArray()-1
+    second_year_generated_label = gdal.Open(second_image_path).ReadAsArray()-1
     uniq_labels, counts = np.unique(first_year_generated_label, return_counts=True)
     forest_position = np.argmax(uniq_labels == 0)
     num_forest_pixels = float(counts[forest_position])
@@ -93,17 +97,19 @@ def check_difference_map(args):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--parent', dest='parent_dir_path', type=str, default='/home/annus/Desktop/'
-                                                                              'final_defense_generated_maps/')
+                                                                              'final_defense_fnf_palsar_maps/')
     parser.add_argument('-f_y', dest='first_year', type=int)
     parser.add_argument('-s_y', dest='second_year', type=int)
     parser.add_argument('-r', dest='region', type=str)
     args = parser.parse_args()
-    check_difference_map(args)
+    check_difference_map_palsar(args)
     pass
 
 
 if __name__ == '__main__':
     main()
+
+
 
 
 

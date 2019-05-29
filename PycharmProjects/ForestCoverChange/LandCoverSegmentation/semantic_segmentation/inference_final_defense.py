@@ -35,8 +35,7 @@ def toTensor(**kwargs):
     return torch.from_numpy(image).float()
 
 
-def get_inference_loader(image_path, model_input_size=64, num_classes=4,
-                         one_hot=False, batch_size=16, num_workers=4):
+def get_inference_loader(image_path, model_input_size=64, num_classes=4, one_hot=False, batch_size=16, num_workers=4):
 
     # This function is faster because we have already saved our data as subset pickle files
     print('inside dataloading code...')
@@ -119,13 +118,10 @@ def get_inference_loader(image_path, model_input_size=64, num_classes=4,
             this_example_subset = np.dstack((this_example_subset, ndmi_band))
             this_example_subset = np.dstack((this_example_subset, nbr_band))
             this_example_subset = np.dstack((this_example_subset, nbr2_band))
-            this_example_subset = toTensor(image=this_example_subset)
-
             # rescale like the original dataset used for training
             this_example_subset = this_example_subset / 1000
+            this_example_subset = toTensor(image=this_example_subset)
 
-            # if self.transformation:
-            #     this_example_subset = self.transformation(this_example_subset)
             return {'coordinates': np.asarray([this_row, this_row + self.model_input_size,
                                                this_col, this_col + self.model_input_size]),
                     'input': this_example_subset}
@@ -161,28 +157,36 @@ def run_inference(args):
     if args.cuda:
         print('log: Using GPU')
         model.cuda(device=args.device)
-    test_image_path = args.image_path
-    inference_loader = get_inference_loader(image_path=test_image_path, model_input_size=128,
-                                            num_classes=2, one_hot=True,
-                                            batch_size=args.bs, num_workers=4)
-    # we need to fill our new generated test image
-    generated_map = np.empty(shape=inference_loader.dataset.get_image_size())
-    for idx, data in enumerate(inference_loader):
-        coordinates, test_x = data['coordinates'].tolist(), data['input']
-        test_x = test_x.cuda(device=args.device) if args.cuda else test_x
-        out_x, softmaxed = model.forward(test_x)
-        pred = torch.argmax(softmaxed, dim=1)
-        pred_numpy = pred.cpu().numpy().transpose(1,2,0)
-        if idx % 5 == 0:
-            print('LOG: on {} of {}'.format(idx, len(inference_loader)))
-        for k in range(test_x.shape[0]):
-            x, x_, y, y_ = coordinates[k]
-            generated_map[x:x_, y:y_] = pred_numpy[:,:,k]
 
-    save_path = args.dest
-    np.save(save_path, generated_map)
-    #########################################################################################3
-    inference_loader.dataset.clear_mem()
+    # regions = ['hangu', 'karak', 'kohat', 'nowshehra', 'battagram', 'abbottabad', 'haripur_region', 'kohistan',
+    #            'tor_ghar', 'mansehra', 'buner', 'chitral', 'lower_dir', 'malakand', 'shangla', 'swat', 'upper_dir']
+    regions = ['chitral', 'lower_dir', 'malakand', 'shangla', 'swat', 'upper_dir']
+
+    years = [2013, 2014, 2016, 2017, 2018]
+    # change this to do this for all the images in that directory
+    for reg in regions:
+        for year in years:
+            test_image_path = os.path.join(args.dir_path, 'landsat8_{}_region_{}.tif'.format(year, reg))
+            inference_loader = get_inference_loader(image_path=test_image_path, model_input_size=128,
+                                                    num_classes=2, one_hot=True, batch_size=args.bs, num_workers=4)
+            # we need to fill our new generated test image
+            generated_map = np.empty(shape=inference_loader.dataset.get_image_size())
+            for idx, data in enumerate(inference_loader):
+                coordinates, test_x = data['coordinates'].tolist(), data['input']
+                test_x = test_x.cuda(device=args.device) if args.cuda else test_x
+                out_x, softmaxed = model.forward(test_x)
+                pred = torch.argmax(softmaxed, dim=1)
+                pred_numpy = pred.cpu().numpy().transpose(1,2,0)
+                if idx % 5 == 0:
+                    print('LOG: on {} of {}'.format(idx, len(inference_loader)))
+                for k in range(test_x.shape[0]):
+                    x, x_, y, y_ = coordinates[k]
+                    generated_map[x:x_, y:y_] = pred_numpy[:,:,k]
+
+            save_path = os.path.join(args.dest, 'generated_map_{}_{}.npy'.format(year, reg))
+            np.save(save_path, generated_map)
+            #########################################################################################3
+            inference_loader.dataset.clear_mem()
     pass
 
 
@@ -190,8 +194,8 @@ def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--m', '--model', dest='model_path', type=str)
-    parser.add_argument('--image', dest='image_path', type=str)
-    parser.add_argument('--save', dest='dest', type=str)
+    parser.add_argument('--d', dest='dir_path', type=str)
+    parser.add_argument('--s', dest='dest', type=str)
     parser.add_argument('--b', dest='bs', type=int)
     parser.add_argument('--cuda', dest='cuda', type=int)
     parser.add_argument('--device', dest='device', type=int)

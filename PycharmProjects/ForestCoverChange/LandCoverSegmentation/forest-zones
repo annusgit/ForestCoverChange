@@ -1,0 +1,40 @@
+
+
+Region-1: 			Forest Percentage         Not-to-use
+	1. Bannu           00.00%					  X
+	2. Charsadda	   00.10%					  X
+	3. D.I. Khan       00.57%					  X
+	4. Hangu	       06.56%
+	5. Karak           14.85%
+	6. Kohat           20.03%                           --problem in sentinel2 data generation
+	7. Lakki	       00.41%					  X
+	8. Mardan	       00.20%					  X
+	9. Nowshehra       12.20%
+	10. Peshawar       00.65%					  X
+	11. Swabi		   00.70%					  X
+	12. Tank		   00.34%					  X
+
+	
+Region-2: 			Forest Percentage
+	1. Batagram        33.28%
+	2. Abbotabad	   39.25%
+	3. Haripur         30.64%
+	4. Kohistan        37.74%
+	5. Tor Ghar        29.93%
+	6. Mansehra        31.21%
+
+	
+Region-3: 			Forest Percentage
+	1. Buner           32.84%
+	2. Chitral	   	   09.71%
+	3. Lower Dir       20.09%
+	4. Malakand        15.90%
+	5. Shangla         39.74%
+	6. Swat            24.64%
+	7. Upper Dir       21.08%
+
+
+
+
+
+

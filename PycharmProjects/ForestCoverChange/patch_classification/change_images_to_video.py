@@ -6,6 +6,8 @@ from subprocess import call
 import numpy as np
 import cv2
 import os
+from image2gif import writeGif
+from PIL import Image
 
 
 def avi_to_gif(inpath, outpath):
@@ -25,16 +27,18 @@ def convert_frames_to_video(pathIn, pathOut, fps):
     print('INFO: sort order -> {}'.format(files))
     print('converting now...')
     for i in range(len(files)):
-        filename = os.path.join(pathIn, '{}.png'.format(i+1))
+        filename = os.path.join(pathIn, '{}.png'.format(i))
         # reading each files
-        img = cv2.imread(filename)
+        img = Image.open(filename)
         if img is None:
             continue
-        height, width, layers = img.shape
-        size = (width, height)
+        # height, width, layers = img.shape
+        # size = (width, height)
         print(filename)
         # inserting the frames into an image array
         frame_array.append(img)
+
+    writeGif(pathOut, frame_array, duration=0.2)
 
     out = cv2.VideoWriter(pathOut, cv2.VideoWriter_fourcc(*'DIVX'), fps, size)
     for i in range(len(frame_array)):

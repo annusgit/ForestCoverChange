@@ -11,6 +11,7 @@ import torch
 import random
 import pickle
 import numpy as np
+import PIL.Image as Im
 np.random.seed(int(time.time()))
 random.seed(int(time.time()))
 import matplotlib.pyplot as pl
@@ -39,12 +40,19 @@ def histogram_equalize(img):
     pass
 
 
+def adaptive_resize(array, new_shape):
+    # reshape the labels to the size of the image
+    single_band = Im.fromarray(array)
+    single_band_resized = single_band.resize(new_shape, Im.NEAREST)
+    return np.asarray(single_band_resized)
+
+
 def get_images_from_large_file(bands, year, region, stride):
     # data_directory_path = '/home/annuszulfiqar/palsar_dataset_full/palsar_dataset/'
-    data_directory_path = '/home/azulfiqar_bee15seecs/all_billion_tree_regions/'
-    image_path = os.path.join(data_directory_path, '{}/landsat8_{}_region_{}.tif'.format(region, year, region))
-    label_path = os.path.join(data_directory_path, '{}/fnf_self_{}_region_{}.tif'.format(region, year, region))
-    destination_directory_path = 'all_bt_generated_dataset' #os.path.join(data_directory_path, '{}/generated_dataset/'.format(region))
+    data_directory_path = '/home/azulfiqar_bee15seecs/sentinel-2/'
+    image_path = os.path.join(data_directory_path, 'sentinel2_{}_region_{}.tif'.format(year, region))
+    label_path = os.path.join(data_directory_path, 'fnf_self_{}_region_{}.tif'.format(year, region))
+    destination_directory_path = 'sentinel2_all_bt_generated_dataset' #os.path.join(data_directory_path, '{}/generated_dataset/'.format(region))
     # destination = os.path.join(destination_directory_path, '{}'.format(year))
     destination = destination_directory_path
     if not os.path.exists(destination):
@@ -53,10 +61,14 @@ def get_images_from_large_file(bands, year, region, stride):
     print(image_path, label_path)
     # we will use this to divide those fnf images
     covermap = gdal.Open(label_path, gdal.GA_ReadOnly)
-    channel = covermap.GetRasterBand(bands[0])
-    x_size, y_size = covermap.RasterXSize, covermap.RasterYSize
+    channel = covermap.GetRasterBand(1)
+    # big_x_size, big_y_size = covermap.RasterXSize, covermap.RasterYSize
     label = channel.ReadAsArray()
     image_ds = gdal.Open(image_path, gdal.GA_ReadOnly)
+    x_size, y_size = image_ds.RasterXSize, image_ds.RasterYSize
+    # we need the difference of the two raster sizes to do the resizing
+    label = adaptive_resize(label, new_shape=(x_size, y_size))
+    # print(label.shape, (y_size, x_size))
     all_raster_bands = [image_ds.GetRasterBand(x) for x in bands]
 
     count = 0
@@ -450,46 +462,69 @@ def get_dataloaders_generated_data(generated_data_path, save_data_path, model_in
             # HV_gamma_naught = np.nan_to_num(10 * np.log10(HV ** 2 + 1e-7) - 83.0)
             # this_example_subset = np.dstack((HH_gamma_naught, HV_gamma_naught, angle))
 
-            # get more indices to add to the example
-            ndvi_band = (this_example_subset[:,:,4]-
-                         this_example_subset[:,:,3])/(this_example_subset[:,:,4]+
-                                                      this_example_subset[:,:,3]+1e-7)
-            evi_band = 2.5*(this_example_subset[:,:,4]-
-                            this_example_subset[:,:,3])/(this_example_subset[:,:,4]+
-                                                         6*this_example_subset[:,:,3]-
-                                                         7.5*this_example_subset[:,:,1]+1)
-            savi_band = 1.5*(this_example_subset[:,:,4]-
-                             this_example_subset[:,:,3])/(this_example_subset[:,:,4]+
-                                                          this_example_subset[:,:,3]+0.5)
-            msavi_band = 0.5*(2*this_example_subset[:,:,4]+1-
-                              np.sqrt((2*this_example_subset[:,:,4]+1)**2-
-                                      8*(this_example_subset[:,:,4]-
-                                         this_example_subset[:,:,3])))
-            ndmi_band = (this_example_subset[:,:,4]-
-                         this_example_subset[:,:,5])/(this_example_subset[:,:,4]+
-                                                      this_example_subset[:,:,5]+1e-7)
-            nbr_band = (this_example_subset[:,:,4]-
-                        this_example_subset[:,:,6])/(this_example_subset[:,:,4]+
-                                                     this_example_subset[:,:,6]+1e-7)
-            nbr2_band = (this_example_subset[:,:,5]-
-                         this_example_subset[:,:,6])/(this_example_subset[:,:,5]+
-                                                      this_example_subset[:,:,6]+1e-7)
+            # get more indices to add to the example, landsat-8
+            # ndvi_band = (this_example_subset[:,:,4]-
+            #              this_example_subset[:,:,3])/(this_example_subset[:,:,4]+
+            #                                           this_example_subset[:,:,3]+1e-7)
+            # evi_band = 2.5*(this_example_subset[:,:,4]-
+            #                 this_example_subset[:,:,3])/(this_example_subset[:,:,4]+
+            #                                              6*this_example_subset[:,:,3]-
+            #                                              7.5*this_example_subset[:,:,1]+1)
+            # savi_band = 1.5*(this_example_subset[:,:,4]-
+            #                  this_example_subset[:,:,3])/(this_example_subset[:,:,4]+
+            #                                               this_example_subset[:,:,3]+0.5)
+            # msavi_band = 0.5*(2*this_example_subset[:,:,4]+1-
+            #                   np.sqrt((2*this_example_subset[:,:,4]+1)**2-
+            #                           8*(this_example_subset[:,:,4]-
+            #                              this_example_subset[:,:,3])))
+            # ndmi_band = (this_example_subset[:,:,4]-
+            #              this_example_subset[:,:,5])/(this_example_subset[:,:,4]+
+            #                                           this_example_subset[:,:,5]+1e-7)
+            # nbr_band = (this_example_subset[:,:,4]-
+            #             this_example_subset[:,:,6])/(this_example_subset[:,:,4]+
+            #                                          this_example_subset[:,:,6]+1e-7)
+            # nbr2_band = (this_example_subset[:,:,5]-
+            #              this_example_subset[:,:,6])/(this_example_subset[:,:,5]+
+            #                                           this_example_subset[:,:,6]+1e-7)
+
+            # get more indices to add to the example, landsat-8
+            ndvi_band = (this_example_subset[:,:,7] -
+                         this_example_subset[:,:,3])/(this_example_subset[:,:,7] +
+                                                        this_example_subset[:,:,3] + 1e-7)
+            evi_band = 2.5 * (this_example_subset[:,:,7] -
+                              this_example_subset[:,:,3]) / ((this_example_subset[:,:,7] +
+                                                          6.0 * this_example_subset[:,:,3] -
+                                                          7.5 * this_example_subset[:,:,1]) + 1.0 + 1e-7)
+            savi_band = (this_example_subset[:,:,7] -
+                         this_example_subset[:,:,3]) / (this_example_subset[:,:,7] +
+                                                    this_example_subset[:,:,3] + 0.428 + 1e-7) * (1.0 + 0.428)
+            msavi_band = None
+            ndmi_band = (this_example_subset[:,:,7] -
+                          this_example_subset[:,:,10]) / (this_example_subset[:,:,7] +
+                                                      this_example_subset[:,:,10] + 1e-7)
+            nbr_band = (this_example_subset[:,:,7] -
+                          this_example_subset[:,:,11]) / (this_example_subset[:,:,7] +
+                                                      this_example_subset[:,:,11] + 1e-7)
+            nbr2_band = None
+
+            # print(this_example_subset.shape, ndvi_band.shape, evi_band.shape,
+            #       savi_band.shape, ndmi_band.shape, nbr_band.shape)
 
             ndvi_band = np.nan_to_num(ndvi_band)
             evi_band = np.nan_to_num(evi_band)
             savi_band = np.nan_to_num(savi_band)
-            msavi_band = np.nan_to_num(msavi_band)
+            # msavi_band = np.nan_to_num(msavi_band)
             ndmi_band = np.nan_to_num(ndmi_band)
             nbr_band = np.nan_to_num(nbr_band)
-            nbr2_band = np.nan_to_num(nbr2_band)
+            # nbr2_band = np.nan_to_num(nbr2_band)
 
             this_example_subset = np.dstack((this_example_subset, ndvi_band))
             this_example_subset = np.dstack((this_example_subset, evi_band))
             this_example_subset = np.dstack((this_example_subset, savi_band))
-            this_example_subset = np.dstack((this_example_subset, msavi_band))
+            # this_example_subset = np.dstack((this_example_subset, msavi_band))
             this_example_subset = np.dstack((this_example_subset, ndmi_band))
             this_example_subset = np.dstack((this_example_subset, nbr_band))
-            this_example_subset = np.dstack((this_example_subset, nbr2_band))
+            # this_example_subset = np.dstack((this_example_subset, nbr2_band))
             # # re-scale
             this_example_subset = this_example_subset / 1000
 
@@ -670,7 +705,7 @@ if __name__ == '__main__':
 
     # check_generated_fnf_datapickle('/home/annus/Desktop/1_12.pkl')
 
-    get_images_from_large_file(bands=range(1, 12),
+    get_images_from_large_file(bands=range(1,13),
                                year=sys.argv[1],
                                region=sys.argv[2],
                                stride=256)
@@ -696,7 +731,7 @@ if __name__ == '__main__':
     #                 block_size=1500, model_input_size=500, batch_size=16)
     pass
 
-
+# It's time to sync this ship!
 
 
 
