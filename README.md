@@ -1,12 +1,22 @@
 # AI-ForestWatch
-The aim of this project is to use Landsat-8 imagery to perform forest cover change detection in the Billion Tree Tsunami Afforestation Regions in Pakistan. We do binary land cover segmentation of an image into forest/non-forest classes for our Areas of Interest (AOI), then repeat the same for a whole 7-year temporal series of images from 2014 to 2020 and lastly, compare them to see what forestation changes occured in selected areas. The selected image below shows our results for Battagram district, where read pixels are non-forest labels, green pixels are forest and the last image shows overall gain/loss map from 2014 to 2020.
+The aim of this project is to use Landsat-8 imagery to perform forest cover change detection in the Billion Tree Tsunami Afforestation Regions in Pakistan. We do binary land cover segmentation of an image into forest/non-forest classes for our Areas of Interest (AOI), then repeat the same for a whole 7-year temporal series of images from 2014 to 2020 and lastly, compare them to see what forestation changes occured in selected areas. The selected image below shows our results for Battagram district from 2014 to 2020, where red pixels are non-forest labels, green pixels are forest labels and the last image shows overall gain/loss map from 2014 to 2020.
 
 <p align='center'>
-    <!-- <img src='http://informationcommunicationtechnology.com/wp-content/uploads/2018/06/Forest-Wallpaper.jpg' width="800" height="500"/> -->
     <img src='results/final-battagram-change.png' width="600" height="600"/>
 </p>
 
-Our paper contains much more detailed explanation of our methodology, dataset retrieval and preparation, Machine Learning application, model design and band combinations used in our experiments. PDF of the paper is available as `jars-spie-accepted-work.pdf` in the repository and it may be accessed online at https://www.spiedigitallibrary.org/journals/journal-of-applied-remote-sensing/volume-15/issue-02/024518/AI-ForestWatch--semantic-segmentation-based-end-to-end-framework/10.1117/1.JRS.15.024518.full
+Our paper contains much more detailed explanation of our methodology, dataset retrieval and preparation, Machine Learning application, model design and band combinations used in our experiments. PDF of the paper is available as `jars-spie-accepted-work.pdf` in the main repository and it may be accessed [online](https://www.spiedigitallibrary.org/journals/journal-of-applied-remote-sensing/volume-15/issue-02/024518/AI-ForestWatch--semantic-segmentation-based-end-to-end-framework/10.1117/1.JRS.15.024518.full) at JARS website.
+
+
+## Results
+We analyse the following labelled regions in Pakistan from 2014 to 2020.
+<p align='center'>
+    <img src='results/final-regions.png' width="600" height="600"/>
+</p>
+Essentially, we extract a per-pixel median image representative of a full year for every given region from Landsat-8. This is done in order to minimize effect of clouds and other weather sensitivities in the results. Google Earth Engine was heavily utilized for the retrieval and preprocessing of data. The pipeline including the preprocessing and there onwards is summarized in the following diagram.
+<p align='center'>
+    <img src='results/final-pipeline.png' width="600" height="600"/>
+</p>
 
 ## Getting Started
 
@@ -21,60 +31,6 @@ You will need the following modules to get the code running
 * [torchviz](https://github.com/szagoruyko/pytorchviz)
 * [gdal](https://pypi.org/project/GDAL/)
 * [imgaug](https://github.com/aleju/imgaug)
-
-
-## Results
-
-### Image Segmentation on ISPRS data set using UNet architecture.
-**Unet Architecture** 
-<p align='center'> 
-    <img src="results/unet-architecture.png">
-</p>
-
-**[Vaihingen Dataset](http://www2.isprs.org/commissions/comm3/wg4/semantic-labeling.html) Segmentation after downsampling**
-<p align='center'> 
-    <img src="results/downsampled_seg_result.png">
-</p>
-
-### Patch-wise classification of Sentinel-2 Satellite Images.
-We used the [Eurosat](https://arxiv.org/pdf/1709.00029.pdf) data set and a two variants of VGG architecture for classifying 64*64 patches of image.
-Here are the two confusion matrices, the left one is with 3 channels (96.38% acc. on the test set) and the right one is for 5 channels (98.05% acc. on the test set) at the input of the VGG.
-<p align="center"> 
-    <img src="results/vgg-3.png" width="400" height="400"/>
-    <img src="results/vgg-5.png" width="400" height="400"/>
-</p>
-
-* The following images show our results one different landscapes. It should be noted that these images were not a part of the training or test set. They were downloaded separately from [scihub](https://scihub.copernicus.eu) and [earthexplorer](http://earthexplorer.usgs.gov) for inference.  
-
-**`Change Detection on a series of Sentinel Images from German Landscapes (2016-2018)`**
-<p align='center'> 
-    <img src="results/10_10.gif"/>
-    <img src="results/20_20.gif"/>
-</p>
-
-**`Same result but color coded in full resolution`**
-<p align='center'> 
-    <img src="results/rgb_color_coded_segmentation/seg.gif"/>
-</p>
-
-
-- **Germany**
-<p align="center"> 
-    <img src="results/german_patchwise_1.png"/>
-    <img src="results/german_patchwise_2.png"/>
-</p>
-
-- **Pakistan (Peshawar Region)**
-<p align="center"> 
-    <img src="results/peshawar_patchwise_1.png"/>
-    <img src="results/peshawar_patchwise_2.png"/>
-</p>
-
-- **Pakistan (Muzaffarabad Region)**
-<p align="center"> 
-    <img src="results/muzaffarabad_patchwise_1.png"/>
-    <img src="results/muzaffarabad_patchwise_2.png"/>
-</p>
 
 # Usage
 ## Inference on custom sentinel images downloaded from [Sentinel](https://scihub.copernicus.eu/) or EarthExplorer.
