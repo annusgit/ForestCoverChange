@@ -1,10 +1,12 @@
 # AI-ForestWatch
+The aim of this project is to use Landsat-8 imagery to perform forest cover change detection in the Billion Tree Tsunami Afforestation Regions in Pakistan. We do binary land cover segmentation of an image into forest/non-forest classes for our Areas of Interest (AOI), then repeat the same for a whole 7-year temporal series of images from 2014 to 2020 and lastly, compare them to see what forestation changes occured in selected areas. The selected image below shows our results for Battagram district, where read pixels are non-forest labels, green pixels are forest and the last image shows overall gain/loss map from 2014 to 2020.
+
 <p align='center'>
     <!-- <img src='http://informationcommunicationtechnology.com/wp-content/uploads/2018/06/Forest-Wallpaper.jpg' width="800" height="500"/> -->
     <img src='results/final-battagram-change.png' width="600" height="600"/>
 </p>
 
-The aim of this project is to use Sentinel and Landsat imagery in order to perform forest cover change detection in Pakistan. The first step is to segment an image from our AOI and then do the same for a whole temporal series of images and finally compare them to see what changes occured in forest areas. We also intend to predict forestation change trend in Pakistan.                                                                                      
+Our paper contains much more detailed explanation of our methodology, dataset retrieval and preparation, Machine Learning application, model design and band combinations used in our experiments. PDF of the paper is available as `jars-spie-accepted-work.pdf` in the repository and it may be accessed online at https://www.spiedigitallibrary.org/journals/journal-of-applied-remote-sensing/volume-15/issue-02/024518/AI-ForestWatch--semantic-segmentation-based-end-to-end-framework/10.1117/1.JRS.15.024518.full
 
 ## Getting Started
 
