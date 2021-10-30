@@ -15,7 +15,7 @@ from skimage.measure import block_reduce
 import scipy.ndimage as nd
 
 
-all_labels = {
+German_labels = {
             'Annual\nCrop'           : 0,
             'Forest'                 : 1,
             'Herbaceous\nVegetation' : 2,
@@ -28,7 +28,15 @@ all_labels = {
             'SeaLake'                : 9
             }
 
-all_labels_inverted = {v:k for k,v in all_labels.iteritems()}
+Pakistani_labels = {
+                    'forest': 0,
+                    'residential': 1,
+                    'pastures': 2,
+                    'vegetation': 3,
+                    'plainland': 4,
+                    'snow': 5
+                   }
+
 
 def plot_separately():
     input_image = pl.imread(sys.argv[1])
@@ -55,11 +63,11 @@ possible_colors = [(127,255,212),
                    (135,206,250)]
 color_bank = {l:c for l,c in zip(range(10), possible_colors)}
 
-def convert_to_colors(image_arr, flag=None):
+def convert_to_colors(image_arr, label, flag=None):
     # just forests?
     new_image = np.zeros(shape=(image_arr.shape[0], image_arr.shape[1], 3))
     if flag == 'forest':
-        new_image[image_arr == 1] = color_bank[1]
+        new_image[image_arr == label] = color_bank[1]
         return new_image.astype(np.uint8)
     # or all of the labels?
     unique = np.unique(image_arr)
@@ -94,8 +102,8 @@ def overlayed_output():
     pass
 
 
-def overlay_with_grid(image_path, pred_path, image_save_path, downsampled_image_save_path,
-                      label_save_path, shape, show=False):
+def overlay_with_grid(image_path, pred_path, data_type, image_save_path, downsampled_image_save_path,
+                      label_save_path, shape, show=False, type='germany'):
     # use one of the following based on the size of the image; if image is huge, go with the first one!
     ##########################################################################
     (H, W, C) = shape
@@ -106,6 +114,11 @@ def overlay_with_grid(image_path, pred_path, image_save_path, downsampled_image_
     x_end = x_start + 64 * 10
     y_end = y_start + 64 * 10
     image = full_image.copy()[y_start:y_end,x_start:x_end,:]
+    if type == 'pakistan':
+        all_labels = Pakistani_labels
+    elif type == 'germany':
+        all_labels = German_labels
+    all_labels_inverted = {v: k for k, v in all_labels.iteritems()}
     # ex_array = []
     # for t in range(4, -1, -1):
     #     temp = np.expand_dims(image[:, :, t], 2)
@@ -168,13 +181,18 @@ def overlay_with_grid(image_path, pred_path, image_save_path, downsampled_image_
     # Save the figure
     fig.savefig(image_save_path, dpi=my_dpi)
 
+    forest_label = 0 #if data_type == 'pakistan' else 1
+    # print('data type = ', data_type)
     ############ we will save downsampled images to show how it relates to pixel-wise results ##########
     # save colored label as well
     # 1. reduce 64*64 blocks, 2. apply filter to remove segmentation noise, 3. convert labels to colors
     colored_labels = block_reduce(full_label, block_size=(64,64), func=np.max)
     # colored_labels = cv2.medianBlur(colored_labels, ksize=3)
-    filtered_forest = colored_labels[colored_labels == 1].sum()/colored_labels.reshape(-1).shape[0]*100
-    colored_labels = convert_to_colors(colored_labels, flag='forest')
+    # print(forest_label)
+    # print(colored_labels)
+    filtered_forest = colored_labels[colored_labels == forest_label].sum()/colored_labels.reshape(-1).shape[0]*100
+    print('forest count = ', colored_labels[colored_labels == 0].sum())
+    colored_labels = convert_to_colors(colored_labels, forest_label, flag='forest')
     # print(set( tuple(v) for m2d in colored_labels for v in m2d )) # if you want to check unique colors
     pl.imsave(label_save_path, colored_labels)
     # downsample and save input image

@@ -93,7 +93,7 @@ def restore_model(model_name, channels, model_path, device):
     return net
 
 
-def batch_wise_inference(model, image_path, batch_size, device, number, count, total):
+def batch_wise_inference(model, data_type, image_path, batch_size, device, number, count, total):
     inference_loader, (H,W,C) = get_inference_loader(image_path=image_path, batch_size=batch_size)
     # test_image = np.zeros(shape=(H,W,C)) # for saving the image
     # image_pred = np.zeros(shape=(H,W))
@@ -109,6 +109,7 @@ def batch_wise_inference(model, image_path, batch_size, device, number, count, t
     # this is a much better approach, batch wise inference...
     # also calculate the forest % in each image
     forest_count = 0
+    forest_label = 0 if data_type == 'pakistan' else 1
     for idx, data in enumerate(inference_loader, 1):
         log_str = 'log: image ({}/{})'.format(count, total)+'-'*int(idx/len(inference_loader)*50)+\
                   '> batch ({}/{})'.format(idx, len(inference_loader))
@@ -119,7 +120,7 @@ def batch_wise_inference(model, image_path, batch_size, device, number, count, t
         test_x.to(device=device)
         out_x, pred = model(test_x)
         pred = pred.numpy().astype(np.int)
-        forest_count += (pred == 1).sum().item()   # manually insert the label of forests
+        forest_count += (pred == forest_label).sum().item()   # manually insert the label of forests
         test_x = (test_x.numpy()).transpose(0, 2, 3, 1)
         # print(test_x.max())
         # test_x = (test_x*255).astype(np.uint8)
@@ -146,7 +147,7 @@ if __name__ == '__main__':
     print(batch_wise_inference(model=restore_model(model_path='/home/annus/PycharmProjects/'
                                                               'ForestCoverChange_inputs_and_numerical_results/'
                                                               'patch_wise/trained_resnet_cpu.pth', device='cpu'),
-                               image_path='test.pkl', batch_size=20,
+                               type='germany', image_path='test.pkl', batch_size=20,
                                device='cpu', number='tmp',
                                count=1, total=1))
 

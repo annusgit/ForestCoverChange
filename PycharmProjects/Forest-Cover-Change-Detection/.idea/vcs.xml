@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project version="4">
-  <component name="VcsDirectoryMappings">
-    <mapping directory="$PROJECT_DIR$/HamlinBeachStatePark/unet/someones-unet-pytorch" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/utilities/other_utils/HamlinBeachStatePark/unet/unet-pytorch" vcs="Git" />
-  </component>
-</project>

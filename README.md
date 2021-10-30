@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-# VanillaGan
-This is a simple and easy to understand implementation of a vanilla generative adversarial neural network in pytorch
-=======
 # Forest Cover Change Detection and Prediction over Pakistani Areas
 <p align='center'>
     <!-- <img src='http://informationcommunicationtechnology.com/wp-content/uploads/2018/06/Forest-Wallpaper.jpg' width="800" height="500"/> -->
@@ -113,4 +109,3 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE) f
 
 
 
->>>>>>> 1956f1cb9747448a5e4343868a75f4e9002e0dc9

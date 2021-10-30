@@ -1,5 +1,3 @@
-
-
 # uses the full pipeline functions from patch_classification
 # and does end-to-end detection using just the images as the input
 
@@ -43,20 +41,23 @@ def do(args):
         # saves the image as pkl temporarily
         png_to_pickle(image_file=full_path, pkl_file='tmp.pkl', bands=args.bands)
         # this function returns shape of our used image and raw forest percentage
-        (H, W, C), forest_percentage = batch_wise_inference(model=model, image_path='tmp.pkl',
+        (H, W, C), forest_percentage = batch_wise_inference(model=model, data_type=args.data_type,
+                                                            image_path='tmp.pkl',
                                                             batch_size=20, device=args.device,
                                                             number='tmp', count=count,
                                                             total=len(images_list))
         # and this returns a refined value of forestation
         filtered_forest_percentage = overlay_with_grid(image_path='test_image_tmp.npy',
                                                        pred_path='image_pred_tmp.npy',
+                                                       data_type=args.data_type,
                                                        image_save_path=os.path.join(image_save,
                                                                                     '{}.png'.format(count)),
                                                        downsampled_image_save_path=os.path.join(down_image_save,
                                                                                     '{}.png'.format(count)),
                                                        label_save_path=os.path.join(label_save,
                                                                                     '{}.png'.format(count)),
-                                                       shape=(H,W,C if C == 3 else 3))
+                                                       shape=(H,W,C if C == 3 else 3),
+                                                       type=args.data_type)
         print('\nINFO: {}% Forestation Found.'.format(filtered_forest_percentage))
         forestation.append(filtered_forest_percentage) # forest_percentage
     print(image_save, os.path.join(image_save, 'out.avi'))
@@ -67,8 +68,7 @@ def do(args):
     # call(convert_avi_to_gif, shell=True)
     # call(convert_avi_to_gif, shell=True)
     avi_to_gif(inpath=os.path.join(image_save, 'out.avi'), outpath=os.path.join(image_save, 'out.gif'))
-    avi_to_gif(inpath=os.path.join(down_image_save, 'out.avi'), outpath=os.path.join(down_image_save, 
-    																				'out.gif'))
+    avi_to_gif(inpath=os.path.join(down_image_save, 'out.avi'), outpath=os.path.join(down_image_save, 'out.gif'))
     avi_to_gif(inpath=os.path.join(image_save, 'out.avi'), outpath=os.path.join(label_save, 'out.gif'))
     # make a graph of the forestation change
     print(forestation)
@@ -92,6 +92,7 @@ def do(args):
 def main():
     args = ap.ArgumentParser()
     args.add_argument('--images', dest='images_path')
+    args.add_argument('--data', dest='data_type')
     args.add_argument('--model_type', dest='model_name')
     args.add_argument('--channels', type=int, dest='channels')
     args.add_argument('--trained_model', dest='model_path')

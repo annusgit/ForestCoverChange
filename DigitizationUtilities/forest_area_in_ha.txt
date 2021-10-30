@@ -1,0 +1,85 @@
+abbottabad: Forest Percentage: 35.52% (vs 39.25%)
+abbottabad: Land Area: 212315 ha
+abbottabad: Forest Area: 75419 ha (vs 70553 ha)
+abbottabad -> Shapes: (2061, 2075) & (2061, 2075)
+----------------------------------------------------------------------------------------------
+battagram: Forest Percentage: 29.76% (vs 33.28%)
+battagram: Land Area: 164873 ha
+battagram: Forest Area: 49073 ha (vs 48957 ha)
+battagram -> Shapes: (1517, 2356) & (1517, 2356)
+----------------------------------------------------------------------------------------------
+buner: Forest Percentage: 30.33% (vs 32.84%)
+buner: Land Area: 210294 ha
+buner: Forest Area: 63782 ha (vs 55887 ha)
+buner -> Shapes: (2066, 2113) & (2066, 2113)
+----------------------------------------------------------------------------------------------
+chitral: Forest Percentage: 33.43% (vs 9.71%)
+chitral: Land Area: 418060 ha
+chitral: Forest Area: 139750 ha (vs 144416 ha)
+chitral -> Shapes: (3074, 1998) & (3074, 1998)
+----------------------------------------------------------------------------------------------
+hangu: Forest Percentage: 4.39% (vs 6.56%)
+hangu: Land Area: 165718 ha
+hangu: Forest Area: 7266 ha (vs 8985 ha)
+hangu -> Shapes: (1468, 2705) & (1468, 2705)
+----------------------------------------------------------------------------------------------
+haripur: Forest Percentage: 26.06% (vs 30.64%)
+haripur: Land Area: 230364 ha
+haripur: Forest Area: 60022 ha (vs 55043 ha)
+haripur -> Shapes: (2360, 2496) & (2360, 2496)
+----------------------------------------------------------------------------------------------
+karak: Forest Percentage: 14.60% (vs 14.85%)
+karak: Land Area: 312142 ha
+karak: Forest Area: 45560 ha (vs 39263 ha)
+karak -> Shapes: (2137, 2672) & (2137, 2672)
+----------------------------------------------------------------------------------------------
+kohat: Forest Percentage: 15.31% (vs 20.03%)
+kohat: Land Area: 357197 ha
+kohat: Forest Area: 54704 ha (vs 59670 ha)
+kohat -> Shapes: (2553, 3553) & (2553, 3553)
+----------------------------------------------------------------------------------------------
+kohistan: Forest Percentage: 32.25% (vs 37.74%)
+kohistan: Land Area: 936753 ha
+kohistan: Forest Area: 302106 ha (vs 286421 ha)
+kohistan -> Shapes: (3672, 4723) & (3672, 4723)
+----------------------------------------------------------------------------------------------
+lower_dir: Forest Percentage: 16.49% (vs 20.09%)
+lower_dir: Land Area: 194215 ha
+lower_dir: Forest Area: 32034 ha (vs 33371 ha)
+lower_dir -> Shapes: (1668, 2533) & (1668, 2533)
+----------------------------------------------------------------------------------------------
+malakand: Forest Percentage: 15.20% (vs 15.90%)
+malakand: Land Area: 114120 ha
+malakand: Forest Area: 17341 ha (vs 14925 ha)
+malakand -> Shapes: (1114, 2200) & (1114, 2200)
+----------------------------------------------------------------------------------------------
+mansehra: Forest Percentage: 25.78% (vs 31.21%)
+mansehra: Land Area: 519501 ha
+mansehra: Forest Area: 133904 ha (vs 129647 ha)
+mansehra -> Shapes: (3602, 4880) & (3602, 4880)
+----------------------------------------------------------------------------------------------
+nowshehra: Forest Percentage: 12.79% (vs 12.20%)
+nowshehra: Land Area: 208910 ha
+nowshehra: Forest Area: 26718 ha (vs 22207 ha)
+nowshehra -> Shapes: (1663, 2042) & (1663, 2042)
+----------------------------------------------------------------------------------------------
+shangla: Forest Percentage: 37.54% (vs 39.74%)
+shangla: Land Area: 168995 ha
+shangla: Forest Area: 63432 ha (vs 56345 ha)
+shangla -> Shapes: (2332, 1773) & (2332, 1773)
+----------------------------------------------------------------------------------------------
+swat: Forest Percentage: 22.27% (vs 24.64%)
+swat: Land Area: 655882 ha
+swat: Forest Area: 146055 ha (vs 132538 ha)
+swat -> Shapes: (4945, 2618) & (4945, 2618)
+----------------------------------------------------------------------------------------------
+tor_ghar: Forest Percentage: 26.86% (vs 29.93%)
+tor_ghar: Land Area: 56403 ha
+tor_ghar: Forest Area: 15148 ha (vs 13590 ha)
+tor_ghar -> Shapes: (1654, 829) & (1654, 829)
+----------------------------------------------------------------------------------------------
+upper_dir: Forest Percentage: 45.86% (vs 21.08%)
+upper_dir: Land Area: 457839 ha
+upper_dir: Forest Area: 209969 ha (vs 186935 ha)
+upper_dir -> Shapes: (3552, 3124) & (3552, 3124)
+----------------------------------------------------------------------------------------------
