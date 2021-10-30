@@ -9,7 +9,9 @@ The aim of this project is to use Landsat-8 imagery to perform forest cover chan
 Our paper contains much more detailed explanation of our methodology, dataset retrieval and preparation, Machine Learning application, model design and band combinations used in our experiments. PDF of the paper is available as `jars-spie-accepted-work.pdf` in the main repository and it may be accessed [online](https://www.spiedigitallibrary.org/journals/journal-of-applied-remote-sensing/volume-15/issue-02/024518/AI-ForestWatch--semantic-segmentation-based-end-to-end-framework/10.1117/1.JRS.15.024518.full) at JARS website.
 
 If you decide to use this work or any proposed ideas in your research, kindly cite our work using the following format:
-`Zulfiqar, A., Ghaffar, M. M., Shahzad, M., Weis, C., Malik, M. I., Shafait, F., & Wehn, N. (2021). AI-ForestWatch: semantic segmentation based end-to-end framework for forest estimation and change detection using multi-spectral remote sensing imagery. Journal of Applied Remote Sensing, 15(2), 024518.`
+```
+Zulfiqar, A., Ghaffar, M. M., Shahzad, M., Weis, C., Malik, M. I., Shafait, F., & Wehn, N. (2021). AI-ForestWatch: semantic segmentation based end-to-end framework for forest estimation and change detection using multi-spectral remote sensing imagery. Journal of Applied Remote Sensing, 15(2), 024518.
+```
 
 
 
